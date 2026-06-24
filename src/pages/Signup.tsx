@@ -1,0 +1,93 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../lib/auth";
+import { Button, ErrorText, Input } from "../components/ui";
+
+export function Signup() {
+  const { signUp } = useAuth();
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setNotice(null);
+    if (displayName.trim().length < 2) {
+      setError("Pick a display name (at least 2 characters).");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    setBusy(true);
+    const { error, needsConfirmation } = await signUp(
+      email,
+      password,
+      displayName,
+    );
+    setBusy(false);
+    if (error) {
+      setError(error);
+      return;
+    }
+    if (needsConfirmation) {
+      setNotice(
+        "Account created. Check your inbox to confirm your email, then log in.",
+      );
+    }
+    // Otherwise auth state flips and the router redirects to gym selection.
+  }
+
+  return (
+    <div className="mx-auto flex h-full max-w-app flex-col justify-center border-x border-border bg-bg px-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-chalk">Create account</h1>
+        <p className="mt-2 text-muted">
+          Start logging sends and grading routes.
+        </p>
+      </div>
+
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <Input
+          label="Display name"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Chalk Hands"
+        />
+        <Input
+          label="Email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+        />
+        <Input
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="At least 6 characters"
+        />
+        <ErrorText>{error}</ErrorText>
+        {notice ? <p className="ml-1 text-sm text-accent">{notice}</p> : null}
+        <Button type="submit" loading={busy}>
+          Sign up
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-muted">
+        Already have an account?{" "}
+        <Link to="/login" className="font-semibold text-accent">
+          Log in
+        </Link>
+      </p>
+    </div>
+  );
+}

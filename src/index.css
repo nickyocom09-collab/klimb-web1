@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Dark theme (default). Values are space-separated RGB triplets so Tailwind
+     opacity utilities like bg-bg/80 keep working. */
+  :root,
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --c-bg: 10 10 11;
+    --c-surface: 22 22 24;
+    --c-surface-2: 31 31 35;
+    --c-border: 42 42 48;
+    --c-chalk: 245 245 242;
+    --c-muted: 154 154 162;
+    --c-faint: 107 107 115;
+    --c-accent: 57 255 136;
+    --c-accent-dim: 31 184 98;
+    --c-wide: 255 159 69;
+  }
+
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --c-bg: 255 255 255;
+    --c-surface: 244 244 245;
+    --c-surface-2: 233 233 236;
+    --c-border: 212 212 216;
+    --c-chalk: 24 24 27;
+    --c-muted: 82 82 91;
+    --c-faint: 138 138 147;
+    --c-accent: 13 153 79;
+    --c-accent-dim: 9 120 61;
+    --c-wide: 200 70 10;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: rgb(var(--c-bg));
+    color: rgb(var(--c-chalk));
+    font-family: theme("fontFamily.sans");
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+  ::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+  }
+}
