@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Home, MapPin, Plus, Search } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Home,
+  MapPin,
+  Plus,
+  Search,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { AppHeader } from "../components/Layout";
 import { Button, CenterSpinner, Spinner } from "../components/ui";
+import { US_STATES, STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 
 export function Gyms() {
@@ -15,6 +24,8 @@ export function Gyms() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  // Which state's gyms are open. null = showing the list of all states.
+  const [openState, setOpenState] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -56,38 +67,89 @@ export function Gyms() {
     navigate("/");
   }
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return gyms;
+  const q = query.trim().toLowerCase();
+  const searchResults = useMemo(() => {
+    if (!q) return [];
     return gyms.filter((g) =>
       [g.name, g.city, g.state, g.brand]
         .filter(Boolean)
         .some((field) => field!.toLowerCase().includes(q)),
     );
-  }, [gyms, query]);
+  }, [gyms, q]);
 
-  const stateNames: Record<string, string> = {
-    AR: "Arkansas",
-    OK: "Oklahoma",
-    MO: "Missouri",
-    KS: "Kansas",
-    TN: "Tennessee",
-  };
-  const groups = useMemo(() => {
-    const map = filtered.reduce<Record<string, GymRow[]>>((acc, g) => {
-      const key = g.state?.trim() || "Other";
-      (acc[key] ??= []).push(g);
-      return acc;
-    }, {});
-    const states = Object.keys(map).sort((a, b) =>
-      (stateNames[a] ?? a).localeCompare(stateNames[b] ?? b),
+  const stateCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const g of gyms) {
+      const k = g.state?.trim();
+      if (k) m[k] = (m[k] ?? 0) + 1;
+    }
+    return m;
+  }, [gyms]);
+
+  const stateGyms = useMemo(
+    () => (openState ? gyms.filter((g) => g.state?.trim() === openState) : []),
+    [gyms, openState],
+  );
+
+  function renderGym(gym: GymRow) {
+    const home = gym.id === profile?.home_gym_id;
+    const count = counts.get(gym.id) ?? 0;
+    return (
+      <li key={gym.id}>
+        <button
+          onClick={() => setHome(gym)}
+          className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
+            home
+              ? "border-accent bg-surface-2"
+              : "border-border bg-surface hover:border-faint"
+          }`}
+        >
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 font-semibold text-chalk">
+              <span className="truncate">{gym.name}</span>
+              {home ? (
+                <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+                  <Home size={10} /> Home
+                </span>
+              ) : null}
+            </p>
+            {gym.city || gym.state ? (
+              <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
+                <MapPin size={13} />
+                {[gym.city, gym.state].filter(Boolean).join(", ")}
+              </p>
+            ) : null}
+            <p className="mt-0.5 text-xs text-faint">
+              {count} active {count === 1 ? "route" : "routes"}
+            </p>
+          </div>
+          {saving === gym.id ? (
+            <Spinner className="text-accent" />
+          ) : home ? (
+            <Check size={20} className="shrink-0 text-accent" />
+          ) : null}
+        </button>
+      </li>
     );
-    return { map, states };
-  }, [filtered]);
+  }
 
   return (
     <div>
-      <AppHeader title="Gyms" subtitle="Browse & switch" />
+      <AppHeader
+        title={openState ? STATE_NAME[openState] ?? openState : "Gyms"}
+        subtitle={openState ? "Browse & switch" : "Pick a state"}
+        right={
+          openState ? (
+            <button
+              onClick={() => setOpenState(null)}
+              aria-label="Back to states"
+              className="rounded-full p-1 text-muted transition hover:text-chalk"
+            >
+              <ChevronLeft size={24} />
+            </button>
+          ) : undefined
+        }
+      />
 
       <div className="px-5 py-3">
         <div className="relative">
@@ -106,61 +168,50 @@ export function Gyms() {
 
       {loading ? (
         <CenterSpinner />
-      ) : filtered.length === 0 ? (
-        <p className="mt-8 px-5 text-center text-faint">No gyms found.</p>
+      ) : q ? (
+        searchResults.length === 0 ? (
+          <p className="mt-8 px-5 text-center text-faint">No gyms found.</p>
+        ) : (
+          <ul className="flex flex-col gap-2 px-5">
+            {searchResults.map(renderGym)}
+          </ul>
+        )
+      ) : openState ? (
+        stateGyms.length === 0 ? (
+          <p className="mt-8 px-5 text-center text-faint">
+            No gyms here yet.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2 px-5">
+            {stateGyms.map(renderGym)}
+          </ul>
+        )
       ) : (
-        <div className="flex flex-col gap-6 px-5">
-          {groups.states.map((state) => (
-            <section key={state}>
-              <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-faint">
-                {stateNames[state] ?? state}
-              </h2>
-              <ul className="flex flex-col gap-2">
-                {groups.map[state].map((gym) => {
-                  const home = gym.id === profile?.home_gym_id;
-                  const count = counts.get(gym.id) ?? 0;
-                  return (
-                    <li key={gym.id}>
-                      <button
-                        onClick={() => setHome(gym)}
-                        className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
-                          home
-                            ? "border-accent bg-surface-2"
-                            : "border-border bg-surface hover:border-faint"
-                        }`}
-                      >
-                        <div className="min-w-0">
-                          <p className="flex items-center gap-2 font-semibold text-chalk">
-                            <span className="truncate">{gym.name}</span>
-                            {home ? (
-                              <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-                                <Home size={10} /> Home
-                              </span>
-                            ) : null}
-                          </p>
-                          {gym.city || gym.state ? (
-                            <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
-                              <MapPin size={13} />
-                              {[gym.city, gym.state].filter(Boolean).join(", ")}
-                            </p>
-                          ) : null}
-                          <p className="mt-0.5 text-xs text-faint">
-                            {count} active {count === 1 ? "route" : "routes"}
-                          </p>
-                        </div>
-                        {saving === gym.id ? (
-                          <Spinner className="text-accent" />
-                        ) : home ? (
-                          <Check size={20} className="shrink-0 text-accent" />
-                        ) : null}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <ul className="flex flex-col gap-2 px-5">
+          {US_STATES.map((s) => {
+            const n = stateCounts[s.code] ?? 0;
+            return (
+              <li key={s.code}>
+                <button
+                  onClick={() => setOpenState(s.code)}
+                  className="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left transition hover:border-faint"
+                >
+                  <span className="font-semibold text-chalk">{s.name}</span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-semibold ${
+                        n > 0 ? "text-accent" : "text-faint"
+                      }`}
+                    >
+                      {n > 0 ? `${n} ${n === 1 ? "gym" : "gyms"}` : "—"}
+                    </span>
+                    <ChevronRight size={18} className="text-faint" />
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       <div className="p-5">

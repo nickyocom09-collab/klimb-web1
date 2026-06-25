@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner, Input } from "../components/ui";
+import { US_STATES, STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 
 type Step = "welcome" | "name" | "gym" | "how";
@@ -29,6 +30,8 @@ export function Onboarding() {
   const [query, setQuery] = useState("");
   const [gymsLoading, setGymsLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
+  // Which state's gyms are open. null = showing the list of all states.
+  const [openState, setOpenState] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -47,39 +50,65 @@ export function Onboarding() {
     };
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return gyms;
+  const q = query.trim().toLowerCase();
+  const searchResults = useMemo(() => {
+    if (!q) return [];
     return gyms.filter((g) =>
       [g.name, g.city, g.state, g.brand]
         .filter(Boolean)
         .some((f) => f!.toLowerCase().includes(q)),
     );
-  }, [gyms, query]);
+  }, [gyms, q]);
 
-  const stateNames: Record<string, string> = {
-    AR: "Arkansas",
-    OK: "Oklahoma",
-    MO: "Missouri",
-    KS: "Kansas",
-    TN: "Tennessee",
-  };
-  const grouped = useMemo(() => {
-    const map = filtered.reduce<Record<string, GymRow[]>>((acc, g) => {
-      const key = g.state?.trim() || "Other";
-      (acc[key] ??= []).push(g);
-      return acc;
-    }, {});
-    const states = Object.keys(map).sort((a, b) =>
-      (stateNames[a] ?? a).localeCompare(stateNames[b] ?? b),
-    );
-    return { map, states };
-  }, [filtered]);
+  const counts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const g of gyms) {
+      const k = g.state?.trim();
+      if (k) m[k] = (m[k] ?? 0) + 1;
+    }
+    return m;
+  }, [gyms]);
+
+  const stateGyms = useMemo(
+    () => (openState ? gyms.filter((g) => g.state?.trim() === openState) : []),
+    [gyms, openState],
+  );
 
   const stepOrder: Step[] = ["welcome", "name", "gym", "how"];
   function goBack() {
     const i = stepOrder.indexOf(step);
     if (i > 0) setStep(stepOrder[i - 1]);
+  }
+
+  function renderGym(gym: GymRow) {
+    const selected = gym.id === gymId;
+    return (
+      <li key={gym.id}>
+        <button
+          onClick={() => setGymId(gym.id)}
+          className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
+            selected
+              ? "border-accent bg-surface-2"
+              : "border-border bg-surface hover:border-faint"
+          }`}
+        >
+          <div>
+            <p className="font-semibold text-chalk">{gym.name}</p>
+            {gym.city || gym.state ? (
+              <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
+                <MapPin size={13} />
+                {[gym.city, gym.state].filter(Boolean).join(", ")}
+              </p>
+            ) : null}
+          </div>
+          {selected ? (
+            <Check size={20} className="text-accent" />
+          ) : (
+            <ChevronRight size={18} className="text-faint" />
+          )}
+        </button>
+      </li>
+    );
   }
 
   async function finish() {
@@ -167,11 +196,23 @@ export function Onboarding() {
 
       {step === "gym" ? (
         <div className="flex flex-1 flex-col px-6 pt-10">
+          {openState ? (
+            <button
+              onClick={() => setOpenState(null)}
+              className="-ml-1 mb-2 flex w-fit items-center gap-1 rounded-full py-1 pr-2 text-sm font-semibold text-muted transition hover:text-chalk"
+            >
+              <ChevronLeft size={18} /> All states
+            </button>
+          ) : null}
           <h1 className="text-2xl font-extrabold text-chalk">
-            Pick your home gym
+            {openState
+              ? STATE_NAME[openState] ?? openState
+              : "Pick your home gym"}
           </h1>
           <p className="mt-1 text-muted">
-            We'll show you its routes first. You can switch anytime.
+            {openState
+              ? "Choose your gym. You can switch anytime."
+              : "Pick your state, then your home gym."}
           </p>
           <div className="relative mt-5">
             <Search
@@ -189,52 +230,52 @@ export function Onboarding() {
           <div className="-mx-6 mt-3 flex-1 overflow-y-auto px-6">
             {gymsLoading ? (
               <CenterSpinner />
+            ) : q ? (
+              searchResults.length === 0 ? (
+                <p className="mt-8 text-center text-faint">No gyms found.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {searchResults.map(renderGym)}
+                </ul>
+              )
+            ) : openState ? (
+              stateGyms.length === 0 ? (
+                <p className="mt-8 text-center text-faint">
+                  No gyms here yet.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {stateGyms.map(renderGym)}
+                </ul>
+              )
             ) : (
-              <div className="flex flex-col gap-5">
-                {grouped.states.map((state) => (
-                  <section key={state}>
-                    <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-faint">
-                      {stateNames[state] ?? state}
-                    </h2>
-                    <ul className="flex flex-col gap-2">
-                      {grouped.map[state].map((gym) => {
-                        const selected = gym.id === gymId;
-                        return (
-                          <li key={gym.id}>
-                            <button
-                              onClick={() => setGymId(gym.id)}
-                              className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
-                                selected
-                                  ? "border-accent bg-surface-2"
-                                  : "border-border bg-surface hover:border-faint"
-                              }`}
-                            >
-                              <div>
-                                <p className="font-semibold text-chalk">
-                                  {gym.name}
-                                </p>
-                                {gym.city || gym.state ? (
-                                  <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
-                                    <MapPin size={13} />
-                                    {[gym.city, gym.state]
-                                      .filter(Boolean)
-                                      .join(", ")}
-                                  </p>
-                                ) : null}
-                              </div>
-                              {selected ? (
-                                <Check size={20} className="text-accent" />
-                              ) : (
-                                <ChevronRight size={18} className="text-faint" />
-                              )}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                ))}
-              </div>
+              <ul className="flex flex-col gap-2">
+                {US_STATES.map((s) => {
+                  const n = counts[s.code] ?? 0;
+                  return (
+                    <li key={s.code}>
+                      <button
+                        onClick={() => setOpenState(s.code)}
+                        className="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left transition hover:border-faint"
+                      >
+                        <span className="font-semibold text-chalk">
+                          {s.name}
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-semibold ${
+                              n > 0 ? "text-accent" : "text-faint"
+                            }`}
+                          >
+                            {n > 0 ? `${n} ${n === 1 ? "gym" : "gyms"}` : "—"}
+                          </span>
+                          <ChevronRight size={18} className="text-faint" />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
 
