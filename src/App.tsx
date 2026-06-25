@@ -18,6 +18,7 @@ import { MySends } from "./pages/MySends";
 import { Profile } from "./pages/Profile";
 import { Settings } from "./pages/Settings";
 import { Gyms } from "./pages/Gyms";
+import { GymMap } from "./pages/GymMap";
 import { ActivityFeed } from "./pages/Activity";
 
 function FullScreen({ children }: { children: ReactNode }) {
@@ -161,6 +162,7 @@ export default function App() {
         }
       >
         <Route path="/" element={<Feed />} />
+        <Route path="/map" element={<GymMap />} />
         <Route path="/gyms" element={<Gyms />} />
         <Route path="/add" element={<AddRoute />} />
         <Route path="/activity" element={<ActivityFeed />} />

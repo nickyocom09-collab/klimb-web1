@@ -1,9 +1,9 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Activity, Building2, Home, PlusCircle, User } from "lucide-react";
+import { Activity, Home, Map, PlusCircle, User } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "Home", Icon: Home, end: true },
-  { to: "/gyms", label: "Gyms", Icon: Building2, end: false },
+  { to: "/map", label: "Map", Icon: Map, end: false },
   { to: "/add", label: "Add", Icon: PlusCircle, end: false },
   { to: "/activity", label: "Activity", Icon: Activity, end: false },
   { to: "/profile", label: "Profile", Icon: User, end: false },
