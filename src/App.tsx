@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "./lib/auth";
-import { CenterSpinner } from "./components/ui";
+import { Splash } from "./components/Splash";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
@@ -21,46 +21,23 @@ import { Gyms } from "./pages/Gyms";
 import { GymMap } from "./pages/GymMap";
 import { ActivityFeed } from "./pages/Activity";
 
-function FullScreen({ children }: { children: ReactNode }) {
-  return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
-      {children}
-    </div>
-  );
-}
-
 function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
-  if (loading)
-    return (
-      <FullScreen>
-        <CenterSpinner />
-      </FullScreen>
-    );
+  if (loading) return <Splash />;
   if (!session) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function RequireOnboarded({ children }: { children: ReactNode }) {
   const { profile, loading } = useAuth();
-  if (loading)
-    return (
-      <FullScreen>
-        <CenterSpinner />
-      </FullScreen>
-    );
+  if (loading) return <Splash />;
   if (profile && !profile.onboarded) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
 function RequireGym({ children }: { children: ReactNode }) {
   const { profile, loading } = useAuth();
-  if (loading)
-    return (
-      <FullScreen>
-        <CenterSpinner />
-      </FullScreen>
-    );
+  if (loading) return <Splash />;
   if (profile && !profile.home_gym_id)
     return <Navigate to="/gym/select" replace />;
   return <>{children}</>;
@@ -68,12 +45,7 @@ function RequireGym({ children }: { children: ReactNode }) {
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
-  if (loading)
-    return (
-      <FullScreen>
-        <CenterSpinner />
-      </FullScreen>
-    );
+  if (loading) return <Splash />;
   if (session) return <Navigate to="/" replace />;
   return <>{children}</>;
 }

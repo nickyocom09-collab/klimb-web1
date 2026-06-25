@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Camera,
   Check,
+  ChevronLeft,
   ChevronRight,
   MapPin,
   Mountain,
@@ -56,6 +57,12 @@ export function Onboarding() {
     );
   }, [gyms, query]);
 
+  const stepOrder: Step[] = ["welcome", "name", "gym", "how"];
+  function goBack() {
+    const i = stepOrder.indexOf(step);
+    if (i > 0) setStep(stepOrder[i - 1]);
+  }
+
   async function finish() {
     setFinishing(true);
     await updateProfile({
@@ -69,16 +76,27 @@ export function Onboarding() {
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
-      {/* Progress dots */}
-      <div className="flex justify-center gap-2 px-5 pt-6">
-        {(["welcome", "name", "gym", "how"] as Step[]).map((s) => (
-          <span
-            key={s}
-            className={`h-1.5 w-1.5 rounded-full transition ${
-              s === step ? "w-6 bg-accent" : "bg-border"
-            }`}
-          />
-        ))}
+      {/* Back button + progress dots */}
+      <div className="relative flex items-center justify-center px-3 pt-6">
+        {step !== "welcome" ? (
+          <button
+            onClick={goBack}
+            aria-label="Back"
+            className="absolute left-2 rounded-full p-1 text-muted transition hover:text-chalk"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        ) : null}
+        <div className="flex gap-2">
+          {stepOrder.map((s) => (
+            <span
+              key={s}
+              className={`h-1.5 w-1.5 rounded-full transition ${
+                s === step ? "w-6 bg-accent" : "bg-border"
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
       {step === "welcome" ? (

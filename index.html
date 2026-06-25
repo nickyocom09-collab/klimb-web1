@@ -6,12 +6,71 @@
   <title>Klimb</title>
 
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#04130c">
   <link rel="apple-touch-icon" href="/klimb.logo-removebg-preview.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+
+  <!-- Pre-JS splash so the very first paint is branded, not blank. React
+       replaces #root on mount, removing this automatically. Styles are inline
+       here (the stylesheet hasn't loaded yet at first paint). -->
+  <style>
+    #boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: linear-gradient(135deg, #04130c, #0a2f1f, #0f3d28, #061a10, #04130c);
+      background-size: 320% 320%;
+      animation: boot-grad 7s ease infinite;
+    }
+    #boot-splash .glow {
+      position: absolute;
+      width: 70vmin;
+      height: 70vmin;
+      border-radius: 9999px;
+      background: radial-gradient(circle, rgba(57, 255, 136, 0.35), transparent 60%);
+      filter: blur(28px);
+      animation: boot-pulse 3.2s ease-in-out infinite;
+    }
+    #boot-splash .word {
+      position: relative;
+      margin: 0;
+      font-family: "Bungee", system-ui, sans-serif;
+      font-size: clamp(3.5rem, 22vw, 8rem);
+      line-height: 1;
+      letter-spacing: 0.02em;
+      background: linear-gradient(180deg, #eafff3 0%, #5bffa6 55%, #1fb862 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 38px rgba(57, 255, 136, 0.45);
+    }
+    @keyframes boot-grad {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    @keyframes boot-pulse {
+      0%, 100% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+  </style>
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div id="boot-splash">
+      <div class="glow"></div>
+      <h1 class="word">Klimb</h1>
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

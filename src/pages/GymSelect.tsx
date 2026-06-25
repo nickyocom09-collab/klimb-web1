@@ -51,6 +51,23 @@ export function GymSelect() {
       .some((field) => field!.toLowerCase().includes(q)),
   );
 
+  // Group by state so gyms sit in tidy sections instead of one long stack.
+  const groups = filtered.reduce<Record<string, GymRow[]>>((acc, g) => {
+    const key = g.state?.trim() || "Other";
+    (acc[key] ??= []).push(g);
+    return acc;
+  }, {});
+  const stateNames: Record<string, string> = {
+    AR: "Arkansas",
+    OK: "Oklahoma",
+    MO: "Missouri",
+    KS: "Kansas",
+    TN: "Tennessee",
+  };
+  const orderedStates = Object.keys(groups).sort((a, b) =>
+    (stateNames[a] ?? a).localeCompare(stateNames[b] ?? b),
+  );
+
   return (
     <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
       <header className="border-b border-border px-5 py-4">
@@ -94,40 +111,49 @@ export function GymSelect() {
             No gyms yet. Add the first one below.
           </p>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {filtered.map((gym) => {
-              const selected = gym.id === profile?.home_gym_id;
-              return (
-                <li key={gym.id}>
-                  <button
-                    onClick={() => choose(gym)}
-                    className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
-                      selected
-                        ? "border-accent bg-surface-2"
-                        : "border-border bg-surface hover:border-faint"
-                    }`}
-                  >
-                    <div>
-                      <p className="font-semibold text-chalk">{gym.name}</p>
-                      {gym.city || gym.state ? (
-                        <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
-                          <MapPin size={13} />
-                          {[gym.city, gym.state].filter(Boolean).join(", ")}
-                        </p>
-                      ) : null}
-                    </div>
-                    {saving === gym.id ? (
-                      <Spinner className="text-accent" />
-                    ) : selected ? (
-                      <Check size={20} className="text-accent" />
-                    ) : (
-                      <ChevronRight size={18} className="text-faint" />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="flex flex-col gap-6 pb-4">
+            {orderedStates.map((state) => (
+              <section key={state}>
+                <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-faint">
+                  {stateNames[state] ?? state}
+                </h2>
+                <ul className="flex flex-col gap-2">
+                  {groups[state].map((gym) => {
+                    const selected = gym.id === profile?.home_gym_id;
+                    return (
+                      <li key={gym.id}>
+                        <button
+                          onClick={() => choose(gym)}
+                          className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
+                            selected
+                              ? "border-accent bg-surface-2"
+                              : "border-border bg-surface hover:border-faint"
+                          }`}
+                        >
+                          <div>
+                            <p className="font-semibold text-chalk">{gym.name}</p>
+                            {gym.city || gym.state ? (
+                              <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
+                                <MapPin size={13} />
+                                {[gym.city, gym.state].filter(Boolean).join(", ")}
+                              </p>
+                            ) : null}
+                          </div>
+                          {saving === gym.id ? (
+                            <Spinner className="text-accent" />
+                          ) : selected ? (
+                            <Check size={20} className="text-accent" />
+                          ) : (
+                            <ChevronRight size={18} className="text-faint" />
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </div>
 
