@@ -9,6 +9,7 @@ export type ClimbFilterEnum = "all" | "boulder" | "toprope";
 export type GymStatus = "pending" | "approved";
 export type ReportReasonEnum = "wrong_gym" | "duplicate" | "inappropriate";
 export type BookmarkKind = "project" | "favorite";
+export type SendType = "flash" | "send";
 export type ReportTargetType = "route" | "comment" | "user";
 export type ContentReportReason =
   | "spam"
@@ -168,15 +169,21 @@ export interface Database {
           id: string;
           route_id: string;
           user_id: string;
+          send_type: SendType;
+          note: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           route_id: string;
           user_id: string;
+          send_type?: SendType;
+          note?: string | null;
           created_at?: string;
         };
         Update: {
+          send_type?: SendType;
+          note?: string | null;
           created_at?: string;
         };
         Relationships: [];

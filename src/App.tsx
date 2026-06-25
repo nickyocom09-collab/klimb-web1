@@ -11,6 +11,7 @@ import { GymSelect } from "./pages/GymSelect";
 import { GymAdd } from "./pages/GymAdd";
 import { Feed } from "./pages/Feed";
 import { AddRoute } from "./pages/AddRoute";
+import { LogClimb } from "./pages/LogClimb";
 import { RouteDetail } from "./pages/RouteDetail";
 import { Notifications } from "./pages/Notifications";
 import { Onboarding } from "./pages/Onboarding";
@@ -136,6 +137,7 @@ export default function App() {
         <Route path="/" element={<Feed />} />
         <Route path="/map" element={<GymMap />} />
         <Route path="/gyms" element={<Gyms />} />
+        <Route path="/log" element={<LogClimb />} />
         <Route path="/add" element={<AddRoute />} />
         <Route path="/activity" element={<ActivityFeed />} />
         <Route path="/profile" element={<Profile />} />
