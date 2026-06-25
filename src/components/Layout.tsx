@@ -12,31 +12,31 @@ const tabs = [
 export function Layout() {
   return (
     <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto pb-28">
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-app border-t border-border bg-surface/95 backdrop-blur">
-        <div className="grid grid-cols-5">
+      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-app px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+        <div className="flex items-center justify-between gap-1 rounded-full border border-border bg-surface/95 px-2 py-2 shadow-lg backdrop-blur">
           {tabs.map(({ to, label, Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) =>
-                `relative flex flex-col items-center gap-1 py-2.5 text-xs transition ${
-                  isActive ? "text-accent" : "text-faint hover:text-muted"
+                `flex flex-1 flex-col items-center gap-1 rounded-full py-1.5 text-[11px] font-semibold transition ${
+                  isActive
+                    ? "bg-surface-2 text-accent"
+                    : "text-faint hover:text-muted"
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  {isActive ? (
-                    <span className="absolute top-0 h-0.5 w-8 rounded-full bg-accent" />
-                  ) : null}
                   <Icon
                     size={22}
-                    className={`transition-transform ${isActive ? "scale-110" : ""}`}
+                    strokeWidth={isActive ? 2.4 : 2}
+                    className={`transition-transform ${isActive ? "scale-105" : ""}`}
                   />
                   {label}
                 </>
