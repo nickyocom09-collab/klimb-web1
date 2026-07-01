@@ -1,42 +1,95 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Globe from "react-globe.gl";
+import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster";
+import "leaflet.markercluster/dist/MarkerCluster.css";
 import { Check, Home, List, MapPin, Plane, Search, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner } from "../components/ui";
 import type { GymRow } from "../lib/database.types";
 
+const US_CENTER: [number, number] = [39.5, -98.35];
+const US_ZOOM = 4;
+
+// Black circular marker with a green climbing (mountain) glyph — Kilter-style.
+function pinIcon(home: boolean): L.DivIcon {
+  const size = home ? 46 : 38;
+  const ring = home ? "rgb(var(--c-accent))" : "rgba(255,255,255,0.22)";
+  const glyph = "rgb(var(--c-accent))";
+  const g = Math.round(size * 0.52);
+  return L.divIcon({
+    className: "klimb-pin",
+    html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:#0c110e;border:2px solid ${ring};display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.55)">
+      <svg width="${g}" height="${g}" viewBox="0 0 24 24" fill="none" stroke="${glyph}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 20 L9.5 8 L13.5 14.5 L16.5 9.5 L21 20 Z"/>
+      </svg>
+    </div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
+// Black count-bubble for clustered gyms — matches the pin styling.
+function clusterIcon(count: number): L.DivIcon {
+  const size = count < 10 ? 40 : count < 50 ? 48 : 56;
+  return L.divIcon({
+    className: "klimb-cluster",
+    html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:#0c110e;border:2px solid rgb(var(--c-accent));display:flex;align-items:center;justify-content:center;color:rgb(var(--c-accent));font-weight:800;font-size:${count < 100 ? 15 : 13}px;box-shadow:0 3px 10px rgba(0,0,0,.55)">${count}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
 type GymWithCount = GymRow & { routeCount: number };
 
-const ACCENT = "#39FF88";
-const HOME = "#FFFFFF";
+/** Adds a clustering layer to the map (vanilla leaflet.markercluster). */
+function ClusterLayer({
+  gyms,
+  homeId,
+  onSelect,
+}: {
+  gyms: GymWithCount[];
+  homeId: string | null | undefined;
+  onSelect: (g: GymWithCount) => void;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    const group = (L as unknown as {
+      markerClusterGroup: (opts: unknown) => L.LayerGroup;
+    }).markerClusterGroup({
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true,
+      maxClusterRadius: 48,
+      iconCreateFunction: (c: { getChildCount: () => number }) =>
+        clusterIcon(c.getChildCount()),
+    });
+    for (const gym of gyms) {
+      const m = L.marker([gym.latitude!, gym.longitude!], {
+        icon: pinIcon(gym.id === homeId),
+      });
+      m.on("click", () => onSelect(gym));
+      group.addLayer(m);
+    }
+    map.addLayer(group);
+    return () => {
+      map.removeLayer(group);
+    };
+  }, [map, gyms, homeId, onSelect]);
+  return null;
+}
 
 export function GymMap() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  // react-globe.gl exposes imperative methods via ref; loosely typed.
-  const globeEl = useRef<any>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
+  const mapRef = useRef<L.Map | null>(null);
   const [gyms, setGyms] = useState<GymWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<GymWithCount | null>(null);
   const [saving, setSaving] = useState<"home" | "visit" | null>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
-
-  // Measure the container so the globe fills the tab.
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setSize({ w: el.clientWidth, h: el.clientHeight });
-    });
-    ro.observe(el);
-    setSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => ro.disconnect();
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -64,35 +117,12 @@ export function GymMap() {
     };
   }, []);
 
-  function onGlobeReady() {
-    const g = globeEl.current;
-    if (!g) return;
-    const controls = g.controls();
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.6;
-    controls.enableZoom = true;
-    // Focus roughly on the user's home gym, else the US.
-    const home = gyms.find((x) => x.id === profile?.home_gym_id);
-    g.pointOfView(
-      home
-        ? { lat: home.latitude!, lng: home.longitude!, altitude: 1.6 }
-        : { lat: 39.5, lng: -98.35, altitude: 2.2 },
-      0,
-    );
-  }
-
-  function focusGym(gym: GymWithCount) {
-    setSelected(gym);
-    setQuery("");
-    const g = globeEl.current;
-    if (g) {
-      g.controls().autoRotate = false;
-      g.pointOfView(
-        { lat: gym.latitude!, lng: gym.longitude!, altitude: 1.1 },
-        900,
-      );
-    }
-  }
+  // Center on the user's home gym once data is in.
+  useEffect(() => {
+    if (loading || !mapRef.current || !profile?.home_gym_id) return;
+    const home = gyms.find((g) => g.id === profile.home_gym_id);
+    if (home) mapRef.current.setView([home.latitude!, home.longitude!], 10);
+  }, [loading, gyms, profile?.home_gym_id]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -105,6 +135,14 @@ export function GymMap() {
       )
       .slice(0, 6);
   }, [gyms, query]);
+
+  function focusGym(gym: GymWithCount) {
+    setQuery("");
+    setSelected(gym);
+    mapRef.current?.flyTo([gym.latitude!, gym.longitude!], 12, {
+      duration: 0.8,
+    });
+  }
 
   async function setHome(gym: GymWithCount) {
     if (!profile) return;
@@ -137,32 +175,30 @@ export function GymMap() {
   const isHome = selected?.id === profile?.home_gym_id;
 
   return (
-    <div
-      ref={wrapRef}
-      className="relative -mb-28 h-[calc(100%+7rem)] w-full overflow-hidden bg-bg"
-    >
-      {size.w > 0 ? (
-        <Globe
-          ref={globeEl}
-          width={size.w}
-          height={size.h}
-          onGlobeReady={onGlobeReady}
-          backgroundColor="rgba(0,0,0,0)"
-          globeImageUrl="https://unpkg.com/three-globe/example/img/earth-dark.jpg"
-          atmosphereColor={ACCENT}
-          atmosphereAltitude={0.18}
-          pointsData={gyms}
-          pointLat={(d: any) => d.latitude}
-          pointLng={(d: any) => d.longitude}
-          pointColor={(d: any) =>
-            d.id === profile?.home_gym_id ? HOME : ACCENT
-          }
-          pointAltitude={0.015}
-          pointRadius={(d: any) => (d.id === profile?.home_gym_id ? 0.6 : 0.42)}
-          pointLabel={(d: any) => `${d.name}`}
-          onPointClick={(d: any) => focusGym(d as GymWithCount)}
+    <div className="relative -mb-28 h-[calc(100%+7rem)] w-full">
+      <MapContainer
+        center={US_CENTER}
+        zoom={US_ZOOM}
+        ref={mapRef}
+        zoomControl={false}
+        className="absolute inset-0 z-0 h-full w-full bg-bg"
+      >
+        {/* Satellite imagery + a place-label overlay for that Apple/Kilter look. */}
+        <TileLayer
+          attribution="&copy; Esri, Maxar, Earthstar Geographics"
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={19}
         />
-      ) : null}
+        <TileLayer
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={19}
+        />
+        <ClusterLayer
+          gyms={gyms}
+          homeId={profile?.home_gym_id}
+          onSelect={setSelected}
+        />
+      </MapContainer>
 
       {/* Search overlay */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 p-4">
@@ -175,7 +211,7 @@ export function GymMap() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search gym, city, or brand"
-            className="h-12 w-full rounded-2xl bg-surface/90 pl-11 pr-4 text-chalk shadow-lg backdrop-blur placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
+            className="h-12 w-full rounded-2xl bg-surface/95 pl-11 pr-4 text-chalk shadow-lg backdrop-blur placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
           />
           {matches.length > 0 ? (
             <ul className="mt-2 overflow-hidden rounded-2xl bg-surface/95 shadow-lg backdrop-blur">
@@ -205,7 +241,7 @@ export function GymMap() {
       {/* Browse-as-list shortcut */}
       <button
         onClick={() => navigate("/gyms")}
-        className="absolute right-4 top-20 z-10 flex items-center gap-1.5 rounded-full bg-surface/90 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur"
+        className="absolute right-4 top-20 z-10 flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur"
       >
         <List size={15} /> List
       </button>
