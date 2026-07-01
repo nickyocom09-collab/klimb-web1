@@ -6,6 +6,8 @@ import {
   Bookmark,
   Check,
   ChevronLeft,
+  Eye,
+  EyeOff,
   Flag,
   Heart,
   Lightbulb,
@@ -96,6 +98,9 @@ export function RouteDetail() {
   );
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Beta is a spoiler — hidden behind a blur until the user opts in.
+  const [showBeta, setShowBeta] = useState(false);
+  const [revealedBeta, setRevealedBeta] = useState<Set<string>>(new Set());
 
   const [bookmarks, setBookmarks] = useState<Set<BookmarkKind>>(new Set());
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
@@ -453,6 +458,8 @@ export function RouteDetail() {
   const renderComment = (c: CommentWithAuthor, isReply: boolean) => {
     const mine = c.user_id === profile?.id;
     const size = isReply ? 30 : 38;
+    const betaHidden =
+      c.is_beta && !showBeta && !revealedBeta.has(c.id) && !mine;
     return (
       <div className="flex gap-3">
         <Link to={`/u/${c.user_id}`} className="shrink-0">
@@ -463,7 +470,22 @@ export function RouteDetail() {
             <Link to={`/u/${c.user_id}`} className="font-semibold hover:underline">
               {c.authorName}
             </Link>{" "}
-            <span className="text-chalk/90">{c.body}</span>
+            {betaHidden ? (
+              <button
+                onClick={() =>
+                  setRevealedBeta((prev) => new Set(prev).add(c.id))
+                }
+                title="Tap to reveal beta"
+                className="align-middle text-chalk/90"
+              >
+                <span className="select-none blur-[5px]">{c.body}</span>
+                <span className="ml-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-surface-2 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-accent blur-0">
+                  <EyeOff size={10} /> beta · tap to reveal
+                </span>
+              </button>
+            ) : (
+              <span className="text-chalk/90">{c.body}</span>
+            )}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-faint">
             <span>{timeAgo(c.created_at)}</span>
@@ -580,7 +602,7 @@ export function RouteDetail() {
               </div>
             </div>
             <p className="mt-2 text-xs text-faint">
-              {authorName ? `Set by ${authorName} · ` : ""}
+              {authorName ? `Posted by ${authorName} · ` : ""}
               {formatDate(route.created_at)}
             </p>
           </div>
@@ -710,10 +732,25 @@ export function RouteDetail() {
 
           {/* Comments — Instagram style */}
           <section>
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-faint">
-              <MessageCircle size={15} /> Comments
-              {topLevel.length > 0 ? ` · ${topLevel.length}` : ""}
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-faint">
+                <MessageCircle size={15} /> Comments
+                {topLevel.length > 0 ? ` · ${topLevel.length}` : ""}
+              </h2>
+              {visibleComments.some((c) => c.is_beta) ? (
+                <button
+                  onClick={() => setShowBeta((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    showBeta
+                      ? "bg-accent/15 text-accent"
+                      : "bg-surface-2 text-muted hover:text-chalk"
+                  }`}
+                >
+                  {showBeta ? <Eye size={14} /> : <EyeOff size={14} />}
+                  {showBeta ? "Hide beta" : "Show beta"}
+                </button>
+              ) : null}
+            </div>
 
             {topLevel.length === 0 ? (
               <p className="text-sm text-faint">
