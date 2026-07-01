@@ -14,6 +14,7 @@ type PubProfile = {
   display_name: string;
   username: string | null;
   avatar_url: string | null;
+  bio: string | null;
   sends_public: boolean;
 };
 
@@ -40,7 +41,7 @@ export function PublicProfile() {
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, display_name, username, avatar_url, sends_public")
+        .select("id, display_name, username, avatar_url, bio, sends_public")
         .eq("id", id)
         .maybeSingle();
       if (!active) return;
@@ -134,6 +135,11 @@ export function PublicProfile() {
           </h2>
           {person.username ? (
             <p className="mt-0.5 text-sm text-muted">@{person.username}</p>
+          ) : null}
+          {person.bio ? (
+            <p className="mt-2 max-w-xs whitespace-pre-line text-sm text-chalk/90">
+              {person.bio}
+            </p>
           ) : null}
 
           {!isMe && me ? (

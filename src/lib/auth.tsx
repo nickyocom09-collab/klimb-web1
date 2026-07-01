@@ -49,6 +49,7 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     display_name: "Owner (Preview)",
     username: "owner",
     avatar_url: null,
+    bio: null,
     home_gym_id: PREVIEW_GYM_ID,
     visiting_gym_id: null,
     sends_public: true,

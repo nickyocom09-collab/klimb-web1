@@ -10,7 +10,7 @@ import {
   type ThemePref,
 } from "../lib/constants";
 import { AppHeader } from "../components/Layout";
-import { Button, Card, Input } from "../components/ui";
+import { Button, Card, Input, Textarea } from "../components/ui";
 
 /** A pill-style segmented control. */
 function Segmented<T extends string>({
@@ -72,6 +72,20 @@ export function Settings() {
   const [uname, setUname] = useState(profile?.username ?? "");
   const [savingU, setSavingU] = useState(false);
   const [uMsg, setUMsg] = useState<string | null>(null);
+
+  const [bio, setBio] = useState(profile?.bio ?? "");
+  const [savingBio, setSavingBio] = useState(false);
+  const [bioSaved, setBioSaved] = useState(false);
+
+  async function saveBio() {
+    const trimmed = bio.trim();
+    if (trimmed === (profile?.bio ?? "")) return;
+    setSavingBio(true);
+    await updateProfile({ bio: trimmed || null });
+    setSavingBio(false);
+    setBioSaved(true);
+    setTimeout(() => setBioSaved(false), 2000);
+  }
 
   const theme = (profile?.theme ?? "dark") as ThemePref;
   const sendsPublic = profile?.sends_public ?? true;
@@ -204,6 +218,28 @@ export function Settings() {
               {uMsg ? (
                 <p className="ml-1 mt-2 text-xs text-muted">{uMsg}</p>
               ) : null}
+            </div>
+            <div>
+              <Textarea
+                label="Bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="A little about your climbing…"
+                maxLength={160}
+                rows={3}
+              />
+              <div className="mt-1 flex items-center justify-between">
+                <span className="ml-1 text-xs text-faint">{bio.length}/160</span>
+              </div>
+              <Button
+                variant="secondary"
+                className="mt-2 w-full"
+                loading={savingBio}
+                disabled={bio.trim() === (profile?.bio ?? "")}
+                onClick={saveBio}
+              >
+                {bioSaved ? "Saved" : "Save bio"}
+              </Button>
             </div>
             <div>
               <p className="ml-1 text-sm text-muted">Email</p>

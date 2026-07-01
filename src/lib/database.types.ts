@@ -27,6 +27,7 @@ export interface Database {
           display_name: string;
           username: string | null;
           avatar_url: string | null;
+          bio: string | null;
           home_gym_id: string | null;
           visiting_gym_id: string | null;
           sends_public: boolean;
@@ -42,6 +43,7 @@ export interface Database {
           display_name: string;
           username?: string | null;
           avatar_url?: string | null;
+          bio?: string | null;
           home_gym_id?: string | null;
           visiting_gym_id?: string | null;
           sends_public?: boolean;
@@ -56,6 +58,7 @@ export interface Database {
           display_name?: string;
           username?: string | null;
           avatar_url?: string | null;
+          bio?: string | null;
           home_gym_id?: string | null;
           visiting_gym_id?: string | null;
           sends_public?: boolean;

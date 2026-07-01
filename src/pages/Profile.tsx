@@ -189,6 +189,11 @@ export function Profile() {
             Set a username
           </button>
         )}
+        {profile?.bio ? (
+          <p className="mt-2 max-w-xs whitespace-pre-line text-center text-sm text-chalk/90">
+            {profile.bio}
+          </p>
+        ) : null}
         {gymName ? (
           <button
             onClick={() => navigate("/gyms")}
