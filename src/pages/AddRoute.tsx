@@ -1,55 +1,60 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Camera, Film, ImagePlus, X } from "lucide-react";
+import { Camera, ImagePlus } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
-  ACCEPTED_VIDEO_TYPES,
   CLIMB_TYPES,
   HOLD_COLORS,
+  holdHex,
   MAX_ROUTES_PER_DAY,
-  MAX_VIDEO_BYTES,
   WALL_SECTIONS,
   type ClimbType,
 } from "../lib/constants";
+import { gradeLabels } from "../lib/grades";
 import { AppHeader } from "../components/Layout";
 import { Button, ErrorText, Input, Textarea } from "../components/ui";
-import { GradePicker } from "../components/GradePicker";
+import { Dropdown } from "../components/Dropdown";
+
+const NOT_SURE = "Not sure";
+const NOT_SET = "Not set";
+const OTHER = "Other…";
 
 export function AddRoute() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const photoRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLInputElement>(null);
 
+  // Add to whichever gym you're currently browsing (home, or one you're visiting).
+  const targetGymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
   const [gymName, setGymName] = useState<string | null>(null);
 
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [video, setVideo] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState<string | null>(null);
 
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
   const [section, setSection] = useState("");
   const [customSection, setCustomSection] = useState("");
   const [grade, setGrade] = useState<number | null>(null);
+  const [gymGrade, setGymGrade] = useState<number | null>(null);
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   const system = profile?.grade_system ?? "american";
+  const labels = gradeLabels(climbingType, system);
 
   useEffect(() => {
-    if (!profile?.home_gym_id) return;
+    if (!targetGymId) return;
     supabase
       .from("gyms")
       .select("name")
-      .eq("id", profile.home_gym_id)
+      .eq("id", targetGymId)
       .maybeSingle()
       .then(({ data }) => setGymName(data?.name ?? null));
-  }, [profile?.home_gym_id]);
+  }, [targetGymId]);
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -59,46 +64,22 @@ export function AddRoute() {
     setPhotoPreview(URL.createObjectURL(f));
   }
 
-  function onPickVideo(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!ACCEPTED_VIDEO_TYPES.includes(f.type)) {
-      setError("Video must be an MP4 or MOV file.");
-      return;
-    }
-    if (f.size > MAX_VIDEO_BYTES) {
-      setError("Video must be 50 MB or smaller.");
-      return;
-    }
-    setError(null);
-    setVideo(f);
-    setVideoPreview(URL.createObjectURL(f));
-  }
-
-  function clearVideo() {
-    setVideo(null);
-    setVideoPreview(null);
-    if (videoRef.current) videoRef.current.value = "";
-  }
-
-  // Changing climbing type changes what a grade ordinal means — reset it.
   function changeType(t: ClimbType) {
     setClimbingType(t);
     setGrade(null);
+    setGymGrade(null);
   }
 
-  const resolvedSection =
-    section === "__custom" ? customSection.trim() : section;
+  const resolvedSection = section === OTHER ? customSection.trim() : section;
 
   function validate(): string | null {
     if (!photo) return "Add a photo of the route.";
     if (!holdColor) return "Pick the hold color.";
     if (!resolvedSection) return "Choose or enter a wall section.";
-    if (!profile?.home_gym_id) return "No home gym selected.";
+    if (!targetGymId) return "No gym selected.";
     return null;
   }
 
-  // Step 1: validate, then ask the user to confirm the gym.
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const v = validate();
@@ -121,19 +102,17 @@ export function AddRoute() {
       .publicUrl;
   }
 
-  // Step 2: gym confirmed — do the actual creation.
   async function create() {
-    if (!profile?.home_gym_id || !photo) return;
+    if (!targetGymId || !photo) return;
     setConfirming(false);
     setBusy(true);
     try {
-      // Client-side rate-limit pre-check (DB also enforces this).
       const since = new Date();
       since.setHours(0, 0, 0, 0);
       const { count } = await supabase
         .from("routes")
         .select("id", { count: "exact", head: true })
-        .eq("created_by", profile.id)
+        .eq("created_by", profile!.id)
         .gte("created_at", since.toISOString());
       if ((count ?? 0) >= MAX_ROUTES_PER_DAY) {
         throw new Error(
@@ -142,19 +121,19 @@ export function AddRoute() {
       }
 
       const photoUrl = await uploadFile(photo, "photo");
-      const videoUrl = video ? await uploadFile(video, "video") : null;
 
       const { data: route, error: insErr } = await supabase
         .from("routes")
         .insert({
-          gym_id: profile.home_gym_id,
+          gym_id: targetGymId,
           photo_url: photoUrl,
-          video_url: videoUrl,
+          video_url: null,
           hold_color: holdColor!,
           wall_section: resolvedSection,
           climbing_type: climbingType,
+          gym_grade: gymGrade,
           description: description.trim() || null,
-          created_by: profile.id,
+          created_by: profile!.id,
         })
         .select("id")
         .single();
@@ -170,7 +149,7 @@ export function AddRoute() {
       if (grade !== null && route) {
         await supabase
           .from("grades")
-          .insert({ route_id: route.id, user_id: profile.id, grade });
+          .insert({ route_id: route.id, user_id: profile!.id, grade });
       }
 
       navigate(`/route/${route!.id}`, { replace: true });
@@ -183,21 +162,21 @@ export function AddRoute() {
 
   return (
     <div>
-      <AppHeader title="Add a route" />
+      <AppHeader title="Add a route" subtitle={gymName ?? undefined} />
       <form onSubmit={onSubmit} className="flex flex-col gap-6 p-5">
-        {/* Climbing type */}
+        {/* Climbing type — soft segmented */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">Climbing type</p>
-          <div className="flex gap-2">
+          <div className="flex gap-1 rounded-full bg-surface-2 p-1">
             {CLIMB_TYPES.map((t) => (
               <button
                 key={t.value}
                 type="button"
                 onClick={() => changeType(t.value)}
-                className={`flex-1 rounded-2xl border py-3 text-sm font-semibold transition ${
+                className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition ${
                   climbingType === t.value
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border bg-surface text-muted hover:text-chalk"
+                    ? "bg-accent text-bg"
+                    : "text-muted hover:text-chalk"
                 }`}
               >
                 {t.label}
@@ -220,7 +199,7 @@ export function AddRoute() {
           <button
             type="button"
             onClick={() => photoRef.current?.click()}
-            className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-3xl border border-dashed border-border bg-surface-2 text-faint"
+            className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-3xl bg-surface-2 text-faint"
           >
             {photoPreview ? (
               <img
@@ -246,126 +225,66 @@ export function AddRoute() {
           ) : null}
         </div>
 
-        {/* Video (optional) */}
-        <div>
-          <p className="mb-2 ml-1 text-sm text-muted">
-            Video <span className="text-faint">(optional, MP4/MOV, ≤50MB)</span>
-          </p>
-          <input
-            ref={videoRef}
-            type="file"
-            accept="video/mp4,video/quicktime"
-            onChange={onPickVideo}
-            className="hidden"
-          />
-          {videoPreview ? (
-            <div className="relative overflow-hidden rounded-3xl border border-border bg-black">
-              <video
-                src={videoPreview}
-                className="aspect-[4/3] w-full object-cover"
-                muted
-                loop
-                playsInline
-                autoPlay
+        {/* Details as clean dropdowns */}
+        <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
+          <Row label="Hold color">
+            <Dropdown
+              value={holdColor ?? "Choose"}
+              options={HOLD_COLORS.map((c) => c.name)}
+              onChange={setHoldColor}
+              align="right"
+            />
+          </Row>
+          {holdColor ? (
+            <div className="flex items-center gap-2 text-xs text-faint">
+              <span
+                className="h-3 w-3 rounded-full border border-white/10"
+                style={{ backgroundColor: holdHex(holdColor) }}
               />
-              <button
-                type="button"
-                onClick={clearVideo}
-                className="absolute right-3 top-3 rounded-full bg-bg/70 p-2 text-chalk backdrop-blur"
-              >
-                <X size={18} />
-              </button>
+              {holdColor} holds
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => videoRef.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface py-3 text-sm text-muted hover:text-chalk"
-            >
-              <Film size={18} /> Add a video
-            </button>
-          )}
-        </div>
+          ) : null}
 
-        {/* Hold color */}
-        <div>
-          <p className="mb-2 ml-1 text-sm text-muted">Hold color</p>
-          <div className="grid grid-cols-5 gap-2">
-            {HOLD_COLORS.map((c) => {
-              const selected = holdColor === c.name;
-              return (
-                <button
-                  key={c.name}
-                  type="button"
-                  onClick={() => setHoldColor(c.name)}
-                  className={`flex flex-col items-center gap-1 rounded-xl border p-2 transition ${
-                    selected
-                      ? "border-accent bg-surface-2"
-                      : "border-border bg-surface"
-                  }`}
-                >
-                  <span
-                    className="h-6 w-6 rounded-full border border-white/10"
-                    style={{ backgroundColor: c.hex }}
-                  />
-                  <span className="text-[10px] text-muted">{c.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Wall section */}
-        <div>
-          <p className="mb-2 ml-1 text-sm text-muted">Wall section</p>
-          <div className="flex flex-wrap gap-2">
-            {WALL_SECTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSection(s)}
-                className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                  section === s
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border bg-surface text-muted hover:text-chalk"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setSection("__custom")}
-              className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                section === "__custom"
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border bg-surface text-muted hover:text-chalk"
-              }`}
-            >
-              Custom
-            </button>
-          </div>
-          {section === "__custom" ? (
+          <Row label="Wall section">
+            <Dropdown
+              value={section || "Choose"}
+              options={[...WALL_SECTIONS, OTHER]}
+              onChange={setSection}
+              align="right"
+            />
+          </Row>
+          {section === OTHER ? (
             <Input
-              className="mt-2"
               value={customSection}
               onChange={(e) => setCustomSection(e.target.value)}
               placeholder="Name the section"
             />
           ) : null}
-        </div>
 
-        {/* Optional grade */}
-        <div>
-          <p className="mb-2 ml-1 text-sm text-muted">
-            Your grade guess <span className="text-faint">(optional)</span>
+          <Row label="Your grade guess">
+            <Dropdown
+              value={grade === null ? NOT_SURE : labels[grade]}
+              options={[NOT_SURE, ...labels]}
+              onChange={(l) =>
+                setGrade(l === NOT_SURE ? null : labels.indexOf(l))
+              }
+              align="right"
+            />
+          </Row>
+
+          <Row label="Gym's grade">
+            <Dropdown
+              value={gymGrade === null ? NOT_SET : labels[gymGrade]}
+              options={[NOT_SET, ...labels]}
+              onChange={(l) =>
+                setGymGrade(l === NOT_SET ? null : labels.indexOf(l))
+              }
+              align="right"
+            />
+          </Row>
+          <p className="text-xs text-faint">
+            "Gym's grade" is the official grade the setter posted, if any.
           </p>
-          <GradePicker
-            value={grade}
-            onChange={setGrade}
-            climbingType={climbingType}
-            system={system}
-          />
         </div>
 
         {/* Description */}
@@ -399,13 +318,6 @@ export function AddRoute() {
                 Yes, add it
               </Button>
               <Button
-                variant="secondary"
-                className="w-full"
-                onClick={() => navigate("/gym/select")}
-              >
-                Change gym
-              </Button>
-              <Button
                 variant="ghost"
                 className="w-full"
                 onClick={() => setConfirming(false)}
@@ -416,6 +328,21 @@ export function AddRoute() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm font-semibold text-chalk">{label}</span>
+      {children}
     </div>
   );
 }

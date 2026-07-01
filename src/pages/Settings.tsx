@@ -69,7 +69,30 @@ export function Settings() {
   const [savingName, setSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
 
+  const [uname, setUname] = useState(profile?.username ?? "");
+  const [savingU, setSavingU] = useState(false);
+  const [uMsg, setUMsg] = useState<string | null>(null);
+
   const theme = (profile?.theme ?? "dark") as ThemePref;
+  const sendsPublic = profile?.sends_public ?? true;
+
+  async function saveUsername() {
+    const h = uname.trim().replace(/^@/, "").toLowerCase();
+    if (h === (profile?.username ?? "")) return;
+    if (h.length < 3) {
+      setUMsg("Usernames need at least 3 characters.");
+      return;
+    }
+    if (!/^[a-z0-9_]+$/.test(h)) {
+      setUMsg("Use letters, numbers, and underscores only.");
+      return;
+    }
+    setSavingU(true);
+    const { error } = await updateProfile({ username: h });
+    setSavingU(false);
+    setUMsg(error ? "That username is already taken." : "Saved!");
+    if (!error) setUname(h);
+  }
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
   const defaultFilter = (profile?.default_climb_filter ?? "all") as ClimbFilter;
 
@@ -117,6 +140,21 @@ export function Settings() {
           </p>
         </Section>
 
+        <Section title="Privacy">
+          <Segmented<string>
+            value={sendsPublic ? "public" : "private"}
+            options={[
+              { value: "public", label: "Public" },
+              { value: "private", label: "Private" },
+            ]}
+            onChange={(v) => updateProfile({ sends_public: v === "public" })}
+          />
+          <p className="ml-1 text-xs text-faint">
+            When private, your sends and projects are hidden from other
+            climbers' view of your profile.
+          </p>
+        </Section>
+
         <Section title="Account">
           <Card className="flex flex-col gap-4 p-4">
             <div>
@@ -138,6 +176,34 @@ export function Settings() {
               >
                 {nameSaved ? "Saved" : "Save name"}
               </Button>
+            </div>
+            <div>
+              <Input
+                label="Username"
+                value={uname}
+                onChange={(e) => {
+                  setUname(e.target.value);
+                  setUMsg(null);
+                }}
+                placeholder="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              <Button
+                variant="secondary"
+                className="mt-3 w-full"
+                loading={savingU}
+                disabled={
+                  uname.trim().replace(/^@/, "").toLowerCase() ===
+                  (profile?.username ?? "")
+                }
+                onClick={saveUsername}
+              >
+                Save username
+              </Button>
+              {uMsg ? (
+                <p className="ml-1 mt-2 text-xs text-muted">{uMsg}</p>
+              ) : null}
             </div>
             <div>
               <p className="ml-1 text-sm text-muted">Email</p>

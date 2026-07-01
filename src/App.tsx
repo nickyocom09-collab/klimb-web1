@@ -13,9 +13,11 @@ import { Feed } from "./pages/Feed";
 import { AddRoute } from "./pages/AddRoute";
 import { LogClimb } from "./pages/LogClimb";
 import { RouteDetail } from "./pages/RouteDetail";
+import { PublicProfile } from "./pages/PublicProfile";
+import { Friends } from "./pages/Friends";
 import { Notifications } from "./pages/Notifications";
 import { Onboarding } from "./pages/Onboarding";
-import { MySends } from "./pages/MySends";
+import { Sends } from "./pages/Sends";
 import { Profile } from "./pages/Profile";
 import { Settings } from "./pages/Settings";
 import { Gyms } from "./pages/Gyms";
@@ -122,6 +124,22 @@ export default function App() {
           </RequireAuth>
         }
       />
+      <Route
+        path="/u/:id"
+        element={
+          <RequireAuth>
+            <PublicProfile />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/friends"
+        element={
+          <RequireAuth>
+            <Friends />
+          </RequireAuth>
+        }
+      />
 
       <Route
         element={
@@ -141,7 +159,7 @@ export default function App() {
         <Route path="/add" element={<AddRoute />} />
         <Route path="/activity" element={<ActivityFeed />} />
         <Route path="/profile" element={<Profile />} />
-        <Route path="/sends" element={<MySends />} />
+        <Route path="/sends" element={<Sends />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

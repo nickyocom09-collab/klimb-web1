@@ -13,32 +13,49 @@ import {
 } from "../lib/constants";
 import { RouteCard } from "../components/RouteCard";
 import { GradePicker } from "../components/GradePicker";
+import { Dropdown } from "../components/Dropdown";
 import { AppHeader } from "../components/Layout";
 import { Button, CenterSpinner } from "../components/ui";
 
-type Sort = "newest" | "graded" | "sends";
+type Sort = "newest" | "ungraded" | "graded" | "sends";
 
 const SORTS: { key: Sort; label: string }[] = [
   { key: "newest", label: "Newest" },
+  { key: "ungraded", label: "Needs grades" },
   { key: "graded", label: "Most graded" },
   { key: "sends", label: "Most sends" },
 ];
 
 export function Feed() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
-  const gymId = profile?.home_gym_id ?? null;
+  // A "visiting" gym temporarily retargets the home feed without changing home.
+  const gymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
+  const visiting =
+    !!profile?.visiting_gym_id &&
+    profile.visiting_gym_id !== profile.home_gym_id;
   const system = profile?.grade_system ?? "american";
+
+  async function clearVisiting() {
+    if (!profile) return;
+    await supabase
+      .from("profiles")
+      .update({ visiting_gym_id: null })
+      .eq("id", profile.id);
+    await refreshProfile();
+  }
   const [gymName, setGymName] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const [routes, setRoutes] = useState<RouteWithStats[]>([]);
   const [myGrades, setMyGrades] = useState<Map<string, number>>(new Map());
+  const [authorNames, setAuthorNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   // Quick-grade sheet state.
   const [gradingRoute, setGradingRoute] = useState<RouteWithStats | null>(null);
   const [draftGrade, setDraftGrade] = useState<number | null>(null);
   const [savingGrade, setSavingGrade] = useState(false);
   const [section, setSection] = useState<string>("All");
+  const [color, setColor] = useState<string>("All");
   const [sort, setSort] = useState<Sort>("newest");
   const [tab, setTab] = useState<ClimbType>(
     profile?.default_climb_filter === "toprope" ? "toprope" : "boulder",
@@ -100,6 +117,21 @@ export function Feed() {
             );
           }
         }
+        // Author display names for the "posted by" strip.
+        const authorIds = [
+          ...new Set(r.map((x) => x.created_by).filter(Boolean)),
+        ] as string[];
+        if (authorIds.length > 0) {
+          const { data: people } = await supabase
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", authorIds);
+          if (active) {
+            setAuthorNames(
+              new Map((people ?? []).map((p) => [p.id, p.display_name])),
+            );
+          }
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -148,29 +180,40 @@ export function Feed() {
     return ["All", ...Array.from(set).sort()];
   }, [typeFiltered]);
 
+  const colors = useMemo(() => {
+    const set = new Set(typeFiltered.map((r) => r.hold_color));
+    return ["All", ...Array.from(set).sort()];
+  }, [typeFiltered]);
+
   const visible = useMemo(() => {
-    let list =
-      section === "All"
-        ? typeFiltered
-        : typeFiltered.filter((r) => r.wall_section === section);
+    let list = typeFiltered;
+    if (section !== "All") list = list.filter((r) => r.wall_section === section);
+    if (color !== "All") list = list.filter((r) => r.hold_color === color);
     list = [...list];
+    const newest = (a: RouteWithStats, b: RouteWithStats) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     if (sort === "graded") {
       list.sort((a, b) => b.gradeValues.length - a.gradeValues.length);
     } else if (sort === "sends") {
       list.sort((a, b) => b.sendCount - a.sendCount);
-    } else {
+    } else if (sort === "ungraded") {
+      // Fewest grades first (0 = brand new / unrated), newest breaks ties —
+      // exactly the "walked up to a route nobody's rated" case.
       list.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        (a, b) => a.gradeValues.length - b.gradeValues.length || newest(a, b),
       );
+    } else {
+      list.sort(newest);
     }
     return list;
-  }, [typeFiltered, section, sort]);
+  }, [typeFiltered, section, color, sort]);
+
+  const sortLabel = SORTS.find((s) => s.key === sort)?.label ?? "Newest";
 
   return (
     <div>
       <AppHeader
-        subtitle="Routes at"
+        subtitle={visiting ? "Visiting" : "Routes at"}
         title={gymName ?? "your gym"}
         right={
           <button
@@ -188,58 +231,64 @@ export function Feed() {
         }
       />
 
-      {/* Bouldering / Top Rope tabs */}
-      <div className="flex border-b border-border px-5">
-        {CLIMB_TYPES.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => {
-              setTab(t.value);
-              setSection("All");
-            }}
-            className={`relative flex-1 pb-3 pt-1 text-center text-sm font-semibold transition ${
-              tab === t.value ? "text-chalk" : "text-faint hover:text-muted"
-            }`}
-          >
-            {t.value === "boulder" ? "Bouldering" : "Top Rope"}
-            {tab === t.value ? (
-              <span className="absolute inset-x-0 -bottom-px mx-auto h-0.5 w-12 rounded-full bg-accent" />
-            ) : null}
-          </button>
-        ))}
-      </div>
+      {visiting ? (
+        <button
+          onClick={clearVisiting}
+          className="mx-5 mt-1 flex w-[calc(100%-2.5rem)] items-center justify-between rounded-2xl bg-accent/10 px-4 py-2.5 text-sm text-accent transition hover:bg-accent/15"
+        >
+          <span className="font-semibold">
+            You're browsing a gym you're visiting
+          </span>
+          <span className="font-semibold underline">Back to home</span>
+        </button>
+      ) : null}
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3 px-5 py-3">
-        <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
-          {sections.map((s) => (
+      {/* Bouldering / Top Rope — soft segmented control, no hard lines */}
+      <div className="px-5 pb-3 pt-1">
+        <div className="flex gap-1 rounded-full bg-surface-2 p-1">
+          {CLIMB_TYPES.map((t) => (
             <button
-              key={s}
-              onClick={() => setSection(s)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-sm transition ${
-                section === s
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border bg-surface text-muted hover:text-chalk"
+              key={t.value}
+              onClick={() => {
+                setTab(t.value);
+                setSection("All");
+                setColor("All");
+              }}
+              className={`flex-1 rounded-full py-2 text-sm font-semibold transition ${
+                tab === t.value
+                  ? "bg-accent text-bg shadow"
+                  : "text-muted hover:text-chalk"
               }`}
             >
-              {s}
+              {t.value === "boulder" ? "Bouldering" : "Top Rope"}
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
-          {SORTS.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => setSort(s.key)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                sort === s.key
-                  ? "bg-surface-2 text-chalk"
-                  : "text-faint hover:text-muted"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+
+        {/* Filters as clean dropdowns */}
+        <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
+          <Dropdown
+            label="Wall"
+            value={section}
+            options={sections}
+            onChange={setSection}
+          />
+          <Dropdown
+            label="Color"
+            value={color}
+            options={colors}
+            onChange={setColor}
+          />
+          <Dropdown
+            label="Sort"
+            value={sortLabel}
+            options={SORTS.map((s) => s.label)}
+            onChange={(l) => {
+              const found = SORTS.find((s) => s.label === l);
+              if (found) setSort(found.key);
+            }}
+            align="right"
+          />
         </div>
       </div>
 
@@ -265,6 +314,9 @@ export function Feed() {
               system={system}
               index={i}
               myGrade={myGrades.get(route.id) ?? null}
+              authorName={
+                route.created_by ? authorNames.get(route.created_by) ?? null : null
+              }
               onGrade={openGrade}
             />
           ))}

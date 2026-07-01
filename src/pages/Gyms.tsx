@@ -6,13 +6,12 @@ import {
   ChevronRight,
   Home,
   MapPin,
-  Plus,
   Search,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { AppHeader } from "../components/Layout";
-import { Button, CenterSpinner, Spinner } from "../components/ui";
+import { CenterSpinner, Spinner } from "../components/ui";
 import { US_STATES, STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 
@@ -213,16 +212,7 @@ export function Gyms() {
           })}
         </ul>
       )}
-
-      <div className="p-5">
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => navigate("/gym/add")}
-        >
-          <Plus size={18} className="mr-2" /> Suggest a new gym
-        </Button>
-      </div>
+      <div className="h-6" />
     </div>
   );
 }

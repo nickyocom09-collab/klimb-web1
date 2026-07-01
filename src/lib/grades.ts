@@ -111,3 +111,29 @@ export function gradeSpread(grades: number[]): number {
 export function spreadColor(grades: number[]): string {
   return gradeSpread(grades) <= 1 ? "#39FF88" : "#FF9F45";
 }
+
+export type ConsensusTone = "green" | "orange" | "none";
+
+/**
+ * The community "verdict" for a route: how much the crowd agrees.
+ * - none: 0 or 1 grades (nothing to agree on yet)
+ * - green: tight spread → strong consensus
+ * - orange: wide spread → contested
+ */
+export function gradeConsensus(grades: number[]): {
+  tone: ConsensusTone;
+  spread: number;
+  min: number | null;
+  max: number | null;
+  count: number;
+} {
+  const count = grades.length;
+  if (count === 0)
+    return { tone: "none", spread: 0, min: null, max: null, count };
+  const spread = gradeSpread(grades);
+  const min = Math.min(...grades);
+  const max = Math.max(...grades);
+  const tone: ConsensusTone =
+    count < 2 ? "none" : spread <= 1 ? "green" : "orange";
+  return { tone, spread, min, max, count };
+}

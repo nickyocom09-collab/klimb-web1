@@ -47,7 +47,11 @@ function PreviewProvider({ children }: { children: ReactNode }) {
   const previewProfile: UserRow = {
     id: "d0000000-0000-4000-8000-000000000001",
     display_name: "Owner (Preview)",
+    username: "owner",
+    avatar_url: null,
     home_gym_id: PREVIEW_GYM_ID,
+    visiting_gym_id: null,
+    sends_public: true,
     grade_system: "american",
     theme: "dark",
     default_climb_filter: "all",

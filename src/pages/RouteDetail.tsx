@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Ban,
+  BarChart3,
   Bookmark,
   Check,
   ChevronLeft,
@@ -10,15 +11,21 @@ import {
   Lightbulb,
   MessageSquare,
   MoreHorizontal,
+  Reply,
   ShieldAlert,
   ThumbsUp,
   Trash2,
   Trophy,
+  X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
-import { communityGrade, formatGrade } from "../lib/grades";
+import {
+  communityGrade,
+  formatGrade,
+  gradeConsensus,
+} from "../lib/grades";
 import {
   climbTypeLabel,
   CONTENT_REPORT_REASONS,
@@ -27,17 +34,22 @@ import {
 } from "../lib/constants";
 import type { ContentReason, ReportReason } from "../lib/constants";
 import { fetchRouteBookmarks, toggleBookmark } from "../lib/bookmarks";
-import {
-  blockUser,
-  fetchBlockedIds,
-  reportContent,
-} from "../lib/moderation";
-import { Button, CenterSpinner, Card, Spinner } from "../components/ui";
+import { blockUser, fetchBlockedIds, reportContent } from "../lib/moderation";
+import { Button, CenterSpinner, Card } from "../components/ui";
 import { GradeBar } from "../components/GradeBar";
+import { GradeDonut } from "../components/GradeDonut";
 import { GradePicker } from "../components/GradePicker";
 import type { BookmarkKind, CommentRow } from "../lib/database.types";
 
 type CommentWithAuthor = CommentRow & { authorName: string };
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export function RouteDetail() {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +58,7 @@ export function RouteDetail() {
   const system = profile?.grade_system ?? "american";
 
   const [route, setRoute] = useState<RouteWithStats | null>(null);
+  const [authorName, setAuthorName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [draftGrade, setDraftGrade] = useState<number | null>(null);
@@ -57,17 +70,18 @@ export function RouteDetail() {
   const [othersEngaged, setOthersEngaged] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportingRoute, setReportingRoute] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [hasReportedGone, setHasReportedGone] = useState(false);
 
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
   const [commentBody, setCommentBody] = useState("");
   const [isBeta, setIsBeta] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [postingReply, setPostingReply] = useState(false);
 
   const [bookmarks, setBookmarks] = useState<Set<BookmarkKind>>(new Set());
-  const [savingBookmark, setSavingBookmark] = useState<BookmarkKind | null>(
-    null,
-  );
-
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const [menuCommentId, setMenuCommentId] = useState<string | null>(null);
   const [reportComment, setReportComment] = useState<CommentWithAuthor | null>(
@@ -93,7 +107,10 @@ export function RouteDetail() {
       for (const u of users ?? []) nameMap.set(u.id, u.display_name);
     }
     setComments(
-      rows.map((c) => ({ ...c, authorName: nameMap.get(c.user_id) ?? "Climber" })),
+      rows.map((c) => ({
+        ...c,
+        authorName: nameMap.get(c.user_id) ?? "Climber",
+      })),
     );
   }, []);
 
@@ -102,6 +119,18 @@ export function RouteDetail() {
     setLoading(true);
     const r = await fetchRoute(id);
     setRoute(r);
+
+    if (r?.created_by) {
+      const { data: author } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", r.created_by)
+        .maybeSingle();
+      setAuthorName(author?.display_name ?? null);
+    } else {
+      setAuthorName(null);
+    }
+
     const { data: mine } = await supabase
       .from("grades")
       .select("grade")
@@ -111,7 +140,6 @@ export function RouteDetail() {
     setMyGrade(mine?.grade ?? null);
     setDraftGrade(mine?.grade ?? null);
 
-    // Whether the current user has already logged a send (one per user).
     const { count: mySendCount } = await supabase
       .from("sends")
       .select("*", { count: "exact", head: true })
@@ -119,14 +147,18 @@ export function RouteDetail() {
       .eq("user_id", profile.id);
     setHasSent((mySendCount ?? 0) > 0);
 
-    await loadComments(id);
+    // Whether the current user has already voted this route gone (one per user).
+    const { count: myGoneCount } = await supabase
+      .from("gone_reports")
+      .select("*", { count: "exact", head: true })
+      .eq("route_id", id)
+      .eq("user_id", profile.id);
+    setHasReportedGone((myGoneCount ?? 0) > 0);
 
+    await loadComments(id);
     setBookmarks(await fetchRouteBookmarks(profile.id, id));
     setBlockedIds(await fetchBlockedIds(profile.id));
 
-    // The creator may hard-delete a route only while nobody else has engaged
-    // (no grades, sends, or comments from anyone but the creator). Once others
-    // have touched it, it can only be retired via report-gone → archive.
     if (r && r.created_by) {
       const creator = r.created_by;
       const [{ count: gradeCount }, { count: sendCount }, { count: commentCount }] =
@@ -148,9 +180,7 @@ export function RouteDetail() {
             .neq("user_id", creator),
         ]);
       setOthersEngaged(
-        (gradeCount ?? 0) > 0 ||
-          (sendCount ?? 0) > 0 ||
-          (commentCount ?? 0) > 0,
+        (gradeCount ?? 0) > 0 || (sendCount ?? 0) > 0 || (commentCount ?? 0) > 0,
       );
     } else {
       setOthersEngaged(true);
@@ -183,7 +213,6 @@ export function RouteDetail() {
   async function logSend() {
     if (!id || !profile || hasSent) return;
     setSending(true);
-    // One send per route per user — ignore duplicates if tapped twice.
     await supabase.from("sends").upsert(
       { route_id: id, user_id: profile.id },
       { onConflict: "route_id,user_id", ignoreDuplicates: true },
@@ -191,6 +220,29 @@ export function RouteDetail() {
     setHasSent(true);
     setRoute(await fetchRoute(id));
     setSending(false);
+  }
+
+  // Seamless optimistic bookmark toggle — no disabled flicker, revert on error.
+  async function flipBookmark(kind: BookmarkKind) {
+    if (!id || !profile) return;
+    const active = bookmarks.has(kind);
+    setBookmarks((prev) => {
+      const next = new Set(prev);
+      if (active) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+    try {
+      await toggleBookmark(profile.id, id, kind, active);
+    } catch {
+      // Revert on failure.
+      setBookmarks((prev) => {
+        const next = new Set(prev);
+        if (active) next.add(kind);
+        else next.delete(kind);
+        return next;
+      });
+    }
   }
 
   async function blockClimber(c: CommentWithAuthor) {
@@ -226,27 +278,11 @@ export function RouteDetail() {
       return;
     }
     if (count >= 3 && id) {
-      // Auto-hidden server-side — drop it from view immediately.
       setComments((prev) => prev.filter((x) => x.id !== target.id));
       window.alert("Thanks — this comment was hidden pending review.");
     } else {
       window.alert("Report submitted. Thanks for keeping Klimb clean.");
     }
-  }
-
-  async function flipBookmark(kind: BookmarkKind) {
-    if (!id || !profile) return;
-    const active = bookmarks.has(kind);
-    setSavingBookmark(kind);
-    // Optimistic toggle.
-    setBookmarks((prev) => {
-      const next = new Set(prev);
-      if (active) next.delete(kind);
-      else next.add(kind);
-      return next;
-    });
-    await toggleBookmark(profile.id, id, kind, active);
-    setSavingBookmark(null);
   }
 
   async function reportRoute(reason: ReportReason) {
@@ -273,7 +309,7 @@ export function RouteDetail() {
   }
 
   async function reportGone() {
-    if (!id) return;
+    if (!id || hasReportedGone) return;
     if (
       !window.confirm(
         "Report this route as gone? After 3 reports it gets archived.",
@@ -289,11 +325,13 @@ export function RouteDetail() {
       window.alert(error.message);
       return;
     }
+    setHasReportedGone(true);
     if ((data ?? 0) >= 3) {
       window.alert("This route has been archived. Thanks for the heads up!");
       navigate("/", { replace: true });
     } else {
       window.alert(`Reported. ${data}/3 reports so far.`);
+      setRoute(await fetchRoute(id));
     }
   }
 
@@ -306,7 +344,7 @@ export function RouteDetail() {
     )
       return;
     setDeleting(true);
-    const { error } = await supabase.from("routes").delete().eq("id", id);
+    const { error } = await supabase.rpc("delete_route", { p_route_id: id });
     setDeleting(false);
     if (error) {
       window.alert(error.message);
@@ -330,8 +368,23 @@ export function RouteDetail() {
     setPostingComment(false);
   }
 
+  async function postReply(parentId: string) {
+    if (!id || !profile || replyBody.trim().length === 0) return;
+    setPostingReply(true);
+    await supabase.from("comments").insert({
+      route_id: id,
+      user_id: profile.id,
+      body: replyBody.trim(),
+      is_beta: false,
+      parent_id: parentId,
+    });
+    setReplyBody("");
+    setReplyTo(null);
+    await loadComments(id);
+    setPostingReply(false);
+  }
+
   async function upvote(c: CommentWithAuthor) {
-    // Optimistic bump.
     setComments((prev) =>
       prev.map((x) => (x.id === c.id ? { ...x, upvotes: x.upvotes + 1 } : x)),
     );
@@ -359,11 +412,25 @@ export function RouteDetail() {
   }
 
   const grade = communityGrade(route.gradeValues);
+  const { tone, count } = gradeConsensus(route.gradeValues);
   const visibleComments = comments.filter((c) => !blockedIds.has(c.user_id));
+  const topLevel = visibleComments.filter((c) => !c.parent_id);
+  const repliesOf = (parentId: string) =>
+    visibleComments.filter((c) => c.parent_id === parentId);
+
+  let verdictLabel = "No grades yet";
+  if (count === 1) verdictLabel = "1 grade so far";
+  else if (count > 1 && tone === "green") verdictLabel = "Strong consensus";
+  else if (count > 1) verdictLabel = "Contested";
+  const verdictClass =
+    tone === "green"
+      ? "text-accent"
+      : tone === "orange"
+        ? "text-wide"
+        : "text-faint";
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
-      {/* Media + back. Video plays first (muted/looped) with the photo as poster. */}
       <div className="relative">
         {route.video_url ? (
           <video
@@ -391,109 +458,135 @@ export function RouteDetail() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-24">
-        {/* Header: community grade hero */}
-        <div className="flex items-center justify-between border-b border-border px-5 py-5">
-          <div className="flex items-center gap-3">
-            <span
-              className="h-5 w-5 rounded-full border border-white/10"
-              style={{ backgroundColor: holdHex(route.hold_color) }}
-            />
-            <div>
-              <p className="text-lg font-bold text-chalk">{route.hold_color}</p>
-              <p className="text-sm text-muted">
-                {route.wall_section} · {climbTypeLabel(route.climbing_type)}
+      <div className="flex-1 overflow-y-auto px-5 pb-24 pt-5">
+        <div className="flex flex-col gap-5">
+          {/* Identity */}
+          <div>
+            <div className="flex items-center gap-3">
+              <span
+                className="h-5 w-5 rounded-full border border-white/10"
+                style={{ backgroundColor: holdHex(route.hold_color) }}
+              />
+              <div>
+                <p className="text-lg font-bold text-chalk">
+                  {route.hold_color}
+                </p>
+                <p className="text-sm text-muted">
+                  {route.wall_section} · {climbTypeLabel(route.climbing_type)}
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-faint">
+              {authorName ? `Set by ${authorName} · ` : ""}
+              {formatDate(route.created_at)}
+            </p>
+          </div>
+
+          {/* Community says vs gym says */}
+          <div className="flex gap-3">
+            <div className="flex-1 rounded-2xl bg-surface px-4 py-3 shadow-card">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Community says
+              </p>
+              <p className="mt-0.5 text-4xl font-extrabold leading-none text-accent">
+                {formatGrade(grade, route.climbing_type, system)}
+              </p>
+              <p className={`mt-1.5 text-xs font-semibold ${verdictClass}`}>
+                {verdictLabel}
+              </p>
+            </div>
+            <div className="flex-1 rounded-2xl bg-surface px-4 py-3 shadow-card">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Gym says
+              </p>
+              <p className="mt-0.5 text-4xl font-extrabold leading-none text-chalk">
+                {route.gym_grade === null || route.gym_grade === undefined
+                  ? "—"
+                  : formatGrade(route.gym_grade, route.climbing_type, system)}
+              </p>
+              <p className="mt-1.5 text-xs text-faint">
+                {route.gym_grade === null || route.gym_grade === undefined
+                  ? "not set"
+                  : "official grade"}
               </p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-5xl font-extrabold leading-none text-accent">
-              {formatGrade(grade, route.climbing_type, system)}
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              {route.gradeValues.length} grade
+
+          {/* Vote breakdown button */}
+          <button
+            onClick={() => setStatsOpen(true)}
+            className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+              <BarChart3 size={18} className="text-accent" /> See the vote
+              breakdown
+            </span>
+            <span className="text-sm text-muted">
+              {route.gradeValues.length} vote
               {route.gradeValues.length === 1 ? "" : "s"} · {route.sendCount}{" "}
               send{route.sendCount === 1 ? "" : "s"}
-            </p>
+            </span>
+          </button>
+
+          {/* Save / favorite — seamless toggles */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => flipBookmark("project")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-semibold transition active:scale-[0.98] ${
+                bookmarks.has("project")
+                  ? "bg-accent/15 text-accent"
+                  : "bg-surface text-muted hover:text-chalk"
+              }`}
+            >
+              <Bookmark
+                size={16}
+                fill={bookmarks.has("project") ? "currentColor" : "none"}
+              />
+              {bookmarks.has("project") ? "Project" : "Save to try"}
+            </button>
+            <button
+              onClick={() => flipBookmark("favorite")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-semibold transition active:scale-[0.98] ${
+                bookmarks.has("favorite")
+                  ? "bg-accent/15 text-accent"
+                  : "bg-surface text-muted hover:text-chalk"
+              }`}
+            >
+              <Heart
+                size={16}
+                fill={bookmarks.has("favorite") ? "currentColor" : "none"}
+              />
+              {bookmarks.has("favorite") ? "Favorited" : "Favorite"}
+            </button>
           </div>
-        </div>
 
-        {/* Save (project / to-try) + favorite */}
-        <div className="flex gap-2 border-b border-border px-5 py-3">
-          <button
-            onClick={() => flipBookmark("project")}
-            disabled={savingBookmark === "project"}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-2xl border py-2.5 text-sm font-semibold transition disabled:opacity-50 ${
-              bookmarks.has("project")
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border text-muted hover:text-chalk"
-            }`}
-          >
-            <Bookmark
-              size={16}
-              fill={bookmarks.has("project") ? "currentColor" : "none"}
+          {route.description ? (
+            <p className="text-sm text-muted">{route.description}</p>
+          ) : null}
+
+          {/* Your grade */}
+          <div className="rounded-2xl bg-surface p-4 shadow-card">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-faint">
+              {myGrade === null ? "What do you think it's graded?" : "Your grade"}
+            </h2>
+            <GradePicker
+              value={draftGrade}
+              onChange={setDraftGrade}
+              climbingType={route.climbing_type}
+              system={system}
             />
-            {bookmarks.has("project") ? "Project" : "Save to try"}
-          </button>
-          <button
-            onClick={() => flipBookmark("favorite")}
-            disabled={savingBookmark === "favorite"}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-2xl border py-2.5 text-sm font-semibold transition disabled:opacity-50 ${
-              bookmarks.has("favorite")
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border text-muted hover:text-chalk"
-            }`}
-          >
-            <Heart
-              size={16}
-              fill={bookmarks.has("favorite") ? "currentColor" : "none"}
-            />
-            {bookmarks.has("favorite") ? "Favorited" : "Favorite"}
-          </button>
-        </div>
+            <Button
+              className="mt-3 w-full"
+              variant={draftGrade === myGrade ? "secondary" : "primary"}
+              disabled={draftGrade === null || draftGrade === myGrade}
+              loading={savingGrade}
+              onClick={saveGrade}
+            >
+              {myGrade === null ? "Submit grade" : "Update grade"}
+            </Button>
+          </div>
 
-        {route.description ? (
-          <p className="border-b border-border px-5 py-4 text-sm text-muted">
-            {route.description}
-          </p>
-        ) : null}
-
-        {/* Distribution */}
-        <section className="border-b border-border px-5 py-5">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-faint">
-            Grade distribution
-          </h2>
-          <GradeBar
-            grades={route.gradeValues}
-            climbingType={route.climbing_type}
-            system={system}
-          />
-        </section>
-
-        {/* Your grade */}
-        <section className="border-b border-border px-5 py-5">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-faint">
-            {myGrade === null ? "Submit your grade" : "Your grade"}
-          </h2>
-          <GradePicker
-            value={draftGrade}
-            onChange={setDraftGrade}
-            climbingType={route.climbing_type}
-            system={system}
-          />
-          <Button
-            className="mt-3 w-full"
-            variant={draftGrade === myGrade ? "secondary" : "primary"}
-            disabled={draftGrade === null || draftGrade === myGrade}
-            loading={savingGrade}
-            onClick={saveGrade}
-          >
-            {myGrade === null ? "Submit grade" : "Update grade"}
-          </Button>
-        </section>
-
-        {/* Send */}
-        <section className="border-b border-border px-5 py-5">
+          {/* Send */}
           <Button
             className="w-full"
             variant={hasSent ? "secondary" : "primary"}
@@ -511,169 +604,233 @@ export function RouteDetail() {
               </>
             )}
           </Button>
-        </section>
 
-        {/* Comments / Beta */}
-        <section className="px-5 py-5">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-faint">
-            <MessageSquare size={15} /> Comments &amp; beta
-          </h2>
+          {/* Comments / beta */}
+          <section>
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-faint">
+              <MessageSquare size={15} /> Comments &amp; beta
+            </h2>
 
-          <div className="mb-4 flex flex-col gap-2">
-            <textarea
-              value={commentBody}
-              onChange={(e) => setCommentBody(e.target.value)}
-              placeholder="Share beta or a comment…"
-              className="min-h-[72px] w-full rounded-2xl border border-border bg-surface-2 px-4 py-3 text-chalk placeholder:text-faint outline-none focus:border-accent"
-            />
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setIsBeta((v) => !v)}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition ${
-                  isBeta
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border text-muted hover:text-chalk"
-                }`}
-              >
-                <Lightbulb size={15} /> Mark as beta
-              </button>
-              <Button
-                onClick={postComment}
-                loading={postingComment}
-                disabled={commentBody.trim().length === 0}
-                className="h-10 px-4"
-              >
-                Post
-              </Button>
+            <div className="mb-4 flex flex-col gap-2">
+              <textarea
+                value={commentBody}
+                onChange={(e) => setCommentBody(e.target.value)}
+                placeholder="Share beta or a comment…"
+                className="min-h-[72px] w-full rounded-2xl bg-surface-2 px-4 py-3 text-chalk placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
+              />
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setIsBeta((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
+                    isBeta
+                      ? "bg-accent/10 text-accent"
+                      : "bg-surface-2 text-muted hover:text-chalk"
+                  }`}
+                >
+                  <Lightbulb size={15} /> Mark as beta
+                </button>
+                <Button
+                  onClick={postComment}
+                  loading={postingComment}
+                  disabled={commentBody.trim().length === 0}
+                  className="h-10 px-4"
+                >
+                  Post
+                </Button>
+              </div>
             </div>
-          </div>
 
-          {visibleComments.length === 0 ? (
-            <p className="text-sm text-faint">
-              No comments yet. Drop the first beta.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {visibleComments.map((c) => {
-                const mine = c.user_id === profile?.id;
-                return (
-                  <li key={c.id}>
-                    <Card className="p-4">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-sm font-semibold text-chalk">
-                          {c.authorName}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {c.is_beta ? (
-                            <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase text-accent">
-                              <Lightbulb size={11} /> Beta
-                            </span>
-                          ) : null}
-                          {!mine ? (
-                            <div className="relative">
-                              <button
-                                onClick={() =>
-                                  setMenuCommentId((prev) =>
-                                    prev === c.id ? null : c.id,
-                                  )
-                                }
-                                aria-label="Comment options"
-                                className="rounded-full p-1 text-faint hover:text-chalk"
-                              >
-                                <MoreHorizontal size={16} />
-                              </button>
-                              {menuCommentId === c.id ? (
-                                <div className="absolute right-0 top-7 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-card">
-                                  <button
-                                    onClick={() => {
-                                      setMenuCommentId(null);
-                                      setReportComment(c);
-                                    }}
-                                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
-                                  >
-                                    <Flag size={14} /> Report
-                                  </button>
-                                  <button
-                                    onClick={() => blockClimber(c)}
-                                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
-                                  >
-                                    <Ban size={14} /> Block climber
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted">{c.body}</p>
-                      <button
-                        onClick={() => upvote(c)}
-                        className="mt-2 flex items-center gap-1.5 text-xs text-faint hover:text-accent"
-                      >
-                        <ThumbsUp size={14} /> {c.upvotes}
-                      </button>
-                    </Card>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-
-        {/* Route gone */}
-        <div className="px-5 pb-8">
-          <button
-            onClick={reportGone}
-            disabled={reporting}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-wide/40 py-3 text-sm text-wide transition hover:bg-wide/10 disabled:opacity-50"
-          >
-            {reporting ? (
-              <Spinner className="text-wide" />
-            ) : (
-              <>
-                <Flag size={16} /> This route is gone
-              </>
-            )}
-          </button>
-          <p className="mt-2 text-center text-xs text-faint">
-            {route.gone_reports}/3 reports
-          </p>
-
-          {/* Community flagging (wrong gym / duplicate / inappropriate) */}
-          <button
-            onClick={() => setReportOpen(true)}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm text-faint transition hover:text-wide"
-          >
-            <ShieldAlert size={16} /> Report this route
-          </button>
-
-          {profile?.id === route.created_by ? (
-            othersEngaged ? (
-              <p className="mt-4 text-center text-xs text-faint">
-                Others have graded, sent, or commented on this route, so it
-                can't be deleted. Use "This route is gone" to retire it.
+            {topLevel.length === 0 ? (
+              <p className="text-sm text-faint">
+                No comments yet. Drop the first beta.
               </p>
             ) : (
-              <button
-                onClick={deleteRoute}
-                disabled={deleting}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm text-faint transition hover:text-wide disabled:opacity-50"
-              >
-                {deleting ? (
-                  <Spinner className="text-wide" />
-                ) : (
-                  <>
-                    <Trash2 size={16} /> Delete this route
-                  </>
-                )}
-              </button>
-            )
-          ) : null}
+              <ul className="flex flex-col gap-3">
+                {topLevel.map((c) => {
+                  const mine = c.user_id === profile?.id;
+                  const replies = repliesOf(c.id);
+                  return (
+                    <li key={c.id}>
+                      <Card className="p-4 shadow-card">
+                        <CommentHead
+                          c={c}
+                          mine={mine}
+                          menuOpen={menuCommentId === c.id}
+                          onMenu={() =>
+                            setMenuCommentId((prev) =>
+                              prev === c.id ? null : c.id,
+                            )
+                          }
+                          onReport={() => {
+                            setMenuCommentId(null);
+                            setReportComment(c);
+                          }}
+                          onBlock={() => blockClimber(c)}
+                        />
+                        <p className="text-sm text-muted">{c.body}</p>
+                        <div className="mt-2 flex items-center gap-4">
+                          <button
+                            onClick={() => upvote(c)}
+                            className="flex items-center gap-1.5 text-xs text-faint hover:text-accent"
+                          >
+                            <ThumbsUp size={14} /> {c.upvotes}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setReplyTo(replyTo === c.id ? null : c.id);
+                              setReplyBody("");
+                            }}
+                            className="flex items-center gap-1.5 text-xs text-faint hover:text-chalk"
+                          >
+                            <Reply size={14} /> Reply
+                          </button>
+                        </div>
+
+                        {replies.length > 0 ? (
+                          <ul className="mt-3 flex flex-col gap-3 border-l border-border/60 pl-3">
+                            {replies.map((rc) => (
+                              <li key={rc.id}>
+                                <CommentHead
+                                  c={rc}
+                                  mine={rc.user_id === profile?.id}
+                                  menuOpen={menuCommentId === rc.id}
+                                  onMenu={() =>
+                                    setMenuCommentId((prev) =>
+                                      prev === rc.id ? null : rc.id,
+                                    )
+                                  }
+                                  onReport={() => {
+                                    setMenuCommentId(null);
+                                    setReportComment(rc);
+                                  }}
+                                  onBlock={() => blockClimber(rc)}
+                                />
+                                <p className="text-sm text-muted">{rc.body}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+
+                        {replyTo === c.id ? (
+                          <div className="mt-3 flex flex-col gap-2">
+                            <textarea
+                              autoFocus
+                              value={replyBody}
+                              onChange={(e) => setReplyBody(e.target.value)}
+                              placeholder={`Reply to ${c.authorName}…`}
+                              className="min-h-[52px] w-full rounded-xl bg-surface-2 px-3 py-2 text-sm text-chalk placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                className="h-9 px-3 text-sm"
+                                onClick={() => setReplyTo(null)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                className="h-9 px-4 text-sm"
+                                loading={postingReply}
+                                disabled={replyBody.trim().length === 0}
+                                onClick={() => postReply(c.id)}
+                              >
+                                Reply
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          {/* Route gone / report / delete */}
+          <div className="pt-2">
+            <button
+              onClick={reportGone}
+              disabled={reporting || hasReportedGone}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm text-wide transition hover:bg-wide/10 disabled:opacity-50"
+            >
+              <Flag size={16} />
+              {hasReportedGone ? "You reported this gone" : "This route is gone"}
+            </button>
+            <p className="mt-1 text-center text-xs text-faint">
+              {route.gone_reports}/3 reports
+            </p>
+
+            <button
+              onClick={() => setReportOpen(true)}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm text-faint transition hover:text-wide"
+            >
+              <ShieldAlert size={16} /> Report this route
+            </button>
+
+            {profile?.id === route.created_by ? (
+              othersEngaged ? (
+                <p className="mt-3 text-center text-xs text-faint">
+                  Others have graded, sent, or commented, so this route can't be
+                  deleted. Use "This route is gone" to retire it.
+                </p>
+              ) : (
+                <button
+                  onClick={deleteRoute}
+                  disabled={deleting}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm text-faint transition hover:text-wide disabled:opacity-50"
+                >
+                  <Trash2 size={16} /> Delete this route
+                </button>
+              )
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {/* Report reasons sheet */}
+      {/* Stats sheet */}
+      {statsOpen ? (
+        <div
+          className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4"
+          onClick={() => setStatsOpen(false)}
+        >
+          <div
+            className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-chalk">Vote breakdown</h3>
+              <button
+                onClick={() => setStatsOpen(false)}
+                aria-label="Close"
+                className="rounded-full p-1 text-faint transition hover:text-chalk"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <GradeDonut
+              grades={route.gradeValues}
+              climbingType={route.climbing_type}
+              system={system}
+            />
+            {route.gradeValues.length > 0 ? (
+              <div className="mt-5">
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-faint">
+                  Distribution
+                </h4>
+                <GradeBar
+                  grades={route.gradeValues}
+                  climbingType={route.climbing_type}
+                  system={system}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Report route reasons sheet */}
       {reportOpen ? (
         <div className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4">
           <div className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card">
@@ -688,7 +845,7 @@ export function RouteDetail() {
                   key={r.value}
                   disabled={reportingRoute}
                   onClick={() => reportRoute(r.value)}
-                  className="w-full rounded-2xl border border-border bg-surface-2 py-3 text-sm font-semibold text-chalk transition hover:border-accent disabled:opacity-50"
+                  className="w-full rounded-2xl bg-surface-2 py-3 text-sm font-semibold text-chalk transition hover:ring-1 hover:ring-accent disabled:opacity-50"
                 >
                   {r.label}
                 </button>
@@ -720,7 +877,7 @@ export function RouteDetail() {
                   key={r.value}
                   disabled={reportingComment}
                   onClick={() => submitCommentReport(r.value)}
-                  className="w-full rounded-2xl border border-border bg-surface-2 py-3 text-sm font-semibold text-chalk transition hover:border-accent disabled:opacity-50"
+                  className="w-full rounded-2xl bg-surface-2 py-3 text-sm font-semibold text-chalk transition hover:ring-1 hover:ring-accent disabled:opacity-50"
                 >
                   {r.label}
                 </button>
@@ -736,6 +893,67 @@ export function RouteDetail() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function CommentHead({
+  c,
+  mine,
+  menuOpen,
+  onMenu,
+  onReport,
+  onBlock,
+}: {
+  c: CommentWithAuthor;
+  mine: boolean;
+  menuOpen: boolean;
+  onMenu: () => void;
+  onReport: () => void;
+  onBlock: () => void;
+}) {
+  return (
+    <div className="mb-1 flex items-center justify-between">
+      <Link
+        to={`/u/${c.user_id}`}
+        className="text-sm font-semibold text-chalk transition hover:text-accent"
+      >
+        {c.authorName}
+      </Link>
+      <div className="flex items-center gap-2">
+        {c.is_beta ? (
+          <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase text-accent">
+            <Lightbulb size={11} /> Beta
+          </span>
+        ) : null}
+        {!mine ? (
+          <div className="relative">
+            <button
+              onClick={onMenu}
+              aria-label="Comment options"
+              className="rounded-full p-1 text-faint hover:text-chalk"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            {menuOpen ? (
+              <div className="absolute right-0 top-7 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-card">
+                <button
+                  onClick={onReport}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
+                >
+                  <Flag size={14} /> Report
+                </button>
+                <button
+                  onClick={onBlock}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
+                >
+                  <Ban size={14} /> Block climber
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

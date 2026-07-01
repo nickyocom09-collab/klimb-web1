@@ -25,7 +25,11 @@ export interface Database {
         Row: {
           id: string;
           display_name: string;
+          username: string | null;
+          avatar_url: string | null;
           home_gym_id: string | null;
+          visiting_gym_id: string | null;
+          sends_public: boolean;
           grade_system: GradeSystemEnum;
           theme: ThemeEnum;
           default_climb_filter: ClimbFilterEnum;
@@ -36,7 +40,11 @@ export interface Database {
         Insert: {
           id: string;
           display_name: string;
+          username?: string | null;
+          avatar_url?: string | null;
           home_gym_id?: string | null;
+          visiting_gym_id?: string | null;
+          sends_public?: boolean;
           grade_system?: GradeSystemEnum;
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
@@ -46,12 +54,36 @@ export interface Database {
         };
         Update: {
           display_name?: string;
+          username?: string | null;
+          avatar_url?: string | null;
           home_gym_id?: string | null;
+          visiting_gym_id?: string | null;
+          sends_public?: boolean;
           grade_system?: GradeSystemEnum;
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
           onboarded?: boolean;
           notifications_seen_at?: string;
+        };
+        Relationships: [];
+      };
+      friendships: {
+        Row: {
+          id: string;
+          requester_id: string;
+          addressee_id: string;
+          status: "pending" | "accepted";
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          requester_id: string;
+          addressee_id: string;
+          status?: "pending" | "accepted";
+          created_at?: string;
+        };
+        Update: {
+          status?: "pending" | "accepted";
         };
         Relationships: [];
       };
@@ -101,6 +133,7 @@ export interface Database {
           wall_section: string;
           climbing_type: ClimbingTypeEnum;
           description: string | null;
+          gym_grade: number | null;
           status: RouteStatus;
           hidden: boolean;
           report_count: number;
@@ -118,6 +151,7 @@ export interface Database {
           wall_section: string;
           climbing_type?: ClimbingTypeEnum;
           description?: string | null;
+          gym_grade?: number | null;
           status?: RouteStatus;
           hidden?: boolean;
           report_count?: number;
@@ -133,6 +167,7 @@ export interface Database {
           wall_section?: string;
           climbing_type?: ClimbingTypeEnum;
           description?: string | null;
+          gym_grade?: number | null;
           status?: RouteStatus;
           hidden?: boolean;
           report_count?: number;
@@ -198,6 +233,7 @@ export interface Database {
           upvotes: number;
           hidden: boolean;
           report_count: number;
+          parent_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -209,6 +245,7 @@ export interface Database {
           upvotes?: number;
           hidden?: boolean;
           report_count?: number;
+          parent_id?: string | null;
           created_at?: string;
         };
         Update: {
@@ -340,6 +377,10 @@ export interface Database {
           p_note?: string | null;
         };
         Returns: number;
+      };
+      delete_route: {
+        Args: { p_route_id: string };
+        Returns: undefined;
       };
     };
     Enums: {
