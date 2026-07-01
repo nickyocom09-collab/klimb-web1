@@ -181,17 +181,30 @@ export function GymMap() {
         zoom={US_ZOOM}
         ref={mapRef}
         zoomControl={false}
+        zoomSnap={0.5}
+        zoomDelta={0.5}
+        wheelPxPerZoomLevel={100}
+        zoomAnimation
+        markerZoomAnimation
         className="absolute inset-0 z-0 h-full w-full bg-bg"
       >
-        {/* Satellite imagery + a place-label overlay for that Apple/Kilter look. */}
+        {/* High-res satellite imagery + crisp retina place labels (Apple/Kilter look). */}
         <TileLayer
           attribution="&copy; Esri, Maxar, Earthstar Geographics"
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           maxZoom={19}
+          detectRetina
+          keepBuffer={6}
+          updateWhenZooming={false}
         />
         <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-          maxZoom={19}
+          attribution="&copy; OpenStreetMap, &copy; CARTO"
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={20}
+          detectRetina
+          keepBuffer={6}
+          updateWhenZooming={false}
         />
         <ClusterLayer
           gyms={gyms}

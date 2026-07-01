@@ -9,11 +9,9 @@ import {
   Flag,
   Heart,
   Lightbulb,
-  MessageSquare,
+  MessageCircle,
   MoreHorizontal,
-  Reply,
   ShieldAlert,
-  ThumbsUp,
   Trash2,
   Trophy,
   X,
@@ -21,11 +19,7 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
-import {
-  communityGrade,
-  formatGrade,
-  gradeConsensus,
-} from "../lib/grades";
+import { communityGrade, formatGrade, gradeConsensus } from "../lib/grades";
 import {
   climbTypeLabel,
   CONTENT_REPORT_REASONS,
@@ -35,13 +29,17 @@ import {
 import type { ContentReason, ReportReason } from "../lib/constants";
 import { fetchRouteBookmarks, toggleBookmark } from "../lib/bookmarks";
 import { blockUser, fetchBlockedIds, reportContent } from "../lib/moderation";
-import { Button, CenterSpinner, Card } from "../components/ui";
+import { Button, CenterSpinner } from "../components/ui";
+import { Avatar } from "../components/Avatar";
 import { GradeBar } from "../components/GradeBar";
 import { GradeDonut } from "../components/GradeDonut";
 import { GradePicker } from "../components/GradePicker";
-import type { BookmarkKind, CommentRow } from "../lib/database.types";
+import type { BookmarkKind, CommentRow as CommentR } from "../lib/database.types";
 
-type CommentWithAuthor = CommentRow & { authorName: string };
+type CommentWithAuthor = CommentR & {
+  authorName: string;
+  authorAvatar: string | null;
+};
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -49,6 +47,22 @@ function formatDate(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function timeAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  const w = Math.floor(d / 7);
+  if (w < 5) return `${w}w`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return `${mo}mo`;
+  return `${Math.floor(d / 365)}y`;
 }
 
 export function RouteDetail() {
@@ -77,9 +91,11 @@ export function RouteDetail() {
   const [commentBody, setCommentBody] = useState("");
   const [isBeta, setIsBeta] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
-  const [replyTo, setReplyTo] = useState<string | null>(null);
-  const [replyBody, setReplyBody] = useState("");
-  const [postingReply, setPostingReply] = useState(false);
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const [liked, setLiked] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const [bookmarks, setBookmarks] = useState<Set<BookmarkKind>>(new Set());
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
@@ -98,18 +114,20 @@ export function RouteDetail() {
       .order("created_at", { ascending: true });
     const rows = data ?? [];
     const userIds = [...new Set(rows.map((c) => c.user_id))];
-    const nameMap = new Map<string, string>();
+    const info = new Map<string, { name: string; avatar: string | null }>();
     if (userIds.length > 0) {
       const { data: users } = await supabase
         .from("profiles")
-        .select("id, display_name")
+        .select("id, display_name, avatar_url")
         .in("id", userIds);
-      for (const u of users ?? []) nameMap.set(u.id, u.display_name);
+      for (const u of users ?? [])
+        info.set(u.id, { name: u.display_name, avatar: u.avatar_url });
     }
     setComments(
       rows.map((c) => ({
         ...c,
-        authorName: nameMap.get(c.user_id) ?? "Climber",
+        authorName: info.get(c.user_id)?.name ?? "Climber",
+        authorAvatar: info.get(c.user_id)?.avatar ?? null,
       })),
     );
   }, []);
@@ -147,7 +165,6 @@ export function RouteDetail() {
       .eq("user_id", profile.id);
     setHasSent((mySendCount ?? 0) > 0);
 
-    // Whether the current user has already voted this route gone (one per user).
     const { count: myGoneCount } = await supabase
       .from("gone_reports")
       .select("*", { count: "exact", head: true })
@@ -222,7 +239,6 @@ export function RouteDetail() {
     setSending(false);
   }
 
-  // Seamless optimistic bookmark toggle — no disabled flicker, revert on error.
   async function flipBookmark(kind: BookmarkKind) {
     if (!id || !profile) return;
     const active = bookmarks.has(kind);
@@ -235,7 +251,6 @@ export function RouteDetail() {
     try {
       await toggleBookmark(profile.id, id, kind, active);
     } catch {
-      // Revert on failure.
       setBookmarks((prev) => {
         const next = new Set(prev);
         if (active) next.add(kind);
@@ -353,7 +368,7 @@ export function RouteDetail() {
     navigate("/", { replace: true });
   }
 
-  async function postComment() {
+  async function submitComment() {
     if (!id || !profile || commentBody.trim().length === 0) return;
     setPostingComment(true);
     await supabase.from("comments").insert({
@@ -361,30 +376,21 @@ export function RouteDetail() {
       user_id: profile.id,
       body: commentBody.trim(),
       is_beta: isBeta,
+      parent_id: replyTo?.id ?? null,
     });
     setCommentBody("");
     setIsBeta(false);
+    const wasReplyingTo = replyTo?.id;
+    setReplyTo(null);
     await loadComments(id);
+    if (wasReplyingTo)
+      setExpanded((prev) => new Set(prev).add(wasReplyingTo));
     setPostingComment(false);
   }
 
-  async function postReply(parentId: string) {
-    if (!id || !profile || replyBody.trim().length === 0) return;
-    setPostingReply(true);
-    await supabase.from("comments").insert({
-      route_id: id,
-      user_id: profile.id,
-      body: replyBody.trim(),
-      is_beta: false,
-      parent_id: parentId,
-    });
-    setReplyBody("");
-    setReplyTo(null);
-    await loadComments(id);
-    setPostingReply(false);
-  }
-
-  async function upvote(c: CommentWithAuthor) {
+  async function like(c: CommentWithAuthor) {
+    if (liked.has(c.id)) return;
+    setLiked((prev) => new Set(prev).add(c.id));
     setComments((prev) =>
       prev.map((x) => (x.id === c.id ? { ...x, upvotes: x.upvotes + 1 } : x)),
     );
@@ -392,6 +398,21 @@ export function RouteDetail() {
       .from("comments")
       .update({ upvotes: c.upvotes + 1 })
       .eq("id", c.id);
+  }
+
+  function startReply(c: CommentWithAuthor) {
+    setReplyTo({ id: c.parent_id ?? c.id, name: c.authorName });
+    const el = document.getElementById("comment-input");
+    el?.focus();
+  }
+
+  function toggleReplies(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   if (loading) {
@@ -429,6 +450,88 @@ export function RouteDetail() {
         ? "text-wide"
         : "text-faint";
 
+  const renderComment = (c: CommentWithAuthor, isReply: boolean) => {
+    const mine = c.user_id === profile?.id;
+    const size = isReply ? 30 : 38;
+    return (
+      <div className="flex gap-3">
+        <Link to={`/u/${c.user_id}`} className="shrink-0">
+          <Avatar name={c.authorName} url={c.authorAvatar} size={size} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm leading-snug text-chalk">
+            <Link to={`/u/${c.user_id}`} className="font-semibold hover:underline">
+              {c.authorName}
+            </Link>{" "}
+            <span className="text-chalk/90">{c.body}</span>
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-faint">
+            <span>{timeAgo(c.created_at)}</span>
+            {c.is_beta ? (
+              <span className="flex items-center gap-1 text-accent">
+                <Lightbulb size={12} /> Beta
+              </span>
+            ) : null}
+            {c.upvotes > 0 ? (
+              <span>
+                {c.upvotes} like{c.upvotes === 1 ? "" : "s"}
+              </span>
+            ) : null}
+            <button
+              onClick={() => startReply(c)}
+              className="font-semibold hover:text-chalk"
+            >
+              Reply
+            </button>
+            {!mine ? (
+              <div className="relative">
+                <button
+                  onClick={() =>
+                    setMenuCommentId((p) => (p === c.id ? null : c.id))
+                  }
+                  aria-label="Options"
+                  className="hover:text-chalk"
+                >
+                  <MoreHorizontal size={15} />
+                </button>
+                {menuCommentId === c.id ? (
+                  <div className="absolute left-0 top-6 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-card">
+                    <button
+                      onClick={() => {
+                        setMenuCommentId(null);
+                        setReportComment(c);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
+                    >
+                      <Flag size={14} /> Report
+                    </button>
+                    <button
+                      onClick={() => blockClimber(c)}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
+                    >
+                      <Ban size={14} /> Block climber
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <button
+          onClick={() => like(c)}
+          aria-label="Like"
+          className="mt-1 shrink-0 text-faint transition hover:text-wide"
+        >
+          <Heart
+            size={15}
+            className={liked.has(c.id) ? "text-wide" : ""}
+            fill={liked.has(c.id) ? "currentColor" : "none"}
+          />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
       <div className="relative">
@@ -458,7 +561,7 @@ export function RouteDetail() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-24 pt-5">
+      <div className="flex-1 overflow-y-auto px-5 pb-8 pt-5">
         <div className="flex flex-col gap-5">
           {/* Identity */}
           <div>
@@ -512,7 +615,7 @@ export function RouteDetail() {
             </div>
           </div>
 
-          {/* Vote breakdown button */}
+          {/* Vote breakdown */}
           <button
             onClick={() => setStatsOpen(true)}
             className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition active:scale-[0.99]"
@@ -528,7 +631,7 @@ export function RouteDetail() {
             </span>
           </button>
 
-          {/* Save / favorite — seamless toggles */}
+          {/* Save / favorite */}
           <div className="flex gap-2">
             <button
               onClick={() => flipBookmark("project")}
@@ -605,142 +708,47 @@ export function RouteDetail() {
             )}
           </Button>
 
-          {/* Comments / beta */}
+          {/* Comments — Instagram style */}
           <section>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-faint">
-              <MessageSquare size={15} /> Comments &amp; beta
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-faint">
+              <MessageCircle size={15} /> Comments
+              {topLevel.length > 0 ? ` · ${topLevel.length}` : ""}
             </h2>
-
-            <div className="mb-4 flex flex-col gap-2">
-              <textarea
-                value={commentBody}
-                onChange={(e) => setCommentBody(e.target.value)}
-                placeholder="Share beta or a comment…"
-                className="min-h-[72px] w-full rounded-2xl bg-surface-2 px-4 py-3 text-chalk placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
-              />
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setIsBeta((v) => !v)}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
-                    isBeta
-                      ? "bg-accent/10 text-accent"
-                      : "bg-surface-2 text-muted hover:text-chalk"
-                  }`}
-                >
-                  <Lightbulb size={15} /> Mark as beta
-                </button>
-                <Button
-                  onClick={postComment}
-                  loading={postingComment}
-                  disabled={commentBody.trim().length === 0}
-                  className="h-10 px-4"
-                >
-                  Post
-                </Button>
-              </div>
-            </div>
 
             {topLevel.length === 0 ? (
               <p className="text-sm text-faint">
-                No comments yet. Drop the first beta.
+                No comments yet. Start the conversation.
               </p>
             ) : (
-              <ul className="flex flex-col gap-3">
+              <ul className="flex flex-col gap-4">
                 {topLevel.map((c) => {
-                  const mine = c.user_id === profile?.id;
                   const replies = repliesOf(c.id);
+                  const isOpen = expanded.has(c.id);
                   return (
                     <li key={c.id}>
-                      <Card className="p-4 shadow-card">
-                        <CommentHead
-                          c={c}
-                          mine={mine}
-                          menuOpen={menuCommentId === c.id}
-                          onMenu={() =>
-                            setMenuCommentId((prev) =>
-                              prev === c.id ? null : c.id,
-                            )
-                          }
-                          onReport={() => {
-                            setMenuCommentId(null);
-                            setReportComment(c);
-                          }}
-                          onBlock={() => blockClimber(c)}
-                        />
-                        <p className="text-sm text-muted">{c.body}</p>
-                        <div className="mt-2 flex items-center gap-4">
+                      {renderComment(c, false)}
+                      {replies.length > 0 ? (
+                        <div className="ml-[50px] mt-2">
                           <button
-                            onClick={() => upvote(c)}
-                            className="flex items-center gap-1.5 text-xs text-faint hover:text-accent"
+                            onClick={() => toggleReplies(c.id)}
+                            className="flex items-center gap-2 text-xs font-semibold text-faint hover:text-muted"
                           >
-                            <ThumbsUp size={14} /> {c.upvotes}
+                            <span className="h-px w-6 bg-border" />
+                            {isOpen
+                              ? "Hide replies"
+                              : `View ${replies.length} ${
+                                  replies.length === 1 ? "reply" : "replies"
+                                }`}
                           </button>
-                          <button
-                            onClick={() => {
-                              setReplyTo(replyTo === c.id ? null : c.id);
-                              setReplyBody("");
-                            }}
-                            className="flex items-center gap-1.5 text-xs text-faint hover:text-chalk"
-                          >
-                            <Reply size={14} /> Reply
-                          </button>
+                          {isOpen ? (
+                            <ul className="mt-3 flex flex-col gap-3">
+                              {replies.map((rc) => (
+                                <li key={rc.id}>{renderComment(rc, true)}</li>
+                              ))}
+                            </ul>
+                          ) : null}
                         </div>
-
-                        {replies.length > 0 ? (
-                          <ul className="mt-3 flex flex-col gap-3 border-l border-border/60 pl-3">
-                            {replies.map((rc) => (
-                              <li key={rc.id}>
-                                <CommentHead
-                                  c={rc}
-                                  mine={rc.user_id === profile?.id}
-                                  menuOpen={menuCommentId === rc.id}
-                                  onMenu={() =>
-                                    setMenuCommentId((prev) =>
-                                      prev === rc.id ? null : rc.id,
-                                    )
-                                  }
-                                  onReport={() => {
-                                    setMenuCommentId(null);
-                                    setReportComment(rc);
-                                  }}
-                                  onBlock={() => blockClimber(rc)}
-                                />
-                                <p className="text-sm text-muted">{rc.body}</p>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-
-                        {replyTo === c.id ? (
-                          <div className="mt-3 flex flex-col gap-2">
-                            <textarea
-                              autoFocus
-                              value={replyBody}
-                              onChange={(e) => setReplyBody(e.target.value)}
-                              placeholder={`Reply to ${c.authorName}…`}
-                              className="min-h-[52px] w-full rounded-xl bg-surface-2 px-3 py-2 text-sm text-chalk placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
-                            />
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                className="h-9 px-3 text-sm"
-                                onClick={() => setReplyTo(null)}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                className="h-9 px-4 text-sm"
-                                loading={postingReply}
-                                disabled={replyBody.trim().length === 0}
-                                onClick={() => postReply(c.id)}
-                              >
-                                Reply
-                              </Button>
-                            </div>
-                          </div>
-                        ) : null}
-                      </Card>
+                      ) : null}
                     </li>
                   );
                 })}
@@ -786,6 +794,49 @@ export function RouteDetail() {
               )
             ) : null}
           </div>
+        </div>
+      </div>
+
+      {/* Sticky composer */}
+      <div className="border-t border-border bg-bg px-4 py-2.5">
+        {replyTo ? (
+          <div className="mb-2 flex items-center justify-between rounded-lg bg-surface-2 px-3 py-1.5 text-xs text-muted">
+            <span>
+              Replying to <span className="text-chalk">{replyTo.name}</span>
+            </span>
+            <button onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+              <X size={15} />
+            </button>
+          </div>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <Avatar name={profile?.display_name} url={profile?.avatar_url} size={32} />
+          <input
+            id="comment-input"
+            value={commentBody}
+            onChange={(e) => setCommentBody(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitComment()}
+            placeholder="Add a comment…"
+            className="h-10 flex-1 rounded-full bg-surface-2 px-4 text-base text-chalk placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
+          />
+          <button
+            onClick={() => setIsBeta((v) => !v)}
+            aria-label="Mark as beta"
+            className={`rounded-full p-2 transition ${
+              isBeta ? "text-accent" : "text-faint hover:text-chalk"
+            }`}
+          >
+            <Lightbulb size={18} />
+          </button>
+          {commentBody.trim().length > 0 ? (
+            <button
+              onClick={submitComment}
+              disabled={postingComment}
+              className="shrink-0 px-2 text-sm font-bold text-accent disabled:opacity-50"
+            >
+              Post
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -893,67 +944,6 @@ export function RouteDetail() {
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function CommentHead({
-  c,
-  mine,
-  menuOpen,
-  onMenu,
-  onReport,
-  onBlock,
-}: {
-  c: CommentWithAuthor;
-  mine: boolean;
-  menuOpen: boolean;
-  onMenu: () => void;
-  onReport: () => void;
-  onBlock: () => void;
-}) {
-  return (
-    <div className="mb-1 flex items-center justify-between">
-      <Link
-        to={`/u/${c.user_id}`}
-        className="text-sm font-semibold text-chalk transition hover:text-accent"
-      >
-        {c.authorName}
-      </Link>
-      <div className="flex items-center gap-2">
-        {c.is_beta ? (
-          <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase text-accent">
-            <Lightbulb size={11} /> Beta
-          </span>
-        ) : null}
-        {!mine ? (
-          <div className="relative">
-            <button
-              onClick={onMenu}
-              aria-label="Comment options"
-              className="rounded-full p-1 text-faint hover:text-chalk"
-            >
-              <MoreHorizontal size={16} />
-            </button>
-            {menuOpen ? (
-              <div className="absolute right-0 top-7 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-card">
-                <button
-                  onClick={onReport}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
-                >
-                  <Flag size={14} /> Report
-                </button>
-                <button
-                  onClick={onBlock}
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
-                >
-                  <Ban size={14} /> Block climber
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }
