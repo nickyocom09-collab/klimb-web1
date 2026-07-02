@@ -131,7 +131,18 @@ export function LogClimb() {
 
   return (
     <div>
-      <AppHeader title="Log a climb" subtitle="Pick what you climbed" />
+      <AppHeader
+        title="Log a climb"
+        subtitle="Pick what you climbed"
+        right={
+          <button
+            onClick={() => navigate("/add")}
+            className="flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-bold text-bg shadow-glow transition active:scale-95"
+          >
+            <Plus size={16} /> Add route
+          </button>
+        }
+      />
 
       <div className="px-5 py-3">
         <div className="relative">

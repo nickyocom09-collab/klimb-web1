@@ -14,6 +14,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   ShieldAlert,
+  Sparkles,
   Trash2,
   Trophy,
   X,
@@ -31,11 +32,13 @@ import {
 import type { ContentReason, ReportReason } from "../lib/constants";
 import { fetchRouteBookmarks, toggleBookmark } from "../lib/bookmarks";
 import { blockUser, fetchBlockedIds, reportContent } from "../lib/moderation";
+import { routeSummary } from "../lib/summary";
 import { Button, CenterSpinner } from "../components/ui";
 import { Avatar } from "../components/Avatar";
 import { GradeBar } from "../components/GradeBar";
 import { GradeDonut } from "../components/GradeDonut";
 import { GradePicker } from "../components/GradePicker";
+import { Stars } from "../components/Stars";
 import type { BookmarkKind, CommentRow as CommentR } from "../lib/database.types";
 
 type CommentWithAuthor = CommentR & {
@@ -88,6 +91,7 @@ export function RouteDetail() {
   const [reportingRoute, setReportingRoute] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [hasReportedGone, setHasReportedGone] = useState(false);
+  const [myStars, setMyStars] = useState<number | null>(null);
 
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
   const [commentBody, setCommentBody] = useState("");
@@ -170,6 +174,14 @@ export function RouteDetail() {
       .eq("user_id", profile.id);
     setHasSent((mySendCount ?? 0) > 0);
 
+    const { data: myRating } = await supabase
+      .from("route_ratings")
+      .select("stars")
+      .eq("route_id", id)
+      .eq("user_id", profile.id)
+      .maybeSingle();
+    setMyStars(myRating?.stars ?? null);
+
     const { count: myGoneCount } = await supabase
       .from("gone_reports")
       .select("*", { count: "exact", head: true })
@@ -230,6 +242,28 @@ export function RouteDetail() {
     setMyGrade(draftGrade);
     setRoute(await fetchRoute(id));
     setSavingGrade(false);
+  }
+
+  // Tap-to-rate is optimistic: stars flip instantly, then persist. The route
+  // stats (community average) refresh quietly afterwards.
+  async function rateFun(stars: number) {
+    if (!id || !profile) return;
+    const prev = myStars;
+    setMyStars(stars);
+    const { error } = await supabase.from("route_ratings").upsert(
+      {
+        route_id: id,
+        user_id: profile.id,
+        stars,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "route_id,user_id" },
+    );
+    if (error) {
+      setMyStars(prev);
+      return;
+    }
+    setRoute(await fetchRoute(id));
   }
 
   async function logSend() {
@@ -444,6 +478,17 @@ export function RouteDetail() {
   const repliesOf = (parentId: string) =>
     visibleComments.filter((c) => c.parent_id === parentId);
 
+  const summary = routeSummary({
+    gradeValues: route.gradeValues,
+    gymGrade: route.gym_grade,
+    climbingType: route.climbing_type,
+    system,
+    funAvg: route.funAvg,
+    funCount: route.funCount,
+    sendCount: route.sendCount,
+    comments: visibleComments.map((c) => ({ body: c.body, is_beta: c.is_beta })),
+  });
+
   let verdictLabel = "No grades yet";
   if (count === 1) verdictLabel = "1 grade so far";
   else if (count > 1 && tone === "green") verdictLabel = "Strong consensus";
@@ -652,6 +697,43 @@ export function RouteDetail() {
               send{route.sendCount === 1 ? "" : "s"}
             </span>
           </button>
+
+          {/* Auto-summary of the route's opinions */}
+          <div className="rounded-2xl bg-surface p-4 shadow-card">
+            <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
+              <Sparkles size={14} className="text-accent" /> Route pulse
+            </h2>
+            <p className="text-sm leading-relaxed text-chalk/90">{summary}</p>
+            <p className="mt-2 text-[10px] text-faint">
+              Auto-generated from grades, ratings & comments
+            </p>
+          </div>
+
+          {/* Fun factor — 5-star community rating */}
+          <div className="rounded-2xl bg-surface p-4 shadow-card">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
+                Fun factor
+              </h2>
+              {route.funCount > 0 && route.funAvg !== null ? (
+                <span className="flex items-center gap-1.5 text-xs text-muted">
+                  <Stars value={route.funAvg} size={13} />
+                  <span className="text-sm font-bold text-chalk">
+                    {route.funAvg.toFixed(1)}
+                  </span>
+                  · {route.funCount} rating{route.funCount === 1 ? "" : "s"}
+                </span>
+              ) : (
+                <span className="text-xs text-faint">No ratings yet</span>
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <Stars value={myStars} onChange={rateFun} size={30} />
+              <span className="text-xs text-faint">
+                {myStars !== null ? "Your rating" : "How fun was it?"}
+              </span>
+            </div>
+          </div>
 
           {/* Save / favorite */}
           <div className="flex gap-2">

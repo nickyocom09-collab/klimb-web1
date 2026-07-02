@@ -53,6 +53,121 @@
   }
 }
 
+/* ---- 2D gym map ------------------------------------------------------------
+   Labeled pins: a glowing green dot with the gym name on a pill underneath,
+   so you always know which gym you're tapping. The home gym gets a green
+   pill with a house icon and a pulsing ring. */
+.klimb-map {
+  background: rgb(var(--c-bg));
+}
+.klimb-map .leaflet-tile-container img {
+  filter: saturate(0.92);
+}
+.klimb-pin-wrap {
+  background: none;
+  border: none;
+}
+.klimb-pin {
+  position: absolute;
+  cursor: pointer;
+  animation: klimb-dot-in 0.35s ease-out both;
+}
+.klimb-pin__dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 13px;
+  height: 13px;
+  border-radius: 9999px;
+  background: rgb(57 255 136);
+  border: 2px solid rgba(6, 20, 12, 0.9);
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 6px 1px rgba(57, 255, 136, 0.75),
+    0 0 16px 4px rgba(57, 255, 136, 0.3);
+  transition: transform 0.15s ease;
+}
+.klimb-pin:hover .klimb-pin__dot {
+  transform: translate(-50%, -50%) scale(1.35);
+}
+.klimb-pin__label {
+  position: absolute;
+  top: 9px;
+  left: 0;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 148px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  background: rgba(12, 17, 14, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f5f5f2;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease;
+}
+.klimb-pin__label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.klimb-pin:hover .klimb-pin__label {
+  transform: translateX(-50%) scale(1.05);
+}
+.klimb-pin--home .klimb-pin__dot {
+  width: 17px;
+  height: 17px;
+}
+.klimb-pin--home .klimb-pin__dot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid rgba(57, 255, 136, 0.7);
+  animation: klimb-pulse-ring 2s ease-out infinite;
+}
+.klimb-pin--home .klimb-pin__label {
+  top: 12px;
+  background: rgb(57 255 136);
+  border-color: rgba(6, 20, 12, 0.35);
+  color: #06140c;
+}
+.klimb-cluster {
+  background: none;
+  border: none;
+}
+.klimb-cluster__bubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(12, 17, 14, 0.92);
+  border: 2px solid rgb(57 255 136);
+  color: rgb(57 255 136);
+  font-weight: 800;
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.55),
+    0 0 14px rgba(57, 255, 136, 0.25);
+  transition: transform 0.15s ease;
+}
+.klimb-cluster:hover .klimb-cluster__bubble {
+  transform: scale(1.08);
+}
+@keyframes klimb-dot-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes klimb-pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.9; }
+  70% { transform: scale(1.7); opacity: 0; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
 /* ---- Branded loading splash ("Klimb" over a gradient) ---------------------
    Shared by the React <Splash/> and the pre-JS markup in index.html so the
    handoff from first paint to app is seamless. */

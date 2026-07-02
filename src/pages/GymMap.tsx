@@ -11,42 +11,53 @@ import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner } from "../components/ui";
 import type { GymRow } from "../lib/database.types";
 
-const US_CENTER: [number, number] = [39.5, -98.35];
-const US_ZOOM = 4;
+type GymWithCount = GymRow & { routeCount: number };
 
-// Black circular marker with a green climbing (mountain) glyph — Kilter-style.
-function pinIcon(home: boolean): L.DivIcon {
-  const size = home ? 46 : 38;
-  const ring = home ? "rgb(var(--c-accent))" : "rgba(255,255,255,0.22)";
-  const glyph = "rgb(var(--c-accent))";
-  const g = Math.round(size * 0.52);
+const US_CENTER: [number, number] = [39.5, -98.35];
+
+// Gym names come from the DB (user-suggestable), so escape before injecting
+// into marker HTML.
+function esc(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ]!,
+  );
+}
+
+const HOUSE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>`;
+
+/** Green glowing dot with the gym's name on a pill underneath. */
+function pinIcon(name: string, home: boolean): L.DivIcon {
   return L.divIcon({
-    className: "klimb-pin",
-    html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:#0c110e;border:2px solid ${ring};display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.55)">
-      <svg width="${g}" height="${g}" viewBox="0 0 24 24" fill="none" stroke="${glyph}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 20 L9.5 8 L13.5 14.5 L16.5 9.5 L21 20 Z"/>
-      </svg>
+    className: "klimb-pin-wrap",
+    html: `<div class="klimb-pin${home ? " klimb-pin--home" : ""}">
+      <div class="klimb-pin__dot"></div>
+      <div class="klimb-pin__label">${home ? HOUSE_SVG : ""}<span>${esc(name)}</span></div>
     </div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+    iconSize: [0, 0],
   });
 }
 
-// Black count-bubble for clustered gyms — matches the pin styling.
+/** Dark count-bubble for clustered gyms. */
 function clusterIcon(count: number): L.DivIcon {
   const size = count < 10 ? 40 : count < 50 ? 48 : 56;
   return L.divIcon({
     className: "klimb-cluster",
-    html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:#0c110e;border:2px solid rgb(var(--c-accent));display:flex;align-items:center;justify-content:center;color:rgb(var(--c-accent));font-weight:800;font-size:${count < 100 ? 15 : 13}px;box-shadow:0 3px 10px rgba(0,0,0,.55)">${count}</div>`,
+    html: `<div class="klimb-cluster__bubble" style="width:${size}px;height:${size}px;font-size:${count < 100 ? 15 : 13}px">${count}</div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
 }
 
-type GymWithCount = GymRow & { routeCount: number };
-
-/** Adds a clustering layer to the map (vanilla leaflet.markercluster). */
-function ClusterLayer({
+/**
+ * Clustered gym markers (vanilla leaflet.markercluster). The home gym is kept
+ * OUT of the cluster group as a standalone always-visible marker, so you can
+ * spot it at any zoom level.
+ */
+function GymLayer({
   gyms,
   homeId,
   onSelect,
@@ -57,25 +68,38 @@ function ClusterLayer({
 }) {
   const map = useMap();
   useEffect(() => {
-    const group = (L as unknown as {
-      markerClusterGroup: (opts: unknown) => L.LayerGroup;
-    }).markerClusterGroup({
+    const group = (
+      L as unknown as {
+        markerClusterGroup: (opts: unknown) => L.LayerGroup;
+      }
+    ).markerClusterGroup({
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
-      maxClusterRadius: 48,
+      animate: true,
+      maxClusterRadius: 56,
       iconCreateFunction: (c: { getChildCount: () => number }) =>
         clusterIcon(c.getChildCount()),
     });
+    let homeMarker: L.Marker | null = null;
     for (const gym of gyms) {
+      const isHome = gym.id === homeId;
       const m = L.marker([gym.latitude!, gym.longitude!], {
-        icon: pinIcon(gym.id === homeId),
+        icon: pinIcon(gym.name, isHome),
+        zIndexOffset: isHome ? 1000 : 0,
+        riseOnHover: true,
       });
       m.on("click", () => onSelect(gym));
-      group.addLayer(m);
+      if (isHome) {
+        homeMarker = m;
+        m.addTo(map);
+      } else {
+        group.addLayer(m);
+      }
     }
     map.addLayer(group);
     return () => {
       map.removeLayer(group);
+      homeMarker?.remove();
     };
   }, [map, gyms, homeId, onSelect]);
   return null;
@@ -90,6 +114,11 @@ export function GymMap() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<GymWithCount | null>(null);
   const [saving, setSaving] = useState<"home" | "visit" | null>(null);
+
+  // Match the tiles to the app theme.
+  const dark =
+    typeof document !== "undefined" &&
+    document.documentElement.getAttribute("data-theme") !== "light";
 
   useEffect(() => {
     let active = true;
@@ -106,10 +135,11 @@ export function GymMap() {
       const counts = new Map<string, number>();
       for (const row of r ?? [])
         counts.set(row.gym_id, (counts.get(row.gym_id) ?? 0) + 1);
-      const withCounts = (g ?? [])
-        .filter((x) => x.latitude != null && x.longitude != null)
-        .map((x) => ({ ...x, routeCount: counts.get(x.id) ?? 0 }));
-      setGyms(withCounts);
+      setGyms(
+        (g ?? [])
+          .filter((x) => x.latitude != null && x.longitude != null)
+          .map((x) => ({ ...x, routeCount: counts.get(x.id) ?? 0 })),
+      );
       setLoading(false);
     });
     return () => {
@@ -117,12 +147,26 @@ export function GymMap() {
     };
   }, []);
 
-  // Center on the user's home gym once data is in.
+  const home = useMemo(
+    () => gyms.find((g) => g.id === profile?.home_gym_id) ?? null,
+    [gyms, profile?.home_gym_id],
+  );
+
+  // Open on your home gym so you never have to hunt for it.
   useEffect(() => {
-    if (loading || !mapRef.current || !profile?.home_gym_id) return;
-    const home = gyms.find((g) => g.id === profile.home_gym_id);
-    if (home) mapRef.current.setView([home.latitude!, home.longitude!], 10);
-  }, [loading, gyms, profile?.home_gym_id]);
+    if (loading || !mapRef.current || !home) return;
+    mapRef.current.setView([home.latitude!, home.longitude!], 10, {
+      animate: false,
+    });
+  }, [loading, home]);
+
+  function focusGym(gym: GymWithCount, zoom = 13) {
+    setSelected(gym);
+    mapRef.current?.flyTo([gym.latitude!, gym.longitude!], zoom, {
+      duration: 0.9,
+      easeLinearity: 0.22,
+    });
+  }
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -135,14 +179,6 @@ export function GymMap() {
       )
       .slice(0, 6);
   }, [gyms, query]);
-
-  function focusGym(gym: GymWithCount) {
-    setQuery("");
-    setSelected(gym);
-    mapRef.current?.flyTo([gym.latitude!, gym.longitude!], 12, {
-      duration: 0.8,
-    });
-  }
 
   async function setHome(gym: GymWithCount) {
     if (!profile) return;
@@ -177,39 +213,31 @@ export function GymMap() {
   return (
     <div className="relative -mb-28 h-[calc(100%+7rem)] w-full">
       <MapContainer
-        center={US_CENTER}
-        zoom={US_ZOOM}
+        center={home ? [home.latitude!, home.longitude!] : US_CENTER}
+        zoom={home ? 10 : 4}
         ref={mapRef}
         zoomControl={false}
-        zoomSnap={0.5}
+        zoomSnap={0.25}
         zoomDelta={0.5}
-        wheelPxPerZoomLevel={100}
+        wheelPxPerZoomLevel={120}
         zoomAnimation
+        fadeAnimation
         markerZoomAnimation
-        className="absolute inset-0 z-0 h-full w-full bg-bg"
+        className="klimb-map absolute inset-0 z-0 h-full w-full"
       >
-        {/* High-res satellite imagery + crisp retina place labels (Apple/Kilter look). */}
         <TileLayer
-          attribution="&copy; Esri, Maxar, Earthstar Geographics"
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          maxZoom={19}
-          detectRetina
-          keepBuffer={6}
-          updateWhenZooming={false}
-        />
-        <TileLayer
-          attribution="&copy; OpenStreetMap, &copy; CARTO"
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url={`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "voyager"}/{z}/{x}/{y}{r}.png`}
           subdomains="abcd"
           maxZoom={20}
           detectRetina
           keepBuffer={6}
           updateWhenZooming={false}
         />
-        <ClusterLayer
+        <GymLayer
           gyms={gyms}
           homeId={profile?.home_gym_id}
-          onSelect={setSelected}
+          onSelect={(g) => focusGym(g, Math.max(mapRef.current?.getZoom() ?? 12, 12))}
         />
       </MapContainer>
 
@@ -231,7 +259,10 @@ export function GymMap() {
               {matches.map((g) => (
                 <li key={g.id}>
                   <button
-                    onClick={() => focusGym(g)}
+                    onClick={() => {
+                      setQuery("");
+                      focusGym(g);
+                    }}
                     className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-surface-2"
                   >
                     <MapPin size={15} className="shrink-0 text-faint" />
@@ -251,13 +282,24 @@ export function GymMap() {
         </div>
       </div>
 
-      {/* Browse-as-list shortcut */}
-      <button
-        onClick={() => navigate("/gyms")}
-        className="absolute right-4 top-20 z-10 flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur"
-      >
-        <List size={15} /> List
-      </button>
+      {/* Quick actions: jump home + browse as list */}
+      <div className="absolute right-4 top-20 z-10 flex flex-col items-end gap-2">
+        <button
+          onClick={() => navigate("/gyms")}
+          className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur transition active:scale-95"
+        >
+          <List size={15} /> List
+        </button>
+        {home ? (
+          <button
+            onClick={() => focusGym(home, 12)}
+            aria-label="Go to my home gym"
+            className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-accent shadow-lg backdrop-blur transition active:scale-95"
+          >
+            <Home size={15} /> My gym
+          </button>
+        ) : null}
+      </div>
 
       {loading ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-bg/40">
@@ -267,7 +309,7 @@ export function GymMap() {
 
       {/* Selected-gym card */}
       {selected ? (
-        <div className="absolute inset-x-0 bottom-24 z-10 p-4">
+        <div className="absolute inset-x-0 bottom-24 z-10 animate-fade-up p-4">
           <div className="mx-auto max-w-app rounded-3xl bg-surface/95 p-5 shadow-2xl backdrop-blur">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">

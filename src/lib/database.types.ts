@@ -336,6 +336,29 @@ export interface Database {
         };
         Relationships: [];
       };
+      route_ratings: {
+        Row: {
+          id: string;
+          route_id: string;
+          user_id: string;
+          stars: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          route_id: string;
+          user_id: string;
+          stars: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          stars?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       content_reports: {
         Row: {
           id: string;
@@ -402,6 +425,7 @@ export type GradeRow = Database["public"]["Tables"]["grades"]["Row"];
 export type SendRow = Database["public"]["Tables"]["sends"]["Row"];
 export type CommentRow = Database["public"]["Tables"]["comments"]["Row"];
 export type BookmarkRow = Database["public"]["Tables"]["bookmarks"]["Row"];
+export type RouteRatingRow = Database["public"]["Tables"]["route_ratings"]["Row"];
 export type BlockRow = Database["public"]["Tables"]["blocks"]["Row"];
 export type ContentReportRow =
   Database["public"]["Tables"]["content_reports"]["Row"];

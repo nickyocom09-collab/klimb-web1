@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, MapPin, Plus, Search } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, MapPin, Search } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { Button, CenterSpinner, Spinner } from "../components/ui";
+import { CenterSpinner, Spinner } from "../components/ui";
 import { US_STATES, STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 
@@ -204,15 +204,6 @@ export function GymSelect() {
         )}
       </div>
 
-      <div className="border-t border-border p-5">
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => navigate("/gym/add")}
-        >
-          <Plus size={18} className="mr-2" /> Add a new gym
-        </Button>
-      </div>
     </div>
   );
 }

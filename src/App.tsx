@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { useAuth } from "./lib/auth";
 import { Splash } from "./components/Splash";
 import { Layout } from "./components/Layout";
@@ -8,7 +8,6 @@ import { Signup } from "./pages/Signup";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
 import { GymSelect } from "./pages/GymSelect";
-import { GymAdd } from "./pages/GymAdd";
 import { Feed } from "./pages/Feed";
 import { AddRoute } from "./pages/AddRoute";
 import { LogClimb } from "./pages/LogClimb";
@@ -21,7 +20,12 @@ import { Sends } from "./pages/Sends";
 import { Profile } from "./pages/Profile";
 import { Settings } from "./pages/Settings";
 import { Gyms } from "./pages/Gyms";
-import { GymMap } from "./pages/GymMap";
+
+// The 3D globe pulls in three.js — keep it out of the main bundle so the
+// feed loads fast; the globe chunk streams in when the Map tab is opened.
+const GymMap = lazy(() =>
+  import("./pages/GymMap").then((m) => ({ default: m.GymMap })),
+);
 import { ActivityFeed } from "./pages/Activity";
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -101,14 +105,6 @@ export default function App() {
         }
       />
       <Route
-        path="/gym/add"
-        element={
-          <RequireAuth>
-            <GymAdd />
-          </RequireAuth>
-        }
-      />
-      <Route
         path="/route/:id"
         element={
           <RequireAuth>
@@ -153,7 +149,14 @@ export default function App() {
         }
       >
         <Route path="/" element={<Feed />} />
-        <Route path="/map" element={<GymMap />} />
+        <Route
+          path="/map"
+          element={
+            <Suspense fallback={<Splash />}>
+              <GymMap />
+            </Suspense>
+          }
+        />
         <Route path="/gyms" element={<Gyms />} />
         <Route path="/log" element={<LogClimb />} />
         <Route path="/add" element={<AddRoute />} />

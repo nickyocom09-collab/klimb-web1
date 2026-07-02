@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Check, Plus, Trophy, Video } from "lucide-react";
+import { Check, Flame, Plus, Sparkles, Star, Trophy, Video } from "lucide-react";
 import {
   communityGrade,
   formatGrade,
@@ -9,7 +9,7 @@ import {
   type GradeSystem,
 } from "../lib/grades";
 import { holdHex } from "../lib/constants";
-import type { RouteWithStats } from "../lib/routes";
+import { isNewThisWeek, isTrending, type RouteWithStats } from "../lib/routes";
 
 export function RouteCard({
   route,
@@ -81,11 +81,24 @@ export function RouteCard({
             className="h-full w-full object-cover"
             loading="lazy"
           />
-          {route.video_url ? (
-            <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-bg/80 px-2 py-1 backdrop-blur">
-              <Video size={13} className="text-chalk" />
-            </div>
-          ) : null}
+          {/* Freshness / heat badges */}
+          <div className="absolute left-3 top-3 flex items-center gap-1.5">
+            {isNewThisWeek(route) ? (
+              <span className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-bg shadow-lg">
+                <Sparkles size={11} /> New this week
+              </span>
+            ) : null}
+            {isTrending(route) ? (
+              <span className="flex items-center gap-1 rounded-full bg-wide px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-bg shadow-lg">
+                <Flame size={11} /> Trending
+              </span>
+            ) : null}
+            {route.video_url ? (
+              <span className="flex items-center gap-1 rounded-full bg-bg/80 px-2 py-1 backdrop-blur">
+                <Video size={13} className="text-chalk" />
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div className="p-4">
@@ -138,6 +151,17 @@ export function RouteCard({
                     />
                   ))}
                 </div>
+              ) : null}
+              {route.funCount > 0 && route.funAvg !== null ? (
+                <span className="flex items-center gap-1 text-sm text-muted">
+                  <Star
+                    size={15}
+                    className="text-accent"
+                    fill="currentColor"
+                    strokeWidth={0}
+                  />
+                  {route.funAvg.toFixed(1)}
+                </span>
               ) : null}
               <span className="flex items-center gap-1 text-sm text-muted">
                 <Trophy size={15} />
