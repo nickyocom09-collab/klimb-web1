@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Bookmark,
   Camera,
-  Heart,
+  ChevronRight,
   Settings as SettingsIcon,
   Trophy,
   UserPlus,
@@ -12,39 +11,22 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { AppHeader } from "../components/Layout";
 import { Avatar } from "../components/Avatar";
-import { Button, CenterSpinner } from "../components/ui";
-import { RouteCard } from "../components/RouteCard";
-import { fetchBookmarkedRouteIds } from "../lib/bookmarks";
-import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
+import { Button } from "../components/ui";
 
-type Tab = "sends" | "projects" | "favorites";
-
-const TABS: { key: Tab; label: string; Icon: typeof Trophy }[] = [
-  { key: "sends", label: "Sends", Icon: Trophy },
-  { key: "projects", label: "Projects", Icon: Bookmark },
-  { key: "favorites", label: "Favorites", Icon: Heart },
-];
-
+// Profile is intentionally simple: who you are, your headline numbers, and a
+// couple of doors (friends, logbook, settings). The logbook itself lives on
+// the Sends tab.
 export function Profile() {
   const { profile, updateProfile, signOut } = useAuth();
   const navigate = useNavigate();
-  const system = profile?.grade_system ?? "american";
   const avatarRef = useRef<HTMLInputElement>(null);
 
   const [gymName, setGymName] = useState<string | null>(null);
   const [sendCount, setSendCount] = useState<number | null>(null);
+  const [flashCount, setFlashCount] = useState<number | null>(null);
   const [gradeCount, setGradeCount] = useState<number | null>(null);
   const [friendCount, setFriendCount] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
-
-  const [tab, setTab] = useState<Tab>("sends");
-  const [lists, setLists] = useState<Record<Tab, RouteWithStats[]>>({
-    sends: [],
-    projects: [],
-    favorites: [],
-  });
-  const [loadedTabs, setLoadedTabs] = useState<Set<Tab>>(new Set());
-  const [listLoading, setListLoading] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -63,6 +45,12 @@ export function Profile() {
         .select("id", { count: "exact", head: true })
         .eq("user_id", profile.id);
       if (active) setSendCount(sends.count ?? 0);
+      const flashes = await supabase
+        .from("sends")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", profile.id)
+        .eq("send_type", "flash");
+      if (active) setFlashCount(flashes.count ?? 0);
       const grades = await supabase
         .from("grades")
         .select("id", { count: "exact", head: true })
@@ -79,36 +67,6 @@ export function Profile() {
       active = false;
     };
   }, [profile]);
-
-  useEffect(() => {
-    if (!profile || loadedTabs.has(tab)) return;
-    let active = true;
-    setListLoading(true);
-    (async () => {
-      let ids: string[] = [];
-      if (tab === "sends") {
-        const { data } = await supabase
-          .from("sends")
-          .select("route_id, created_at")
-          .eq("user_id", profile.id)
-          .order("created_at", { ascending: false });
-        ids = (data ?? []).map((s) => s.route_id);
-      } else {
-        ids = await fetchBookmarkedRouteIds(
-          profile.id,
-          tab === "projects" ? "project" : "favorite",
-        );
-      }
-      const routes = await fetchRoutesByIds(ids);
-      if (!active) return;
-      setLists((prev) => ({ ...prev, [tab]: routes }));
-      setLoadedTabs((prev) => new Set(prev).add(tab));
-      setListLoading(false);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [tab, profile, loadedTabs]);
 
   async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -132,8 +90,6 @@ export function Profile() {
       setUploading(false);
     }
   }
-
-  const current = useMemo(() => lists[tab], [lists, tab]);
 
   return (
     <div>
@@ -213,50 +169,25 @@ export function Profile() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Headline numbers */}
       <div className="grid grid-cols-3 gap-2 px-5">
         <Stat label="Sends" value={sendCount} />
+        <Stat label="Flashes" value={flashCount} />
         <Stat label="Grades" value={gradeCount} />
-        <Stat
-          label="Projects"
-          value={loadedTabs.has("projects") ? lists.projects.length : null}
-        />
       </div>
 
-      {/* Tabs — soft segmented */}
-      <div className="px-5 py-4">
-        <div className="flex gap-1 rounded-full bg-surface-2 p-1">
-          {TABS.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-sm font-semibold transition ${
-                tab === key ? "bg-accent text-bg" : "text-muted hover:text-chalk"
-              }`}
-            >
-              <Icon size={15} /> {label}
-            </button>
-          ))}
-        </div>
+      {/* Door to the logbook — the routes themselves live on the Sends tab. */}
+      <div className="px-5 pt-4">
+        <button
+          onClick={() => navigate("/sends")}
+          className="flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+            <Trophy size={18} className="text-accent" /> View my logbook
+          </span>
+          <ChevronRight size={18} className="text-faint" />
+        </button>
       </div>
-
-      {listLoading && !loadedTabs.has(tab) ? (
-        <CenterSpinner />
-      ) : current.length === 0 ? (
-        <p className="px-8 py-12 text-center text-sm text-faint">
-          {tab === "sends"
-            ? "No sends logged yet."
-            : tab === "projects"
-              ? "No projects saved. Tap “Save to try” on a route."
-              : "No favorites yet. Tap the heart on a route you love."}
-        </p>
-      ) : (
-        <div className="flex flex-col gap-4 px-5 pb-6">
-          {current.map((route, i) => (
-            <RouteCard key={route.id} route={route} system={system} index={i} />
-          ))}
-        </div>
-      )}
 
       <div className="p-5">
         <Button variant="danger" className="w-full" onClick={signOut}>

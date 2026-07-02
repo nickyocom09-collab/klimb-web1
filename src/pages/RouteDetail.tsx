@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  Archive,
   Ban,
   BarChart3,
   Bookmark,
@@ -10,19 +11,28 @@ import {
   EyeOff,
   Flag,
   Heart,
+  History,
   Lightbulb,
   MessageCircle,
   MoreHorizontal,
+  Pencil,
+  Plus,
   ShieldAlert,
   Sparkles,
   Trash2,
+  TrendingUp,
   Trophy,
   X,
+  Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
-import { communityGrade, formatGrade, gradeConsensus } from "../lib/grades";
+import {
+  communityGrade,
+  formatGradeStyled,
+  gradeConsensus,
+} from "../lib/grades";
 import {
   climbTypeLabel,
   CONTENT_REPORT_REASONS,
@@ -39,7 +49,12 @@ import { GradeBar } from "../components/GradeBar";
 import { GradeDonut } from "../components/GradeDonut";
 import { GradePicker } from "../components/GradePicker";
 import { Stars } from "../components/Stars";
-import type { BookmarkKind, CommentRow as CommentR } from "../lib/database.types";
+import type {
+  BookmarkKind,
+  CommentRow as CommentR,
+  RouteEventRow,
+  SendType,
+} from "../lib/database.types";
 
 type CommentWithAuthor = CommentR & {
   authorName: string;
@@ -84,6 +99,8 @@ export function RouteDetail() {
   const [savingGrade, setSavingGrade] = useState(false);
   const [sending, setSending] = useState(false);
   const [hasSent, setHasSent] = useState(false);
+  const [mySendType, setMySendType] = useState<SendType | null>(null);
+  const [events, setEvents] = useState<RouteEventRow[]>([]);
   const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [othersEngaged, setOthersEngaged] = useState(true);
@@ -113,6 +130,10 @@ export function RouteDetail() {
     null,
   );
   const [reportingComment, setReportingComment] = useState(false);
+  // Editing your own comment happens inline where the comment sits.
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadComments = useCallback(async (routeId: string) => {
     const { data } = await supabase
@@ -167,12 +188,22 @@ export function RouteDetail() {
     setMyGrade(mine?.grade ?? null);
     setDraftGrade(mine?.grade ?? null);
 
-    const { count: mySendCount } = await supabase
+    const { data: mySend } = await supabase
       .from("sends")
-      .select("*", { count: "exact", head: true })
+      .select("send_type")
       .eq("route_id", id)
-      .eq("user_id", profile.id);
-    setHasSent((mySendCount ?? 0) > 0);
+      .eq("user_id", profile.id)
+      .maybeSingle();
+    setHasSent(!!mySend);
+    setMySendType(mySend?.send_type ?? null);
+
+    // Route history — the permanent timeline of this route's life.
+    const { data: eventRows } = await supabase
+      .from("route_events")
+      .select("*")
+      .eq("route_id", id)
+      .order("created_at", { ascending: false });
+    setEvents(eventRows ?? []);
 
     const { data: myRating } = await supabase
       .from("route_ratings")
@@ -266,14 +297,15 @@ export function RouteDetail() {
     setRoute(await fetchRoute(id));
   }
 
-  async function logSend() {
+  async function logSend(sendType: SendType) {
     if (!id || !profile || hasSent) return;
     setSending(true);
     await supabase.from("sends").upsert(
-      { route_id: id, user_id: profile.id },
+      { route_id: id, user_id: profile.id, send_type: sendType },
       { onConflict: "route_id,user_id", ignoreDuplicates: true },
     );
     setHasSent(true);
+    setMySendType(sendType);
     setRoute(await fetchRoute(id));
     setSending(false);
   }
@@ -433,10 +465,61 @@ export function RouteDetail() {
     setComments((prev) =>
       prev.map((x) => (x.id === c.id ? { ...x, upvotes: x.upvotes + 1 } : x)),
     );
-    await supabase
+    // RPC keeps the counter server-side — comment rows themselves are only
+    // editable by their owners.
+    await supabase.rpc("upvote_comment", { p_comment_id: c.id });
+  }
+
+  function startEdit(c: CommentWithAuthor) {
+    setMenuCommentId(null);
+    setEditingComment(c.id);
+    setEditBody(c.body);
+  }
+
+  async function saveEdit() {
+    if (!editingComment || editBody.trim().length === 0) return;
+    setSavingEdit(true);
+    const now = new Date().toISOString();
+    const { error } = await supabase
       .from("comments")
-      .update({ upvotes: c.upvotes + 1 })
-      .eq("id", c.id);
+      .update({ body: editBody.trim(), edited_at: now })
+      .eq("id", editingComment);
+    setSavingEdit(false);
+    if (error) {
+      window.alert(error.message);
+      return;
+    }
+    setComments((prev) =>
+      prev.map((x) =>
+        x.id === editingComment
+          ? { ...x, body: editBody.trim(), edited_at: now }
+          : x,
+      ),
+    );
+    setEditingComment(null);
+    setEditBody("");
+  }
+
+  async function deleteComment(c: CommentWithAuthor) {
+    if (!window.confirm("Delete this comment?")) return;
+    setMenuCommentId(null);
+    const { data, error } = await supabase
+      .from("comments")
+      .delete()
+      .eq("id", c.id)
+      .select();
+    if (error) {
+      window.alert(error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      window.alert("Couldn't delete this comment.");
+      return;
+    }
+    // Replies to it are orphaned client-side; drop them from view too.
+    setComments((prev) =>
+      prev.filter((x) => x.id !== c.id && x.parent_id !== c.id),
+    );
   }
 
   function startReply(c: CommentWithAuthor) {
@@ -473,6 +556,9 @@ export function RouteDetail() {
 
   const grade = communityGrade(route.gradeValues);
   const { tone, count } = gradeConsensus(route.gradeValues);
+  // Every grade on this page renders in the gym's house style.
+  const fmt = (g: number | null | undefined) =>
+    formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
   const visibleComments = comments.filter((c) => !blockedIds.has(c.user_id));
   const topLevel = visibleComments.filter((c) => !c.parent_id);
   const repliesOf = (parentId: string) =>
@@ -483,6 +569,7 @@ export function RouteDetail() {
     gymGrade: route.gym_grade,
     climbingType: route.climbing_type,
     system,
+    gradeStyle: route.gradingStyle,
     funAvg: route.funAvg,
     funCount: route.funCount,
     sendCount: route.sendCount,
@@ -511,6 +598,34 @@ export function RouteDetail() {
           <Avatar name={c.authorName} url={c.authorAvatar} size={size} />
         </Link>
         <div className="min-w-0 flex-1">
+          {editingComment === c.id ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                className="min-h-[60px] w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm text-chalk outline-none focus:border-accent"
+                autoFocus
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveEdit}
+                  disabled={savingEdit || editBody.trim().length === 0}
+                  className="text-xs font-bold text-accent disabled:opacity-50"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingComment(null);
+                    setEditBody("");
+                  }}
+                  className="text-xs text-faint hover:text-chalk"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
           <p className="text-sm leading-snug text-chalk">
             <Link to={`/u/${c.user_id}`} className="font-semibold hover:underline">
               {c.authorName}
@@ -531,7 +646,11 @@ export function RouteDetail() {
             ) : (
               <span className="text-chalk/90">{c.body}</span>
             )}
+            {c.edited_at ? (
+              <span className="ml-1 text-[11px] text-faint">(edited)</span>
+            ) : null}
           </p>
+          )}
           <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-faint">
             <span>{timeAgo(c.created_at)}</span>
             {c.is_beta ? (
@@ -550,38 +669,55 @@ export function RouteDetail() {
             >
               Reply
             </button>
-            {!mine ? (
-              <div className="relative">
-                <button
-                  onClick={() =>
-                    setMenuCommentId((p) => (p === c.id ? null : c.id))
-                  }
-                  aria-label="Options"
-                  className="hover:text-chalk"
-                >
-                  <MoreHorizontal size={15} />
-                </button>
-                {menuCommentId === c.id ? (
-                  <div className="absolute left-0 top-6 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-card">
-                    <button
-                      onClick={() => {
-                        setMenuCommentId(null);
-                        setReportComment(c);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
-                    >
-                      <Flag size={14} /> Report
-                    </button>
-                    <button
-                      onClick={() => blockClimber(c)}
-                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
-                    >
-                      <Ban size={14} /> Block climber
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+            <div className="relative">
+              <button
+                onClick={() =>
+                  setMenuCommentId((p) => (p === c.id ? null : c.id))
+                }
+                aria-label="Options"
+                className="hover:text-chalk"
+              >
+                <MoreHorizontal size={15} />
+              </button>
+              {menuCommentId === c.id ? (
+                <div className="absolute left-0 top-6 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-card">
+                  {mine ? (
+                    <>
+                      <button
+                        onClick={() => startEdit(c)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
+                      >
+                        <Pencil size={14} /> Edit
+                      </button>
+                      <button
+                        onClick={() => deleteComment(c)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          setMenuCommentId(null);
+                          setReportComment(c);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
+                      >
+                        <Flag size={14} /> Report
+                      </button>
+                      <button
+                        onClick={() => blockClimber(c)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
+                      >
+                        <Ban size={14} /> Block climber
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
         <button
@@ -659,7 +795,7 @@ export function RouteDetail() {
                 Community says
               </p>
               <p className="mt-0.5 text-4xl font-extrabold leading-none text-accent">
-                {formatGrade(grade, route.climbing_type, system)}
+                {fmt(grade)}
               </p>
               <p className={`mt-1.5 text-xs font-semibold ${verdictClass}`}>
                 {verdictLabel}
@@ -672,7 +808,7 @@ export function RouteDetail() {
               <p className="mt-0.5 text-4xl font-extrabold leading-none text-chalk">
                 {route.gym_grade === null || route.gym_grade === undefined
                   ? "—"
-                  : formatGrade(route.gym_grade, route.climbing_type, system)}
+                  : fmt(route.gym_grade)}
               </p>
               <p className="mt-1.5 text-xs text-faint">
                 {route.gym_grade === null || route.gym_grade === undefined
@@ -781,6 +917,7 @@ export function RouteDetail() {
               onChange={setDraftGrade}
               climbingType={route.climbing_type}
               system={system}
+              gradeStyle={route.gradingStyle}
             />
             <Button
               className="mt-3 w-full"
@@ -793,24 +930,38 @@ export function RouteDetail() {
             </Button>
           </div>
 
-          {/* Send */}
-          <Button
-            className="w-full"
-            variant={hasSent ? "secondary" : "primary"}
-            loading={sending}
-            disabled={hasSent}
-            onClick={logSend}
-          >
-            {hasSent ? (
-              <>
-                <Check size={18} className="mr-2" /> Sent
-              </>
-            ) : (
-              <>
+          {/* Send / flash */}
+          {hasSent ? (
+            <Button className="w-full" variant="secondary" disabled>
+              {mySendType === "flash" ? (
+                <>
+                  <Zap size={18} className="mr-2" /> Flashed
+                </>
+              ) : (
+                <>
+                  <Check size={18} className="mr-2" /> Sent
+                </>
+              )}
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                loading={sending}
+                onClick={() => logSend("send")}
+              >
                 <Trophy size={18} className="mr-2" /> I sent this
-              </>
-            )}
-          </Button>
+              </Button>
+              <Button
+                className="flex-1"
+                variant="secondary"
+                loading={sending}
+                onClick={() => logSend("flash")}
+              >
+                <Zap size={18} className="mr-2 text-accent" /> I flashed it
+              </Button>
+            </div>
+          )}
 
           {/* Comments — Instagram style */}
           <section>
@@ -874,6 +1025,79 @@ export function RouteDetail() {
               </ul>
             )}
           </section>
+
+          {/* Route history — the permanent timeline of this route's life. */}
+          {events.length > 0 ? (
+            <section className="rounded-2xl bg-surface p-4 shadow-card">
+              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
+                <History size={14} className="text-accent" /> Route history
+              </h2>
+              <ul className="relative flex flex-col gap-4 pl-1">
+                {events.map((e, i) => {
+                  let Icon = Plus;
+                  let text: React.ReactNode = "Route added";
+                  if (e.kind === "created") {
+                    Icon = Plus;
+                    text =
+                      e.detail.gym_grade !== null &&
+                      e.detail.gym_grade !== undefined ? (
+                        <>
+                          Route added — gym graded it{" "}
+                          <span className="font-semibold text-chalk">
+                            {fmt(e.detail.gym_grade)}
+                          </span>
+                        </>
+                      ) : (
+                        "Route added"
+                      );
+                  } else if (e.kind === "grade_shift") {
+                    Icon = TrendingUp;
+                    text = (
+                      <>
+                        Community grade moved{" "}
+                        <span className="font-semibold text-chalk">
+                          {fmt(e.detail.from)}
+                        </span>{" "}
+                        →{" "}
+                        <span className="font-semibold text-accent">
+                          {fmt(e.detail.to)}
+                        </span>
+                      </>
+                    );
+                  } else if (e.kind === "archived") {
+                    Icon = Archive;
+                    text = "Route retired from the wall";
+                  }
+                  return (
+                    <li key={e.id} className="flex items-start gap-3">
+                      <span className="relative flex flex-col items-center">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 text-accent">
+                          <Icon size={14} />
+                        </span>
+                        {i < events.length - 1 ? (
+                          <span className="absolute top-7 h-[calc(100%+0.35rem)] w-px bg-border" />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1 pt-1">
+                        <span className="block text-sm text-chalk/90">
+                          {text}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-faint">
+                          {formatDate(e.created_at)}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {route.status === "archived" ? (
+                <p className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
+                  This route is retired, but it stays in every logbook that
+                  climbed it — your history doesn't disappear with the holds.
+                </p>
+              ) : null}
+            </section>
+          ) : null}
 
           {/* Route gone / report / delete */}
           <div className="pt-2">
@@ -983,6 +1207,7 @@ export function RouteDetail() {
               grades={route.gradeValues}
               climbingType={route.climbing_type}
               system={system}
+              gradeStyle={route.gradingStyle}
             />
             {route.gradeValues.length > 0 ? (
               <div className="mt-5">
@@ -993,6 +1218,7 @@ export function RouteDetail() {
                   grades={route.gradeValues}
                   climbingType={route.climbing_type}
                   system={system}
+                  gradeStyle={route.gradingStyle}
                 />
               </div>
             ) : null}

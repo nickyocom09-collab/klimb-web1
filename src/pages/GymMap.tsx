@@ -53,6 +53,28 @@ function clusterIcon(count: number): L.DivIcon {
 }
 
 /**
+ * Keeps Leaflet's internal size in sync with the container. iOS Safari can
+ * settle the flex layout after the map mounts, which otherwise leaves tiles
+ * rendered in a narrow strip until the next resize.
+ */
+function MapSizeSync() {
+  const map = useMap();
+  useEffect(() => {
+    const invalidate = () => map.invalidateSize({ animate: false });
+    // One immediate pass for post-mount layout settling…
+    const t = setTimeout(invalidate, 60);
+    // …then track every real container resize (rotation, keyboard, etc.).
+    const ro = new ResizeObserver(invalidate);
+    ro.observe(map.getContainer());
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
+/**
  * Clustered gym markers (vanilla leaflet.markercluster). The home gym is kept
  * OUT of the cluster group as a standalone always-visible marker, so you can
  * spot it at any zoom level.
@@ -152,14 +174,6 @@ export function GymMap() {
     [gyms, profile?.home_gym_id],
   );
 
-  // Open on your home gym so you never have to hunt for it.
-  useEffect(() => {
-    if (loading || !mapRef.current || !home) return;
-    mapRef.current.setView([home.latitude!, home.longitude!], 10, {
-      animate: false,
-    });
-  }, [loading, home]);
-
   function focusGym(gym: GymWithCount, zoom = 13) {
     setSelected(gym);
     mapRef.current?.flyTo([gym.latitude!, gym.longitude!], zoom, {
@@ -211,35 +225,44 @@ export function GymMap() {
   const isHome = selected?.id === profile?.home_gym_id;
 
   return (
-    <div className="relative -mb-28 h-[calc(100%+7rem)] w-full">
-      <MapContainer
-        center={home ? [home.latitude!, home.longitude!] : US_CENTER}
-        zoom={home ? 10 : 4}
-        ref={mapRef}
-        zoomControl={false}
-        zoomSnap={0.25}
-        zoomDelta={0.5}
-        wheelPxPerZoomLevel={120}
-        zoomAnimation
-        fadeAnimation
-        markerZoomAnimation
-        className="klimb-map absolute inset-0 z-0 h-full w-full"
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url={`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "voyager"}/{z}/{x}/{y}{r}.png`}
-          subdomains="abcd"
-          maxZoom={20}
-          detectRetina
-          keepBuffer={6}
-          updateWhenZooming={false}
-        />
-        <GymLayer
-          gyms={gyms}
-          homeId={profile?.home_gym_id}
-          onSelect={(g) => focusGym(g, Math.max(mapRef.current?.getZoom() ?? 12, 12))}
-        />
-      </MapContainer>
+    <div className="relative -mb-28 h-[calc(100%+7rem)] w-full bg-bg">
+      {/* Mount the map only once gyms are in — it initializes directly on the
+          home gym at full size, instead of jumping there after a re-render. */}
+      {!loading ? (
+        <MapContainer
+          center={home ? [home.latitude!, home.longitude!] : US_CENTER}
+          zoom={home ? 10 : 4}
+          minZoom={4}
+          maxZoom={19}
+          ref={mapRef}
+          zoomControl={false}
+          zoomSnap={0.5}
+          zoomDelta={0.5}
+          wheelPxPerZoomLevel={120}
+          zoomAnimation
+          fadeAnimation
+          markerZoomAnimation
+          worldCopyJump
+          className="klimb-map absolute inset-0 z-0 h-full w-full"
+        >
+          <MapSizeSync />
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url={`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "voyager"}/{z}/{x}/{y}{r}.png`}
+            subdomains="abcd"
+            maxZoom={19}
+            keepBuffer={4}
+            updateWhenZooming={false}
+          />
+          <GymLayer
+            gyms={gyms}
+            homeId={profile?.home_gym_id}
+            onSelect={(g) =>
+              focusGym(g, Math.max(mapRef.current?.getZoom() ?? 12, 12))
+            }
+          />
+        </MapContainer>
+      ) : null}
 
       {/* Search overlay */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 p-4">

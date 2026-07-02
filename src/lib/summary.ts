@@ -4,9 +4,10 @@
 
 import {
   communityGrade,
-  formatGrade,
+  formatGradeStyled,
   gradeConsensus,
   type ClimbingType,
+  type GradeStyle,
   type GradeSystem,
 } from "./grades";
 
@@ -36,6 +37,7 @@ export function routeSummary(input: {
   gymGrade: number | null;
   climbingType: ClimbingType;
   system: GradeSystem;
+  gradeStyle?: GradeStyle;
   funAvg: number | null;
   funCount: number;
   sendCount: number;
@@ -46,13 +48,15 @@ export function routeSummary(input: {
     gymGrade,
     climbingType,
     system,
+    gradeStyle = "classic",
     funAvg,
     funCount,
     sendCount,
     comments,
   } = input;
   const parts: string[] = [];
-  const fmt = (g: number | null) => formatGrade(g, climbingType, system);
+  const fmt = (g: number | null) =>
+    formatGradeStyled(g, climbingType, system, gradeStyle);
   const { tone, min, max, count } = gradeConsensus(gradeValues);
   const community = communityGrade(gradeValues);
 
@@ -73,11 +77,14 @@ export function routeSummary(input: {
 
   // Community vs. gym
   if (community !== null && gymGrade !== null && gymGrade !== undefined) {
-    if (community > gymGrade)
+    // With banded grading two different ordinals can share a label — if they
+    // read the same, the crowd agrees as far as anyone can see.
+    if (fmt(community) === fmt(gymGrade))
+      parts.push(`The crowd backs the gym's ${fmt(gymGrade)}.`);
+    else if (community > gymGrade)
       parts.push(`Most feel it climbs stiffer than the gym's ${fmt(gymGrade)}.`);
-    else if (community < gymGrade)
+    else
       parts.push(`Most feel it climbs softer than the gym's ${fmt(gymGrade)}.`);
-    else parts.push(`The crowd backs the gym's ${fmt(gymGrade)}.`);
   }
 
   // Fun factor

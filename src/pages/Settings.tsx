@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BookOpen, ChevronRight } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import {
   CLIMB_FILTERS,
@@ -151,6 +152,25 @@ export function Settings() {
           />
           <p className="ml-1 text-xs text-faint">
             Which climbing type the feed shows when you open it.
+          </p>
+        </Section>
+
+        <Section title="Learn the lingo">
+          <button
+            onClick={() => navigate("/terms")}
+            className="flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+              <BookOpen size={18} className="text-accent" /> Climber's
+              dictionary
+            </span>
+            <span className="flex items-center gap-1 text-xs text-faint">
+              100 terms <ChevronRight size={15} />
+            </span>
+          </button>
+          <p className="ml-1 text-xs text-faint">
+            Crimp? Beta? Sandbagged? Every term you'll hear at the gym,
+            explained.
           </p>
         </Section>
 

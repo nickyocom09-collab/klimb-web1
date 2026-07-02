@@ -1,8 +1,8 @@
 import {
-  formatGrade,
-  gradeDistribution,
+  distributionBuckets,
   spreadColor,
   type ClimbingType,
+  type GradeStyle,
   type GradeSystem,
 } from "../lib/grades";
 
@@ -11,12 +11,14 @@ export function GradeBar({
   grades,
   climbingType = "boulder",
   system = "american",
+  gradeStyle = "classic",
 }: {
   grades: number[];
   climbingType?: ClimbingType;
   system?: GradeSystem;
+  gradeStyle?: GradeStyle;
 }) {
-  const dist = gradeDistribution(grades);
+  const dist = distributionBuckets(grades, climbingType, system, gradeStyle);
   if (dist.length === 0) {
     return <p className="text-sm text-faint">No grades yet — be the first.</p>;
   }
@@ -26,9 +28,9 @@ export function GradeBar({
   return (
     <div className="flex flex-col gap-2">
       {dist.map((d) => (
-        <div key={d.grade} className="flex items-center gap-2">
-          <span className="w-10 shrink-0 text-right text-xs font-semibold text-muted">
-            {formatGrade(d.grade, climbingType, system)}
+        <div key={d.label} className="flex items-center gap-2">
+          <span className="w-12 shrink-0 text-right text-xs font-semibold text-muted">
+            {d.label}
           </span>
           <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-2">
             <div

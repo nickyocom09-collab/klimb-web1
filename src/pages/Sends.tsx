@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
 import { fetchBookmarkedRouteIds } from "../lib/bookmarks";
-import { communityGrade, formatGrade } from "../lib/grades";
+import { communityGrade, formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { AppHeader } from "../components/Layout";
 import { CenterSpinner } from "../components/ui";
@@ -247,7 +247,7 @@ function RowLink({
         </div>
         <div className="shrink-0 text-right">
           <p className="text-lg font-extrabold leading-none text-accent">
-            {formatGrade(grade, route.climbing_type, system)}
+            {formatGradeStyled(grade, route.climbing_type, system, route.gradingStyle)}
           </p>
           <p className="mt-0.5 text-[10px] text-faint">
             {climbTypeLabel(route.climbing_type)}

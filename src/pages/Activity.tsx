@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase";
 import { AppHeader } from "../components/Layout";
 import { CenterSpinner } from "../components/ui";
 import { fetchGymActivity, type ActivityEvent } from "../lib/activity";
-import { formatGrade } from "../lib/grades";
+import { formatGradeStyled, type GradeStyle } from "../lib/grades";
 import { timeAgo } from "../lib/time";
 
 const ICONS = {
@@ -21,6 +21,7 @@ export function ActivityFeed() {
   const gymId = profile?.home_gym_id ?? null;
   const system = profile?.grade_system ?? "american";
   const [gymName, setGymName] = useState<string | null>(null);
+  const [gradeStyle, setGradeStyle] = useState<GradeStyle>("classic");
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,10 +29,13 @@ export function ActivityFeed() {
     if (!gymId) return;
     supabase
       .from("gyms")
-      .select("name")
+      .select("name, grading_style")
       .eq("id", gymId)
       .maybeSingle()
-      .then(({ data }) => setGymName(data?.name ?? null));
+      .then(({ data }) => {
+        setGymName(data?.name ?? null);
+        setGradeStyle(data?.grading_style ?? "classic");
+      });
   }, [gymId]);
 
   useEffect(() => {
@@ -72,7 +76,7 @@ export function ActivityFeed() {
             graded{" "}
             <span className="font-semibold text-chalk">{e.routeLabel}</span> at{" "}
             <span className="font-semibold text-accent">
-              {formatGrade(e.grade ?? null, e.climbingType, system)}
+              {formatGradeStyled(e.grade ?? null, e.climbingType, system, gradeStyle)}
             </span>
           </>
         );

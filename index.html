@@ -13,6 +13,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
 
+  <!-- Warm up the map tile CDN so the first map open paints fast. -->
+  <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin>
+  <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossorigin>
+  <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossorigin>
+
   <!-- Pre-JS splash so the very first paint is branded, not blank. React
        replaces #root on mount, removing this automatically. Styles are inline
        here (the stylesheet hasn't loaded yet at first paint). -->

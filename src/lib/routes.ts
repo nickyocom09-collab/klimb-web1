@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { RouteRow } from "./database.types";
+import type { GradingStyle, RouteRow } from "./database.types";
 
 export type RouteWithStats = RouteRow & {
   gradeValues: number[];
@@ -9,13 +9,29 @@ export type RouteWithStats = RouteRow & {
   funCount: number;
   /** Sends + grades logged in the last 7 days — the trending signal. */
   recentActivity: number;
+  /** The gym's house grading style ('classic' scales or Bentonville 'bands'). */
+  gradingStyle: GradingStyle;
 };
+
+// Raw select shape: route columns plus the joined gym grading style.
+type RouteJoinRow = RouteRow & { gyms: { grading_style: GradingStyle } | null };
+
+const ROUTE_SELECT = "*, gyms(grading_style)";
+
+function flatten(rows: RouteJoinRow[]): (RouteRow & { gradingStyle: GradingStyle })[] {
+  return rows.map(({ gyms, ...route }) => ({
+    ...route,
+    gradingStyle: gyms?.grading_style ?? "classic",
+  }));
+}
 
 const TRENDING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Attach grade values, send counts, fun ratings, and recent-activity counts
  * to a set of routes (client-side aggregate). */
-async function attachStats(routes: RouteRow[]): Promise<RouteWithStats[]> {
+async function attachStats(
+  routes: (RouteRow & { gradingStyle: GradingStyle })[],
+): Promise<RouteWithStats[]> {
   if (routes.length === 0) return [];
   const ids = routes.map((r) => r.id);
 
@@ -84,13 +100,13 @@ export async function fetchActiveRoutes(
 ): Promise<RouteWithStats[]> {
   const { data, error } = await supabase
     .from("routes")
-    .select("*")
+    .select(ROUTE_SELECT)
     .eq("gym_id", gymId)
     .eq("status", "active")
     .eq("hidden", false)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return attachStats(data ?? []);
+  return attachStats(flatten((data ?? []) as unknown as RouteJoinRow[]));
 }
 
 /** Fetch a set of routes by id, preserving the given order, with stats. */
@@ -100,10 +116,12 @@ export async function fetchRoutesByIds(
   if (ids.length === 0) return [];
   const { data, error } = await supabase
     .from("routes")
-    .select("*")
+    .select(ROUTE_SELECT)
     .in("id", ids);
   if (error) throw error;
-  const withStats = await attachStats(data ?? []);
+  const withStats = await attachStats(
+    flatten((data ?? []) as unknown as RouteJoinRow[]),
+  );
   const order = new Map(ids.map((id, i) => [id, i]));
   return withStats.sort(
     (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0),
@@ -113,11 +131,13 @@ export async function fetchRoutesByIds(
 export async function fetchRoute(id: string): Promise<RouteWithStats | null> {
   const { data, error } = await supabase
     .from("routes")
-    .select("*")
+    .select(ROUTE_SELECT)
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
-  const [withStats] = await attachStats([data]);
+  const [withStats] = await attachStats(
+    flatten([data as unknown as RouteJoinRow]),
+  );
   return withStats;
 }

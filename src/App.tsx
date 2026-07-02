@@ -20,6 +20,7 @@ import { Sends } from "./pages/Sends";
 import { Profile } from "./pages/Profile";
 import { Settings } from "./pages/Settings";
 import { Gyms } from "./pages/Gyms";
+import { Glossary } from "./pages/Glossary";
 
 // The 3D globe pulls in three.js — keep it out of the main bundle so the
 // feed loads fast; the globe chunk streams in when the Map tab is opened.
@@ -133,6 +134,14 @@ export default function App() {
         element={
           <RequireAuth>
             <Friends />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/terms"
+        element={
+          <RequireAuth>
+            <Glossary />
           </RequireAuth>
         }
       />

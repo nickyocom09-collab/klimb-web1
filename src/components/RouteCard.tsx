@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Check, Flame, Plus, Sparkles, Star, Trophy, Video } from "lucide-react";
 import {
   communityGrade,
-  formatGrade,
+  formatGradeStyled,
   gradeConsensus,
   gradeDistribution,
   spreadColor,
@@ -33,6 +33,8 @@ export function RouteCard({
   const maxCount = dist.length ? Math.max(...dist.map((d) => d.count)) : 0;
   const color = spreadColor(values);
   const { tone } = gradeConsensus(values);
+  const fmt = (g: number | null) =>
+    formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
 
   let verdict = "No grades yet — be the first";
   if (n === 1) verdict = "1 grade so far";
@@ -40,7 +42,9 @@ export function RouteCard({
   else if (n > 1) {
     const min = Math.min(...values);
     const max = Math.max(...values);
-    verdict = `Contested · ${formatGrade(min, route.climbing_type, system)}–${formatGrade(max, route.climbing_type, system)}`;
+    const lo = fmt(min);
+    const hi = fmt(max);
+    verdict = lo === hi ? "Strong consensus" : `Contested · ${lo}–${hi}`;
   }
   const toneClass =
     tone === "green"
@@ -109,7 +113,7 @@ export function RouteCard({
                 Community says
               </p>
               <p className="mt-0.5 text-3xl font-extrabold leading-none text-accent">
-                {formatGrade(community, route.climbing_type, system)}
+                {fmt(community)}
               </p>
               <p className="mt-1 text-[11px] text-faint">
                 {n} vote{n === 1 ? "" : "s"}
@@ -122,7 +126,7 @@ export function RouteCard({
               <p className="mt-0.5 text-3xl font-extrabold leading-none text-chalk">
                 {route.gym_grade === null || route.gym_grade === undefined
                   ? "—"
-                  : formatGrade(route.gym_grade, route.climbing_type, system)}
+                  : fmt(route.gym_grade)}
               </p>
               <p className="mt-1 text-[11px] text-faint">
                 {route.gym_grade === null || route.gym_grade === undefined
@@ -183,8 +187,7 @@ export function RouteCard({
         >
           {myGrade !== null ? (
             <>
-              <Check size={16} /> You said{" "}
-              {formatGrade(myGrade, route.climbing_type, system)} · change
+              <Check size={16} /> You said {fmt(myGrade)} · change
             </>
           ) : (
             <>

@@ -11,7 +11,7 @@ import {
   WALL_SECTIONS,
   type ClimbType,
 } from "../lib/constants";
-import { gradeLabels } from "../lib/grades";
+import { pickerOptions, type GradeStyle } from "../lib/grades";
 import { AppHeader } from "../components/Layout";
 import { Button, ErrorText, Input, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
@@ -19,6 +19,41 @@ import { Dropdown } from "../components/Dropdown";
 const NOT_SURE = "Not sure";
 const NOT_SET = "Not set";
 const OTHER = "Other…";
+
+// You must actually be at (well, near) the gym to post a route there — this
+// is the anti-fake-route check. 50 miles leaves room for GPS slop and suburbs.
+const MAX_POST_DISTANCE_MILES = 50;
+
+/** Great-circle distance in miles between two lat/lng points. */
+function milesBetween(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 3958.8; // Earth radius, miles
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function getPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("no_geolocation"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      timeout: 10_000,
+      maximumAge: 5 * 60_000,
+    });
+  });
+}
 
 export function AddRoute() {
   const { profile } = useAuth();
@@ -28,6 +63,10 @@ export function AddRoute() {
   // Add to whichever gym you're currently browsing (home, or one you're visiting).
   const targetGymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
   const [gymName, setGymName] = useState<string | null>(null);
+  const [gymCoords, setGymCoords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
+  const [gradeStyle, setGradeStyle] = useState<GradeStyle>("classic");
 
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -44,16 +83,28 @@ export function AddRoute() {
   const [confirming, setConfirming] = useState(false);
 
   const system = profile?.grade_system ?? "american";
-  const labels = gradeLabels(climbingType, system);
+  const gradeOptions = pickerOptions(climbingType, system, gradeStyle);
+  const labelOf = (g: number | null, fallback: string) =>
+    g === null
+      ? fallback
+      : gradeOptions.find((o) => o.value === g)?.label ?? fallback;
 
   useEffect(() => {
     if (!targetGymId) return;
     supabase
       .from("gyms")
-      .select("name")
+      .select("name, latitude, longitude, grading_style")
       .eq("id", targetGymId)
       .maybeSingle()
-      .then(({ data }) => setGymName(data?.name ?? null));
+      .then(({ data }) => {
+        setGymName(data?.name ?? null);
+        setGradeStyle(data?.grading_style ?? "classic");
+        setGymCoords(
+          data?.latitude != null && data?.longitude != null
+            ? { lat: data.latitude, lng: data.longitude }
+            : null,
+        );
+      });
   }, [targetGymId]);
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -107,6 +158,30 @@ export function AddRoute() {
     setConfirming(false);
     setBusy(true);
     try {
+      // Location gate: you must be within 50 miles of the gym to post there.
+      // Only enforceable when the gym has coordinates on file.
+      if (gymCoords) {
+        let pos: GeolocationPosition;
+        try {
+          pos = await getPosition();
+        } catch {
+          throw new Error(
+            "Klimb needs your location to confirm you're at this gym. Enable location access and try again.",
+          );
+        }
+        const miles = milesBetween(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          gymCoords.lat,
+          gymCoords.lng,
+        );
+        if (miles > MAX_POST_DISTANCE_MILES) {
+          throw new Error(
+            `You look to be ${Math.round(miles)} miles from ${gymName ?? "this gym"}. Routes can only be posted within ${MAX_POST_DISTANCE_MILES} miles of the gym.`,
+          );
+        }
+      }
+
       const since = new Date();
       since.setHours(0, 0, 0, 0);
       const { count } = await supabase
@@ -263,10 +338,14 @@ export function AddRoute() {
 
           <Row label="Your grade guess">
             <Dropdown
-              value={grade === null ? NOT_SURE : labels[grade]}
-              options={[NOT_SURE, ...labels]}
+              value={labelOf(grade, NOT_SURE)}
+              options={[NOT_SURE, ...gradeOptions.map((o) => o.label)]}
               onChange={(l) =>
-                setGrade(l === NOT_SURE ? null : labels.indexOf(l))
+                setGrade(
+                  l === NOT_SURE
+                    ? null
+                    : gradeOptions.find((o) => o.label === l)?.value ?? null,
+                )
               }
               align="right"
             />
@@ -274,10 +353,14 @@ export function AddRoute() {
 
           <Row label="Gym's grade">
             <Dropdown
-              value={gymGrade === null ? NOT_SET : labels[gymGrade]}
-              options={[NOT_SET, ...labels]}
+              value={labelOf(gymGrade, NOT_SET)}
+              options={[NOT_SET, ...gradeOptions.map((o) => o.label)]}
               onChange={(l) =>
-                setGymGrade(l === NOT_SET ? null : labels.indexOf(l))
+                setGymGrade(
+                  l === NOT_SET
+                    ? null
+                    : gradeOptions.find((o) => o.label === l)?.value ?? null,
+                )
               }
               align="right"
             />

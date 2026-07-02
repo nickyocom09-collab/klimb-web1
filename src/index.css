@@ -57,11 +57,21 @@
    Labeled pins: a glowing green dot with the gym name on a pill underneath,
    so you always know which gym you're tapping. The home gym gets a green
    pill with a house icon and a pulsing ring. */
-.klimb-map {
-  background: rgb(var(--c-bg));
+/* Double the selector so this outranks leaflet.css's own `.leaflet-container`
+   background (leaflet.css loads after this file via the lazy map chunk). */
+.klimb-map.leaflet-container {
+  background: rgb(10 10 11);
+  /* Snappier taps on mobile — no 300ms delay, no accidental page scroll. */
+  touch-action: none;
 }
 .klimb-map .leaflet-tile-container img {
   filter: saturate(0.92);
+}
+/* Keep tile layers and markers on the GPU for buttery pan/zoom. */
+.klimb-map .leaflet-map-pane,
+.klimb-map .leaflet-tile-container,
+.klimb-map .leaflet-marker-pane {
+  will-change: transform;
 }
 .klimb-pin-wrap {
   background: none;

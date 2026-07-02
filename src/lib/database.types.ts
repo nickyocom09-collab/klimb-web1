@@ -7,6 +7,8 @@ export type GradeSystemEnum = "american" | "european";
 export type ThemeEnum = "dark" | "light";
 export type ClimbFilterEnum = "all" | "boulder" | "toprope";
 export type GymStatus = "pending" | "approved";
+export type GradingStyle = "classic" | "bands";
+export type RouteEventKind = "created" | "grade_shift" | "archived";
 export type ReportReasonEnum = "wrong_gym" | "duplicate" | "inappropriate";
 export type BookmarkKind = "project" | "favorite";
 export type SendType = "flash" | "send";
@@ -100,6 +102,7 @@ export interface Database {
           latitude: number | null;
           longitude: number | null;
           status: GymStatus;
+          grading_style: GradingStyle;
           created_by: string | null;
           created_at: string;
         };
@@ -112,6 +115,7 @@ export interface Database {
           latitude?: number | null;
           longitude?: number | null;
           status?: GymStatus;
+          grading_style?: GradingStyle;
           created_by?: string | null;
           created_at?: string;
         };
@@ -123,6 +127,7 @@ export interface Database {
           latitude?: number | null;
           longitude?: number | null;
           status?: GymStatus;
+          grading_style?: GradingStyle;
         };
         Relationships: [];
       };
@@ -141,6 +146,7 @@ export interface Database {
           hidden: boolean;
           report_count: number;
           gone_reports: number;
+          community_grade_cached: number | null;
           created_by: string | null;
           created_at: string;
           archived_at: string | null;
@@ -237,6 +243,7 @@ export interface Database {
           hidden: boolean;
           report_count: number;
           parent_id: string | null;
+          edited_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -257,6 +264,7 @@ export interface Database {
           upvotes?: number;
           hidden?: boolean;
           report_count?: number;
+          edited_at?: string | null;
         };
         Relationships: [];
       };
@@ -359,6 +367,29 @@ export interface Database {
         };
         Relationships: [];
       };
+      route_events: {
+        Row: {
+          id: string;
+          route_id: string;
+          kind: RouteEventKind;
+          detail: {
+            from?: number;
+            to?: number;
+            gym_grade?: number | null;
+            climbing_type?: ClimbingTypeEnum;
+          };
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          route_id: string;
+          kind: RouteEventKind;
+          detail?: Record<string, unknown>;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
       content_reports: {
         Row: {
           id: string;
@@ -408,6 +439,10 @@ export interface Database {
         Args: { p_route_id: string };
         Returns: undefined;
       };
+      upvote_comment: {
+        Args: { p_comment_id: string };
+        Returns: number;
+      };
     };
     Enums: {
       route_status: RouteStatus;
@@ -429,3 +464,4 @@ export type RouteRatingRow = Database["public"]["Tables"]["route_ratings"]["Row"
 export type BlockRow = Database["public"]["Tables"]["blocks"]["Row"];
 export type ContentReportRow =
   Database["public"]["Tables"]["content_reports"]["Row"];
+export type RouteEventRow = Database["public"]["Tables"]["route_events"]["Row"];

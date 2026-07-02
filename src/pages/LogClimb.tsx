@@ -4,7 +4,7 @@ import { Bookmark, Check, Plus, Search, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchActiveRoutes, type RouteWithStats } from "../lib/routes";
-import { communityGrade, formatGrade } from "../lib/grades";
+import { communityGrade, formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { toggleBookmark } from "../lib/bookmarks";
 import { AppHeader } from "../components/Layout";
@@ -194,10 +194,11 @@ export function LogClimb() {
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-xl font-extrabold leading-none text-accent">
-                    {formatGrade(
+                    {formatGradeStyled(
                       communityGrade(r.gradeValues),
                       r.climbing_type,
                       system,
+                      r.gradingStyle,
                     )}
                   </p>
                   <p className="mt-1 text-[11px] text-faint">
@@ -288,6 +289,7 @@ export function LogClimb() {
                 onChange={setFeltGrade}
                 climbingType={selected.climbing_type}
                 system={system}
+                gradeStyle={selected.gradingStyle}
               />
             </div>
 

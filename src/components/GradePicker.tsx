@@ -1,7 +1,7 @@
 import {
-  gradeLabels,
-  gradeOrdinals,
+  pickerOptions,
   type ClimbingType,
+  type GradeStyle,
   type GradeSystem,
 } from "../lib/grades";
 
@@ -10,30 +10,37 @@ export function GradePicker({
   onChange,
   climbingType = "boulder",
   system = "american",
+  gradeStyle = "classic",
 }: {
   value: number | null;
   onChange: (g: number | null) => void;
   climbingType?: ClimbingType;
   system?: GradeSystem;
+  /** The gym's house style — 'bands' renders Bentonville-style options. */
+  gradeStyle?: GradeStyle;
 }) {
-  const ordinals = gradeOrdinals(climbingType);
-  const labels = gradeLabels(climbingType, system);
+  const options = pickerOptions(climbingType, system, gradeStyle);
+  // Bentonville boulder bands are only 4 wide — give them room to breathe.
+  const cols =
+    gradeStyle === "bands" && climbingType === "boulder"
+      ? "grid-cols-4"
+      : "grid-cols-6";
   return (
-    <div className="grid grid-cols-6 gap-2">
-      {ordinals.map((g) => {
-        const selected = value === g;
+    <div className={`grid ${cols} gap-2`}>
+      {options.map((o) => {
+        const selected = value === o.value;
         return (
           <button
-            key={g}
+            key={o.value}
             type="button"
-            onClick={() => onChange(selected ? null : g)}
+            onClick={() => onChange(selected ? null : o.value)}
             className={`h-11 rounded-xl border text-sm font-bold transition ${
               selected
                 ? "border-accent bg-accent text-bg"
                 : "border-border bg-surface-2 text-muted hover:text-chalk"
             }`}
           >
-            {labels[g]}
+            {o.label}
           </button>
         );
       })}

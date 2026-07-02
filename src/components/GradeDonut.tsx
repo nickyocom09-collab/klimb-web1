@@ -1,8 +1,9 @@
 import {
   communityGrade,
-  formatGrade,
-  gradeDistribution,
+  distributionBuckets,
+  formatGradeStyled,
   type ClimbingType,
+  type GradeStyle,
   type GradeSystem,
 } from "../lib/grades";
 
@@ -15,13 +16,17 @@ export function GradeDonut({
   grades,
   climbingType = "boulder",
   system = "american",
+  gradeStyle = "classic",
 }: {
   grades: number[];
   climbingType?: ClimbingType;
   system?: GradeSystem;
+  gradeStyle?: GradeStyle;
 }) {
   const total = grades.length;
-  const dist = gradeDistribution(grades).filter((d) => d.count > 0);
+  const dist = distributionBuckets(grades, climbingType, system, gradeStyle).filter(
+    (d) => d.count > 0,
+  );
   const community = communityGrade(grades);
 
   if (total === 0) {
@@ -44,7 +49,7 @@ export function GradeDonut({
     const len = frac * C;
     const seg = (
       <circle
-        key={d.grade}
+        key={d.label}
         cx="70"
         cy="70"
         r={R}
@@ -77,7 +82,7 @@ export function GradeDonut({
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-3xl font-extrabold leading-none text-accent">
-            {formatGrade(community, climbingType, system)}
+            {formatGradeStyled(community, climbingType, system, gradeStyle)}
           </span>
           <span className="mt-0.5 text-[10px] uppercase tracking-wide text-muted">
             {total} vote{total === 1 ? "" : "s"}
@@ -90,7 +95,7 @@ export function GradeDonut({
           const pct = Math.round((d.count / total) * 100);
           return (
             <li
-              key={d.grade}
+              key={d.label}
               style={{ animationDelay: `${i * 60}ms` }}
               className="flex animate-fade-up items-center gap-2 text-sm"
             >
@@ -99,7 +104,7 @@ export function GradeDonut({
                 style={{ backgroundColor: colors[i] }}
               />
               <span className="w-12 shrink-0 font-semibold text-chalk">
-                {formatGrade(d.grade, climbingType, system)}
+                {d.label}
               </span>
               <span className="flex-1 text-right text-muted">
                 {d.count} · {pct}%
