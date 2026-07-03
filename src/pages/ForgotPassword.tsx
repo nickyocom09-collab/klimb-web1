@@ -22,7 +22,7 @@ export function ForgotPassword() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col justify-center border-x border-border bg-bg px-6">
+    <div className="mx-auto flex h-full max-w-app flex-col justify-center bg-bg px-6">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold tracking-tight text-chalk">
           Reset password

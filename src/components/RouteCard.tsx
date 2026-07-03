@@ -1,15 +1,13 @@
 import { Link } from "react-router-dom";
-import { Check, Flame, Plus, Sparkles, Star, Trophy, Video } from "lucide-react";
+import { Check, Plus, Star, Trophy, Video } from "lucide-react";
 import {
   communityGrade,
   formatGradeStyled,
   gradeConsensus,
-  gradeDistribution,
-  spreadColor,
   type GradeSystem,
 } from "../lib/grades";
 import { holdHex } from "../lib/constants";
-import { isNewThisWeek, isTrending, type RouteWithStats } from "../lib/routes";
+import type { RouteWithStats } from "../lib/routes";
 
 export function RouteCard({
   route,
@@ -29,23 +27,13 @@ export function RouteCard({
   const values = route.gradeValues;
   const n = values.length;
   const community = communityGrade(values);
-  const dist = gradeDistribution(values);
-  const maxCount = dist.length ? Math.max(...dist.map((d) => d.count)) : 0;
-  const color = spreadColor(values);
   const { tone } = gradeConsensus(values);
   const fmt = (g: number | null) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
 
-  let verdict = "No grades yet — be the first";
+  let verdict = "No grades yet";
   if (n === 1) verdict = "1 grade so far";
-  else if (n > 1 && tone === "green") verdict = "Strong consensus";
-  else if (n > 1) {
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const lo = fmt(min);
-    const hi = fmt(max);
-    verdict = lo === hi ? "Strong consensus" : `Contested · ${lo}–${hi}`;
-  }
+  else if (n > 1) verdict = tone === "green" ? "Consensus" : "Contested";
   const toneClass =
     tone === "green"
       ? "text-accent"
@@ -85,24 +73,11 @@ export function RouteCard({
             className="h-full w-full object-cover"
             loading="lazy"
           />
-          {/* Freshness / heat badges */}
-          <div className="absolute left-3 top-3 flex items-center gap-1.5">
-            {isNewThisWeek(route) ? (
-              <span className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-bg shadow-lg">
-                <Sparkles size={11} /> New this week
-              </span>
-            ) : null}
-            {isTrending(route) ? (
-              <span className="flex items-center gap-1 rounded-full bg-wide px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-bg shadow-lg">
-                <Flame size={11} /> Trending
-              </span>
-            ) : null}
-            {route.video_url ? (
-              <span className="flex items-center gap-1 rounded-full bg-bg/80 px-2 py-1 backdrop-blur">
-                <Video size={13} className="text-chalk" />
-              </span>
-            ) : null}
-          </div>
+          {route.video_url ? (
+            <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-bg/80 px-2 py-1 backdrop-blur">
+              <Video size={13} className="text-chalk" />
+            </span>
+          ) : null}
         </div>
 
         <div className="p-4">
@@ -136,26 +111,10 @@ export function RouteCard({
             </div>
           </div>
 
-          {/* Verdict + slim distribution */}
+          {/* Verdict + quick stats — one quiet line */}
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className={`text-xs font-semibold ${toneClass}`}>{verdict}</span>
             <div className="flex items-center gap-3">
-              {n > 0 ? (
-                <div className="flex h-5 items-end gap-0.5">
-                  {dist.map((d) => (
-                    <div
-                      key={d.grade}
-                      className="w-1.5 rounded-sm"
-                      style={{
-                        height: `${maxCount > 0 ? Math.max((d.count / maxCount) * 100, d.count > 0 ? 24 : 0) : 0}%`,
-                        backgroundColor:
-                          d.count > 0 ? color : "rgb(var(--c-border))",
-                        minHeight: d.count > 0 ? "0.25rem" : "0.15rem",
-                      }}
-                    />
-                  ))}
-                </div>
-              ) : null}
               {route.funCount > 0 && route.funAvg !== null ? (
                 <span className="flex items-center gap-1 text-sm text-muted">
                   <Star

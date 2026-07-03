@@ -123,7 +123,7 @@ export function Onboarding() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       {/* Back button + progress dots */}
       <div className="relative flex items-center justify-center px-3 pt-6">
         {step !== "welcome" ? (

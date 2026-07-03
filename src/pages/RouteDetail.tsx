@@ -539,7 +539,7 @@ export function RouteDetail() {
 
   if (loading) {
     return (
-      <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
+      <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
         <CenterSpinner />
       </div>
     );
@@ -547,7 +547,7 @@ export function RouteDetail() {
 
   if (!route) {
     return (
-      <div className="mx-auto flex h-full max-w-app flex-col items-center justify-center gap-4 border-x border-border bg-bg px-8">
+      <div className="mx-auto flex h-full max-w-app flex-col items-center justify-center gap-4 bg-bg px-8">
         <p className="text-faint">Route not found.</p>
         <Button onClick={() => navigate("/")}>Back to feed</Button>
       </div>
@@ -736,7 +736,7 @@ export function RouteDetail() {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       <div className="relative">
         {route.video_url ? (
           <video
@@ -1035,20 +1035,20 @@ export function RouteDetail() {
               <ul className="relative flex flex-col gap-4 pl-1">
                 {events.map((e, i) => {
                   let Icon = Plus;
-                  let text: React.ReactNode = "Route added";
+                  let text: React.ReactNode = "Route posted";
                   if (e.kind === "created") {
                     Icon = Plus;
                     text =
                       e.detail.gym_grade !== null &&
                       e.detail.gym_grade !== undefined ? (
                         <>
-                          Route added — gym graded it{" "}
+                          Route posted — gym graded it{" "}
                           <span className="font-semibold text-chalk">
                             {fmt(e.detail.gym_grade)}
                           </span>
                         </>
                       ) : (
-                        "Route added"
+                        "Route posted"
                       );
                   } else if (e.kind === "grade_shift") {
                     Icon = TrendingUp;

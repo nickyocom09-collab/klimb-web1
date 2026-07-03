@@ -9,7 +9,7 @@ import { CLIMB_TYPES, climbTypeLabel, holdHex, type ClimbType } from "../lib/con
 import { RouteCard } from "../components/RouteCard";
 import { GradePicker } from "../components/GradePicker";
 import { AppHeader } from "../components/Layout";
-import { Button, CenterSpinner } from "../components/ui";
+import { Button, CenterSpinner, SlideTabs } from "../components/ui";
 
 // The feed is intentionally simple: pick bouldering or top rope, optionally
 // narrow to a hold color, newest first. That's it.
@@ -201,24 +201,16 @@ export function Feed() {
         </button>
       ) : null}
 
-      {/* Bouldering / Top Rope — soft segmented control */}
+      {/* Bouldering / Top Rope — sliding segmented control */}
       <div className="px-5 pb-3 pt-1">
-        <div className="flex gap-1 rounded-full bg-surface-2 p-1">
-          {CLIMB_TYPES.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className={`flex-1 rounded-full py-2 text-sm font-semibold transition ${
-                tab === t.value
-                  ? "bg-accent text-bg shadow"
-                  : "text-muted hover:text-chalk"
-              }`}
-            >
-              {t.value === "boulder" ? "Bouldering" : "Top Rope"}
-            </button>
-          ))}
-        </div>
-
+        <SlideTabs
+          value={tab}
+          onChange={setTab}
+          options={CLIMB_TYPES.map((t) => ({
+            value: t.value,
+            label: t.value === "boulder" ? "Bouldering" : "Top Rope",
+          }))}
+        />
       </div>
 
       {loading ? (
@@ -235,7 +227,8 @@ export function Feed() {
           </Link>
         </div>
       ) : (
-        <div className="flex flex-col gap-4 px-5 pb-6">
+        // Keyed by tab so switching types re-runs the entrance animation.
+        <div key={tab} className="flex flex-col gap-4 px-5 pb-6">
           {visible.map((route, i) => (
             <RouteCard
               key={route.id}

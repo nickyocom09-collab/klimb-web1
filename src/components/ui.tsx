@@ -95,6 +95,51 @@ export function Card({
   );
 }
 
+/**
+ * Segmented control with a sliding pill. The active background is a single
+ * element that glides between segments instead of jumping.
+ */
+export function SlideTabs<T extends string>({
+  value,
+  options,
+  onChange,
+  className = "",
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+  className?: string;
+}) {
+  const idx = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
+  return (
+    <div className={`relative flex rounded-full bg-surface-2 p-1 ${className}`}>
+      <span
+        aria-hidden
+        className="absolute inset-y-1 left-1 rounded-full bg-accent shadow-lg transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0.24,1)]"
+        style={{
+          width: `calc((100% - 0.5rem) / ${options.length})`,
+          transform: `translateX(${idx * 100}%)`,
+        }}
+      />
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={`relative z-10 flex-1 rounded-full py-2 text-sm font-semibold transition-colors duration-300 ${
+            o.value === value ? "text-bg" : "text-muted hover:text-chalk"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ErrorText({ children }: { children: ReactNode }) {
   if (!children) return null;
   return <p className="ml-1 text-sm text-wide">{children}</p>;

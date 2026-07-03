@@ -97,7 +97,7 @@ export function PublicProfile() {
 
   if (loading) {
     return (
-      <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
+      <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
         <CenterSpinner />
       </div>
     );
@@ -105,7 +105,7 @@ export function PublicProfile() {
 
   if (!person) {
     return (
-      <div className="mx-auto flex h-full max-w-app flex-col items-center justify-center gap-4 border-x border-border bg-bg px-8">
+      <div className="mx-auto flex h-full max-w-app flex-col items-center justify-center gap-4 bg-bg px-8">
         <p className="text-faint">Climber not found.</p>
         <Button onClick={() => navigate("/")}>Back home</Button>
       </div>
@@ -115,7 +115,7 @@ export function PublicProfile() {
   const canSee = person.sends_public || isMe;
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       <header className="flex items-center gap-2 px-4 py-4">
         <button
           onClick={() => navigate(-1)}

@@ -20,7 +20,7 @@ export function Login() {
   }
 
   return (
-    <div className="relative mx-auto flex h-full max-w-app flex-col justify-center overflow-hidden border-x border-border bg-bg px-6">
+    <div className="relative mx-auto flex h-full max-w-app flex-col justify-center overflow-hidden bg-bg px-6">
       <div
         aria-hidden
         className="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/15 blur-3xl"

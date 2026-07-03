@@ -12,7 +12,7 @@ const tabs = [
 
 export function Layout() {
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       <main className="flex-1 overflow-y-auto pb-28">
         <Outlet />
       </main>
@@ -83,7 +83,7 @@ export function AppHeader({
   right?: React.ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-bg/95 px-5 py-4 backdrop-blur">
+    <header className="sticky top-0 z-10 flex items-center justify-between bg-bg/95 px-5 py-4 backdrop-blur">
       <div>
         {subtitle ? (
           <p className="text-xs text-muted">{subtitle}</p>

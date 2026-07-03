@@ -13,7 +13,7 @@ import {
 } from "../lib/constants";
 import { pickerOptions, type GradeStyle } from "../lib/grades";
 import { AppHeader } from "../components/Layout";
-import { Button, ErrorText, Input, Textarea } from "../components/ui";
+import { Button, ErrorText, Input, SlideTabs, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
 
 const NOT_SURE = "Not sure";
@@ -239,25 +239,10 @@ export function AddRoute() {
     <div>
       <AppHeader title="Add a route" subtitle={gymName ?? undefined} />
       <form onSubmit={onSubmit} className="flex flex-col gap-6 p-5">
-        {/* Climbing type — soft segmented */}
+        {/* Climbing type — sliding segmented */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">Climbing type</p>
-          <div className="flex gap-1 rounded-full bg-surface-2 p-1">
-            {CLIMB_TYPES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => changeType(t.value)}
-                className={`flex-1 rounded-full py-2.5 text-sm font-semibold transition ${
-                  climbingType === t.value
-                    ? "bg-accent text-bg"
-                    : "text-muted hover:text-chalk"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <SlideTabs value={climbingType} onChange={changeType} options={CLIMB_TYPES} />
         </div>
 
         {/* Photo (required) */}

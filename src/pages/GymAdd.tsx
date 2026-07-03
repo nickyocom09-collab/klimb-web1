@@ -44,8 +44,8 @@ export function GymAdd() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
-      <header className="flex items-center gap-2 border-b border-border px-3 py-4">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
+      <header className="flex items-center gap-2 px-3 py-4">
         <button
           onClick={() => navigate(-1)}
           className="rounded-full p-1 text-muted hover:text-chalk"

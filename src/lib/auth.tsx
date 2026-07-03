@@ -88,8 +88,16 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserRow | null>(null);
   const [loading, setLoading] = useState(true);
+  // Hold the branded splash for a beat on cold start — auth usually resolves
+  // in ~100ms, which made the logo flash instead of land.
+  const [bootHold, setBootHold] = useState(true);
   const pendingName = useRef<string | null>(null);
   const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    const t = setTimeout(() => setBootHold(false), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   async function loadProfile(id: string) {
     const { data } = await supabase
@@ -152,7 +160,7 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       profile,
-      loading,
+      loading: loading || bootHold,
       async signUp(email, password, displayName) {
         pendingName.current = displayName.trim();
         const { data, error } = await supabase.auth.signUp({
@@ -193,7 +201,7 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         return { error: null };
       },
     }),
-    [session, profile, loading, userId],
+    [session, profile, loading, bootHold, userId],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

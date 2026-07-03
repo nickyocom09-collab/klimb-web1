@@ -178,9 +178,10 @@
   100% { transform: scale(1.7); opacity: 0; }
 }
 
-/* ---- Branded loading splash ("Klimb" over a gradient) ---------------------
-   Shared by the React <Splash/> and the pre-JS markup in index.html so the
-   handoff from first paint to app is seamless. */
+/* ---- Branded loading splash -----------------------------------------------
+   Solid dark stage, app icon springs in, wordmark follows. Shared by the
+   React <Splash/> and the pre-JS markup in index.html so the handoff from
+   first paint to app is seamless. No spinners, no dots — just the mark. */
 .klimb-splash {
   position: fixed;
   inset: 0;
@@ -190,74 +191,63 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: linear-gradient(135deg, #04130c, #0a2f1f, #0f3d28, #061a10, #04130c);
-  background-size: 320% 320%;
-  animation: klimb-grad 7s ease infinite;
+  background: #0a0a0b;
 }
 .klimb-splash__glow {
   position: absolute;
-  width: 70vmin;
-  height: 70vmin;
+  width: 60vmin;
+  height: 60vmin;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(57, 255, 136, 0.35), transparent 60%);
-  filter: blur(28px);
-  animation: klimb-pulse 3.2s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(57, 255, 136, 0.18), transparent 62%);
+  filter: blur(30px);
+  animation: klimb-breathe 2.8s ease-in-out infinite;
 }
-.klimb-splash__word {
+.klimb-splash__mark {
   position: relative;
-  margin: 0;
-  font-family: "Bungee", system-ui, sans-serif;
-  font-size: clamp(3.5rem, 22vw, 8rem);
-  line-height: 1;
-  letter-spacing: 0.02em;
-  background: linear-gradient(180deg, #eafff3 0%, #5bffa6 55%, #1fb862 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 38px rgba(57, 255, 136, 0.45);
-  animation: klimb-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  width: 132px;
+  height: 132px;
+  filter: drop-shadow(0 12px 36px rgba(57, 255, 136, 0.28));
+  animation: klimb-pop 0.6s cubic-bezier(0.34, 1.45, 0.5, 1) both;
 }
-.klimb-splash__dots {
-  position: relative;
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1.75rem;
+/* The K draws itself in, stroke by stroke, then the hold dot pops. */
+.klimb-splash__stroke {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: klimb-draw 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
-.klimb-splash__dots span {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 9999px;
-  background: rgba(57, 255, 136, 0.9);
-  animation: klimb-bounce 1.1s ease-in-out infinite;
+.klimb-splash__stroke--2 {
+  animation-delay: 0.25s;
 }
-.klimb-splash__dots span:nth-child(2) {
-  animation-delay: 0.16s;
+.klimb-splash__dot {
+  transform-origin: 91px 34px;
+  transform: scale(0);
+  animation: klimb-dot 0.4s cubic-bezier(0.34, 1.8, 0.5, 1) 0.85s forwards;
 }
-.klimb-splash__dots span:nth-child(3) {
-  animation-delay: 0.32s;
+@keyframes klimb-pop {
+  0% { transform: scale(0.7); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
-@keyframes klimb-grad {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+@keyframes klimb-draw {
+  to { stroke-dashoffset: 0; }
 }
-@keyframes klimb-pulse {
-  0%, 100% { transform: scale(0.9); opacity: 0.7; }
-  50% { transform: scale(1.08); opacity: 1; }
+@keyframes klimb-dot {
+  to { transform: scale(1); }
 }
-@keyframes klimb-rise {
-  from { transform: translateY(14px) scale(0.96); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
-}
-@keyframes klimb-bounce {
-  0%, 100% { transform: translateY(0); opacity: 0.5; }
-  50% { transform: translateY(-0.5rem); opacity: 1; }
+@keyframes klimb-breathe {
+  0%, 100% { transform: scale(0.92); opacity: 0.65; }
+  50% { transform: scale(1.06); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .klimb-splash,
   .klimb-splash__glow,
-  .klimb-splash__word,
-  .klimb-splash__dots span {
+  .klimb-splash__mark {
     animation: none;
+  }
+  .klimb-splash__stroke {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .klimb-splash__dot {
+    animation: none;
+    transform: scale(1);
   }
 }

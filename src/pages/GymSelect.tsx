@@ -106,8 +106,8 @@ export function GymSelect() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
-      <header className="border-b border-border px-5 py-4">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
+      <header className="px-5 py-4">
         <div className="flex items-center gap-2">
           {openState ? (
             <button

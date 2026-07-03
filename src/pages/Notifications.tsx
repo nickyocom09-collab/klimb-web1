@@ -38,8 +38,8 @@ export function Notifications() {
   }, [profile]);
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col border-x border-border bg-bg">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-bg/95 px-4 py-4 backdrop-blur">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
+      <header className="sticky top-0 z-10 flex items-center gap-3 bg-bg/95 px-4 py-4 backdrop-blur">
         <button
           onClick={() => navigate(-1)}
           aria-label="Back"
