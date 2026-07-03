@@ -23,6 +23,11 @@ export function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("welcome");
   const [name, setName] = useState(profile?.display_name ?? "");
+  // Username is captured up front so friends-by-username works from day one.
+  const [uname, setUname] = useState(profile?.username ?? "");
+  const [unameTouched, setUnameTouched] = useState(!!profile?.username);
+  const [unameErr, setUnameErr] = useState<string | null>(null);
+  const [checkingUname, setCheckingUname] = useState(false);
   const [gymId, setGymId] = useState<string | null>(
     profile?.home_gym_id ?? null,
   );
@@ -111,14 +116,58 @@ export function Onboarding() {
     );
   }
 
+  function suggestUsername(display: string): string {
+    return display
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 20);
+  }
+
+  const normalizedUname = uname.trim().replace(/^@/, "").toLowerCase();
+
+  // Validate + availability-check the username, then move on to gym picking.
+  async function submitIdentity() {
+    setUnameErr(null);
+    if (normalizedUname.length < 3) {
+      setUnameErr("Usernames need at least 3 characters.");
+      return;
+    }
+    if (!/^[a-z0-9_]+$/.test(normalizedUname)) {
+      setUnameErr("Use letters, numbers, and underscores only.");
+      return;
+    }
+    setCheckingUname(true);
+    const { data: taken } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", normalizedUname)
+      .neq("id", profile?.id ?? "")
+      .maybeSingle();
+    setCheckingUname(false);
+    if (taken) {
+      setUnameErr("That username is taken — try another.");
+      return;
+    }
+    setStep("gym");
+  }
+
   async function finish() {
     setFinishing(true);
-    await updateProfile({
+    const { error } = await updateProfile({
       display_name: name.trim() || "Climber",
+      username: normalizedUname,
       home_gym_id: gymId,
       onboarded: true,
     });
     setFinishing(false);
+    if (error) {
+      // Almost certainly a username race — send them back to pick another.
+      setUnameErr("That username just got taken — try another.");
+      setStep("name");
+      return;
+    }
     navigate("/", { replace: true });
   }
 
@@ -173,20 +222,47 @@ export function Onboarding() {
           <p className="mt-1 text-muted">
             This is the name other climbers will see.
           </p>
-          <div className="mt-6">
+          <div className="mt-6 flex flex-col gap-4">
             <Input
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                // Keep the username suggestion in sync until they edit it.
+                if (!unameTouched) setUname(suggestUsername(e.target.value));
+              }}
               placeholder="Your name or handle"
               maxLength={30}
             />
+            <div>
+              <Input
+                label="Username"
+                value={uname}
+                onChange={(e) => {
+                  setUname(e.target.value);
+                  setUnameTouched(true);
+                  setUnameErr(null);
+                }}
+                placeholder="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                maxLength={20}
+              />
+              <p className="ml-1 mt-2 text-xs text-faint">
+                Friends find you by @username — you can change it later in
+                Settings.
+              </p>
+              {unameErr ? (
+                <p className="ml-1 mt-1 text-xs text-wide">{unameErr}</p>
+              ) : null}
+            </div>
           </div>
           <div className="mt-auto pb-8">
             <Button
               className="w-full"
-              disabled={name.trim().length === 0}
-              onClick={() => setStep("gym")}
+              disabled={name.trim().length === 0 || normalizedUname.length === 0}
+              loading={checkingUname}
+              onClick={submitIdentity}
             >
               Continue
             </Button>
@@ -303,7 +379,7 @@ export function Onboarding() {
             <HowRow
               Icon={TrendingUp}
               title="Grade it together"
-              body="Everyone submits a grade — the community average is what you see."
+              body="Everyone submits a grade — the community consensus is what you see."
             />
             <HowRow
               Icon={Check}

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Klimb</title>
 
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#04130c">
   <link rel="apple-touch-icon" href="/klimb.logo-removebg-preview.png">
@@ -59,9 +60,16 @@
     }
     #boot-splash .k-stroke--2 { animation-delay: 0.25s; }
     #boot-splash .k-dot {
-      transform-origin: 91px 34px;
+      transform-origin: 92px 33px;
       transform: scale(0);
       animation: boot-dot 0.4s cubic-bezier(0.34, 1.8, 0.5, 1) 0.85s forwards;
+    }
+    #boot-splash .k-extras {
+      opacity: 0;
+      animation: boot-extras 0.6s ease-out 1.05s forwards;
+    }
+    @keyframes boot-extras {
+      to { opacity: 1; }
     }
     @keyframes boot-pop {
       0% { transform: scale(0.7); opacity: 0; }
@@ -81,6 +89,7 @@
       #boot-splash .glow, #boot-splash .mark { animation: none; }
       #boot-splash .k-stroke { animation: none; stroke-dashoffset: 0; }
       #boot-splash .k-dot { animation: none; transform: scale(1); }
+      #boot-splash .k-extras { animation: none; opacity: 1; }
     }
   </style>
 </head>
@@ -91,17 +100,54 @@
       <div class="glow"></div>
       <svg class="mark" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
+          <linearGradient id="boot-tile" gradientUnits="userSpaceOnUse" x1="60" y1="5" x2="60" y2="115">
+            <stop offset="0" stop-color="#1c2023"/>
+            <stop offset="0.55" stop-color="#101215"/>
+            <stop offset="1" stop-color="#0a0c0e"/>
+          </linearGradient>
+          <linearGradient id="boot-rim" gradientUnits="userSpaceOnUse" x1="60" y1="5" x2="60" y2="115">
+            <stop offset="0" stop-color="rgba(255,255,255,0.16)"/>
+            <stop offset="0.4" stop-color="rgba(57,255,136,0.10)"/>
+            <stop offset="1" stop-color="rgba(57,255,136,0.28)"/>
+          </linearGradient>
           <!-- userSpaceOnUse: bounding-box gradients can't resolve on the
                zero-width vertical stroke of the K. -->
-          <linearGradient id="boot-kg" gradientUnits="userSpaceOnUse" x1="0" y1="30" x2="0" y2="90">
-            <stop offset="0" stop-color="#8dffc0"/>
-            <stop offset="1" stop-color="#1fb862"/>
+          <linearGradient id="boot-kg" gradientUnits="userSpaceOnUse" x1="0" y1="28" x2="0" y2="92">
+            <stop offset="0" stop-color="#c2ffdd"/>
+            <stop offset="0.45" stop-color="#4fe98d"/>
+            <stop offset="1" stop-color="#16a557"/>
           </linearGradient>
+          <clipPath id="boot-clip"><rect x="5" y="5" width="110" height="110" rx="30"/></clipPath>
         </defs>
-        <rect x="6" y="6" width="108" height="108" rx="30" fill="#141417" stroke="rgba(57,255,136,0.22)" stroke-width="1.5"/>
-        <path class="k-stroke" pathLength="100" d="M40 32 V88" stroke="url(#boot-kg)" stroke-width="13" stroke-linecap="round"/>
-        <path class="k-stroke k-stroke--2" pathLength="100" d="M78 34 L47 60 L80 88" stroke="url(#boot-kg)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle class="k-dot" cx="91" cy="34" r="6.5" fill="#FF9F45"/>
+
+        <rect x="5" y="5" width="110" height="110" rx="30" fill="url(#boot-tile)"/>
+        <!-- Faceted gym-wall panels behind the K -->
+        <g clip-path="url(#boot-clip)">
+          <path d="M5 92 L64 34 L115 70 L115 115 L5 115 Z" fill="rgba(57,255,136,0.05)"/>
+          <path d="M5 115 L48 62 L115 104 L115 115 Z" fill="rgba(255,255,255,0.035)"/>
+        </g>
+        <rect x="5" y="5" width="110" height="110" rx="30" stroke="url(#boot-rim)" stroke-width="1.5"/>
+
+        <!-- K shadow, then the K draws itself in -->
+        <g opacity="0.4">
+          <path d="M42 35 V89" stroke="#000" stroke-width="14" stroke-linecap="round"/>
+          <path d="M79 37 L50 61.5 L81 89" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+        <path class="k-stroke" pathLength="100" d="M42 33 V87" stroke="url(#boot-kg)" stroke-width="13.5" stroke-linecap="round"/>
+        <path class="k-stroke k-stroke--2" pathLength="100" d="M79 35 L50 59.5 L81 87" stroke="url(#boot-kg)" stroke-width="13.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <!-- The hold it's reaching for -->
+        <circle class="k-dot" cx="92" cy="33" r="7" fill="#FF9F45"/>
+        <circle class="k-dot" cx="89.6" cy="30.6" r="2.1" fill="rgba(255,255,255,0.55)"/>
+
+        <!-- Route holds trailing down the wall + chalk dust -->
+        <g class="k-extras">
+          <circle cx="101.5" cy="46" r="3.2" fill="#14B8A6" opacity="0.9"/>
+          <circle cx="106" cy="58.5" r="2.4" fill="#EC4899" opacity="0.85"/>
+          <circle cx="22" cy="97" r="1.8" fill="rgba(255,255,255,0.14)"/>
+          <circle cx="29" cy="103" r="1.3" fill="rgba(255,255,255,0.10)"/>
+          <circle cx="25" cy="90" r="1.1" fill="rgba(255,255,255,0.08)"/>
+        </g>
       </svg>
     </div>
   </div>

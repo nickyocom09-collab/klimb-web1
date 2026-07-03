@@ -219,9 +219,16 @@
   animation-delay: 0.25s;
 }
 .klimb-splash__dot {
-  transform-origin: 91px 34px;
+  transform-origin: 92px 33px;
   transform: scale(0);
   animation: klimb-dot 0.4s cubic-bezier(0.34, 1.8, 0.5, 1) 0.85s forwards;
+}
+.klimb-splash__extras {
+  opacity: 0;
+  animation: klimb-extras 0.6s ease-out 1.05s forwards;
+}
+@keyframes klimb-extras {
+  to { opacity: 1; }
 }
 @keyframes klimb-pop {
   0% { transform: scale(0.7); opacity: 0; }
@@ -249,5 +256,9 @@
   .klimb-splash__dot {
     animation: none;
     transform: scale(1);
+  }
+  .klimb-splash__extras {
+    animation: none;
+    opacity: 1;
   }
 }

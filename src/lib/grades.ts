@@ -75,11 +75,18 @@ export function formatGrade(
   return labels[i] ?? "—";
 }
 
-/** Average of submitted ordinals, rounded to nearest integer. Null when none. */
+/**
+ * Community grade = MEDIAN of submitted ordinals (matches the DB trigger).
+ * A median shrugs off a single sandbagged or trolled vote, where the old
+ * average would drift. Null when nobody has graded.
+ */
 export function communityGrade(grades: number[]): number | null {
   if (grades.length === 0) return null;
-  const sum = grades.reduce((a, b) => a + b, 0);
-  return Math.round(sum / grades.length);
+  const sorted = [...grades].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[mid]
+    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
 /** Build a distribution count map over the populated ordinal range. */

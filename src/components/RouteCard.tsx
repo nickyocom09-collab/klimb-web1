@@ -81,7 +81,7 @@ export function RouteCard({
         </div>
 
         <div className="p-4">
-          {/* Community says vs gym says */}
+          {/* Community says (+ gym says, only when the gym set one) */}
           <div className="flex gap-3">
             <div className="flex-1 rounded-2xl bg-surface-2 px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
@@ -94,21 +94,17 @@ export function RouteCard({
                 {n} vote{n === 1 ? "" : "s"}
               </p>
             </div>
-            <div className="flex-1 rounded-2xl bg-surface-2 px-4 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Gym says
-              </p>
-              <p className="mt-0.5 text-3xl font-extrabold leading-none text-chalk">
-                {route.gym_grade === null || route.gym_grade === undefined
-                  ? "—"
-                  : fmt(route.gym_grade)}
-              </p>
-              <p className="mt-1 text-[11px] text-faint">
-                {route.gym_grade === null || route.gym_grade === undefined
-                  ? "not set"
-                  : "official"}
-              </p>
-            </div>
+            {route.gym_grade !== null && route.gym_grade !== undefined ? (
+              <div className="flex-1 rounded-2xl bg-surface-2 px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Gym says
+                </p>
+                <p className="mt-0.5 text-3xl font-extrabold leading-none text-chalk">
+                  {fmt(route.gym_grade)}
+                </p>
+                <p className="mt-1 text-[11px] text-faint">official</p>
+              </div>
+            ) : null}
           </div>
 
           {/* Verdict + quick stats — one quiet line */}

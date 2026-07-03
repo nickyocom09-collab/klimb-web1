@@ -160,7 +160,19 @@ export function RouteDetail() {
         authorAvatar: info.get(c.user_id)?.avatar ?? null,
       })),
     );
-  }, []);
+    // Which of these comments I've already liked (real rows, not local state).
+    if (profile && rows.length > 0) {
+      const { data: myLikes } = await supabase
+        .from("comment_likes")
+        .select("comment_id")
+        .eq("user_id", profile.id)
+        .in(
+          "comment_id",
+          rows.map((r) => r.id),
+        );
+      setLiked(new Set((myLikes ?? []).map((l) => l.comment_id)));
+    }
+  }, [profile]);
 
   const load = useCallback(async () => {
     if (!id || !profile) return;
@@ -459,15 +471,50 @@ export function RouteDetail() {
     setPostingComment(false);
   }
 
+  // Toggle a like: real per-user rows in comment_likes (a DB trigger keeps
+  // comments.upvotes in sync), so likes persist and can't be double-counted.
   async function like(c: CommentWithAuthor) {
-    if (liked.has(c.id)) return;
-    setLiked((prev) => new Set(prev).add(c.id));
+    if (!profile) return;
+    const wasLiked = liked.has(c.id);
+    // Optimistic flip.
+    setLiked((prev) => {
+      const next = new Set(prev);
+      if (wasLiked) next.delete(c.id);
+      else next.add(c.id);
+      return next;
+    });
     setComments((prev) =>
-      prev.map((x) => (x.id === c.id ? { ...x, upvotes: x.upvotes + 1 } : x)),
+      prev.map((x) =>
+        x.id === c.id
+          ? { ...x, upvotes: Math.max(0, x.upvotes + (wasLiked ? -1 : 1)) }
+          : x,
+      ),
     );
-    // RPC keeps the counter server-side — comment rows themselves are only
-    // editable by their owners.
-    await supabase.rpc("upvote_comment", { p_comment_id: c.id });
+    const { error } = wasLiked
+      ? await supabase
+          .from("comment_likes")
+          .delete()
+          .eq("comment_id", c.id)
+          .eq("user_id", profile.id)
+      : await supabase
+          .from("comment_likes")
+          .insert({ comment_id: c.id, user_id: profile.id });
+    if (error) {
+      // Roll back the optimistic flip.
+      setLiked((prev) => {
+        const next = new Set(prev);
+        if (wasLiked) next.add(c.id);
+        else next.delete(c.id);
+        return next;
+      });
+      setComments((prev) =>
+        prev.map((x) =>
+          x.id === c.id
+            ? { ...x, upvotes: Math.max(0, x.upvotes + (wasLiked ? 1 : -1)) }
+            : x,
+        ),
+      );
+    }
   }
 
   function startEdit(c: CommentWithAuthor) {
@@ -801,21 +848,17 @@ export function RouteDetail() {
                 {verdictLabel}
               </p>
             </div>
-            <div className="flex-1 rounded-2xl bg-surface px-4 py-3 shadow-card">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Gym says
-              </p>
-              <p className="mt-0.5 text-4xl font-extrabold leading-none text-chalk">
-                {route.gym_grade === null || route.gym_grade === undefined
-                  ? "—"
-                  : fmt(route.gym_grade)}
-              </p>
-              <p className="mt-1.5 text-xs text-faint">
-                {route.gym_grade === null || route.gym_grade === undefined
-                  ? "not set"
-                  : "official grade"}
-              </p>
-            </div>
+            {route.gym_grade !== null && route.gym_grade !== undefined ? (
+              <div className="flex-1 rounded-2xl bg-surface px-4 py-3 shadow-card">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                  Gym says
+                </p>
+                <p className="mt-0.5 text-4xl font-extrabold leading-none text-chalk">
+                  {fmt(route.gym_grade)}
+                </p>
+                <p className="mt-1.5 text-xs text-faint">official grade</p>
+              </div>
+            ) : null}
           </div>
 
           {/* Vote breakdown */}

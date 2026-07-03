@@ -367,6 +367,22 @@ export interface Database {
         };
         Relationships: [];
       };
+      comment_likes: {
+        Row: {
+          id: string;
+          comment_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          comment_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
       route_events: {
         Row: {
           id: string;
@@ -416,7 +432,19 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      route_stats: {
+        Row: {
+          route_id: string;
+          grade_values: number[];
+          send_count: number;
+          fun_avg: number | null;
+          fun_count: number;
+          recent_activity: number;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       report_route_gone: {
         Args: { p_route_id: string };
@@ -438,10 +466,6 @@ export interface Database {
       delete_route: {
         Args: { p_route_id: string };
         Returns: undefined;
-      };
-      upvote_comment: {
-        Args: { p_comment_id: string };
-        Returns: number;
       };
     };
     Enums: {

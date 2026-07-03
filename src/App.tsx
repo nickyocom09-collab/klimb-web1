@@ -13,7 +13,6 @@ import { AddRoute } from "./pages/AddRoute";
 import { LogClimb } from "./pages/LogClimb";
 import { RouteDetail } from "./pages/RouteDetail";
 import { PublicProfile } from "./pages/PublicProfile";
-import { Friends } from "./pages/Friends";
 import { Notifications } from "./pages/Notifications";
 import { Onboarding } from "./pages/Onboarding";
 import { Sends } from "./pages/Sends";
@@ -26,6 +25,10 @@ import { Glossary } from "./pages/Glossary";
 // feed loads fast; the globe chunk streams in when the Map tab is opened.
 const GymMap = lazy(() =>
   import("./pages/GymMap").then((m) => ({ default: m.GymMap })),
+);
+// Friends pulls in the QR-code library — most sessions never open it.
+const Friends = lazy(() =>
+  import("./pages/Friends").then((m) => ({ default: m.Friends })),
 );
 import { ActivityFeed } from "./pages/Activity";
 
@@ -133,7 +136,9 @@ export default function App() {
         path="/friends"
         element={
           <RequireAuth>
-            <Friends />
+            <Suspense fallback={<Splash />}>
+              <Friends />
+            </Suspense>
           </RequireAuth>
         }
       />
