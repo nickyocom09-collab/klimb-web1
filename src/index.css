@@ -51,6 +51,14 @@
     width: 0;
     background: transparent;
   }
+  /* iOS Safari zooms the page when focusing a control whose font is under
+     16px. Force 16px minimum so we can keep pinch-zoom enabled for
+     accessibility instead of user-scalable=no. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
 }
 
 /* ---- 2D gym map ------------------------------------------------------------

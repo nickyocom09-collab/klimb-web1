@@ -5,7 +5,16 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
-import { Check, Home, List, MapPin, Plane, Search, X } from "lucide-react";
+import {
+  Check,
+  Home,
+  List,
+  LocateFixed,
+  MapPin,
+  Plane,
+  Search,
+  X,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner } from "../components/ui";
@@ -131,6 +140,7 @@ export function GymMap() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const mapRef = useRef<L.Map | null>(null);
+  const [locating, setLocating] = useState(false);
   const [gyms, setGyms] = useState<GymWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -180,6 +190,32 @@ export function GymMap() {
       duration: 0.9,
       easeLinearity: 0.22,
     });
+  }
+
+  // "Recenter on me" — fly to the device's location.
+  function recenterOnMe() {
+    if (!navigator.geolocation) {
+      window.alert("Location isn't available on this device.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        mapRef.current?.flyTo(
+          [pos.coords.latitude, pos.coords.longitude],
+          11,
+          { duration: 0.9, easeLinearity: 0.22 },
+        );
+      },
+      () => {
+        setLocating(false);
+        window.alert(
+          "Couldn't get your location — check location permissions for this app.",
+        );
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+    );
   }
 
   const matches = useMemo(() => {
@@ -322,6 +358,15 @@ export function GymMap() {
             <Home size={15} /> My gym
           </button>
         ) : null}
+        <button
+          onClick={recenterOnMe}
+          aria-label="Recenter on my location"
+          className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur transition active:scale-95 disabled:opacity-50"
+          disabled={locating}
+        >
+          <LocateFixed size={15} className={locating ? "animate-spin" : ""} />{" "}
+          Me
+        </button>
       </div>
 
       {loading ? (

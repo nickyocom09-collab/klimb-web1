@@ -159,26 +159,35 @@ export function AddRoute() {
     setBusy(true);
     try {
       // Location gate: you must be within 50 miles of the gym to post there.
-      // Only enforceable when the gym has coordinates on file.
+      // Only enforceable when the gym has coordinates on file. If we simply
+      // can't get a location (denied/unsupported), fall back to a manual
+      // confirmation rather than hard-blocking the post.
       if (gymCoords) {
-        let pos: GeolocationPosition;
+        let pos: GeolocationPosition | null = null;
         try {
           pos = await getPosition();
         } catch {
-          throw new Error(
-            "Klimb needs your location to confirm you're at this gym. Enable location access and try again.",
+          const confirmed = window.confirm(
+            `We couldn't check your location (it may be turned off for this app). Routes should only be posted from the gym itself.\n\nAre you at ${gymName ?? "this gym"} right now?`,
           );
+          if (!confirmed) {
+            throw new Error(
+              "Post cancelled — enable location access or confirm you're at the gym to add a route.",
+            );
+          }
         }
-        const miles = milesBetween(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          gymCoords.lat,
-          gymCoords.lng,
-        );
-        if (miles > MAX_POST_DISTANCE_MILES) {
-          throw new Error(
-            `You look to be ${Math.round(miles)} miles from ${gymName ?? "this gym"}. Routes can only be posted within ${MAX_POST_DISTANCE_MILES} miles of the gym.`,
+        if (pos) {
+          const miles = milesBetween(
+            pos.coords.latitude,
+            pos.coords.longitude,
+            gymCoords.lat,
+            gymCoords.lng,
           );
+          if (miles > MAX_POST_DISTANCE_MILES) {
+            throw new Error(
+              `You look to be ${Math.round(miles)} miles from ${gymName ?? "this gym"}. Routes can only be posted within ${MAX_POST_DISTANCE_MILES} miles of the gym.`,
+            );
+          }
         }
       }
 

@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, ChevronLeft, MessageCircle, Plus } from "lucide-react";
+import {
+  Bell,
+  ChevronLeft,
+  MessageCircle,
+  Plus,
+  Tag,
+  Trophy,
+  UserPlus,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { CenterSpinner } from "../components/ui";
 import {
@@ -56,17 +64,27 @@ export function Notifications() {
         <div className="flex flex-col items-center gap-3 px-8 py-20 text-center">
           <Bell size={28} className="text-faint" />
           <p className="text-sm text-faint">
-            You're all caught up. New routes and replies show up here.
+            You're all caught up. New routes, replies, grades on your routes,
+            and friend requests show up here.
           </p>
         </div>
       ) : (
         <ul className="flex flex-col overflow-y-auto">
           {notes.map((n) => {
-            const Icon = n.kind === "reply" ? MessageCircle : Plus;
+            const Icon =
+              n.kind === "reply"
+                ? MessageCircle
+                : n.kind === "grade"
+                  ? Tag
+                  : n.kind === "send"
+                    ? Trophy
+                    : n.kind === "friend_request" || n.kind === "friend_accept"
+                      ? UserPlus
+                      : Plus;
             return (
               <li key={n.id}>
                 <button
-                  onClick={() => navigate(`/route/${n.routeId}`)}
+                  onClick={() => navigate(n.link)}
                   className={`flex w-full items-start gap-3 border-b border-border px-5 py-3.5 text-left transition hover:bg-surface ${
                     n.unread ? "bg-accent/5" : ""
                   }`}

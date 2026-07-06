@@ -153,7 +153,9 @@ export function Onboarding() {
     setStep("gym");
   }
 
-  async function finish() {
+  // End onboarding somewhere that already pays off: straight into logging
+  // their first climb, or the (pre-seeded, never-empty) gym feed.
+  async function finish(dest: "/log" | "/") {
     setFinishing(true);
     const { error } = await updateProfile({
       display_name: name.trim() || "Climber",
@@ -168,7 +170,7 @@ export function Onboarding() {
       setStep("name");
       return;
     }
-    navigate("/", { replace: true });
+    navigate(dest, { replace: true });
   }
 
   return (
@@ -387,13 +389,21 @@ export function Onboarding() {
               body="Your send history sticks around even after a route is reset."
             />
           </div>
-          <div className="mt-auto pb-8">
+          <div className="mt-auto flex flex-col gap-2 pb-8">
             <Button
               className="w-full"
               loading={finishing}
-              onClick={finish}
+              onClick={() => finish("/log")}
             >
-              Start climbing
+              Log my first climb
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full"
+              disabled={finishing}
+              onClick={() => finish("/")}
+            >
+              Browse my gym first
             </Button>
           </div>
         </div>

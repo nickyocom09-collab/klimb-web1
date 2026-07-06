@@ -45,6 +45,7 @@ import { blockUser, fetchBlockedIds, reportContent } from "../lib/moderation";
 import { routeSummary } from "../lib/summary";
 import { Button, CenterSpinner } from "../components/ui";
 import { Avatar } from "../components/Avatar";
+import { LogSheet } from "../components/LogSheet";
 import { GradeBar } from "../components/GradeBar";
 import { GradeDonut } from "../components/GradeDonut";
 import { GradePicker } from "../components/GradePicker";
@@ -97,7 +98,7 @@ export function RouteDetail() {
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [draftGrade, setDraftGrade] = useState<number | null>(null);
   const [savingGrade, setSavingGrade] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const [hasSent, setHasSent] = useState(false);
   const [mySendType, setMySendType] = useState<SendType | null>(null);
   const [events, setEvents] = useState<RouteEventRow[]>([]);
@@ -309,18 +310,6 @@ export function RouteDetail() {
     setRoute(await fetchRoute(id));
   }
 
-  async function logSend(sendType: SendType) {
-    if (!id || !profile || hasSent) return;
-    setSending(true);
-    await supabase.from("sends").upsert(
-      { route_id: id, user_id: profile.id, send_type: sendType },
-      { onConflict: "route_id,user_id", ignoreDuplicates: true },
-    );
-    setHasSent(true);
-    setMySendType(sendType);
-    setRoute(await fetchRoute(id));
-    setSending(false);
-  }
 
   async function flipBookmark(kind: BookmarkKind) {
     if (!id || !profile) return;
@@ -973,7 +962,7 @@ export function RouteDetail() {
             </Button>
           </div>
 
-          {/* Send / flash */}
+          {/* Log — the same sheet as the Log tab (flash/send/project + note) */}
           {hasSent ? (
             <Button className="w-full" variant="secondary" disabled>
               {mySendType === "flash" ? (
@@ -987,23 +976,9 @@ export function RouteDetail() {
               )}
             </Button>
           ) : (
-            <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                loading={sending}
-                onClick={() => logSend("send")}
-              >
-                <Trophy size={18} className="mr-2" /> I sent this
-              </Button>
-              <Button
-                className="flex-1"
-                variant="secondary"
-                loading={sending}
-                onClick={() => logSend("flash")}
-              >
-                <Zap size={18} className="mr-2 text-accent" /> I flashed it
-              </Button>
-            </div>
+            <Button className="w-full" onClick={() => setLogOpen(true)}>
+              <Trophy size={18} className="mr-2" /> Log this climb
+            </Button>
           )}
 
           {/* Comments — Instagram style */}
@@ -1267,6 +1242,18 @@ export function RouteDetail() {
             ) : null}
           </div>
         </div>
+      ) : null}
+
+      {/* Unified log sheet — same component as the Log tab */}
+      {logOpen && route ? (
+        <LogSheet
+          route={route}
+          onClose={() => setLogOpen(false)}
+          onSaved={async () => {
+            setLogOpen(false);
+            await load();
+          }}
+        />
       ) : null}
 
       {/* Report route reasons sheet */}

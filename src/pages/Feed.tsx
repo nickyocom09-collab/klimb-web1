@@ -4,6 +4,11 @@ import { Bell, Plus, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchActiveRoutes, fetchRoute, type RouteWithStats } from "../lib/routes";
+import {
+  communityGrade,
+  formatGradeStyled,
+  type GradeSystem,
+} from "../lib/grades";
 import { fetchNotifications } from "../lib/notifications";
 import { CLIMB_TYPES, climbTypeLabel, holdHex, type ClimbType } from "../lib/constants";
 import { RouteCard } from "../components/RouteCard";
@@ -35,6 +40,11 @@ export function Feed() {
   const [unread, setUnread] = useState(0);
   const [routes, setRoutes] = useState<RouteWithStats[]>([]);
   const [myGrades, setMyGrades] = useState<Map<string, number>>(new Map());
+  // Solo-safe home sections: my open projects here, and (social, optional)
+  // how many climbers are projecting each route.
+  const [myProjects, setMyProjects] = useState<Set<string>>(new Set());
+  const [mySends, setMySends] = useState<Set<string>>(new Set());
+  const [projCounts, setProjCounts] = useState<Map<string, number>>(new Map());
   const [authorNames, setAuthorNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   // Quick-grade sheet state.
@@ -90,15 +100,36 @@ export function Feed() {
         // Which of these routes the current user has already graded.
         const ids = r.map((x) => x.id);
         if (ids.length > 0) {
-          const { data } = await supabase
-            .from("grades")
-            .select("route_id, grade")
-            .eq("user_id", profile.id)
-            .in("route_id", ids);
+          const [{ data }, { data: bms }, { data: sent }] = await Promise.all([
+            supabase
+              .from("grades")
+              .select("route_id, grade")
+              .eq("user_id", profile.id)
+              .in("route_id", ids),
+            supabase
+              .from("bookmarks")
+              .select("route_id, user_id")
+              .eq("kind", "project")
+              .in("route_id", ids),
+            supabase
+              .from("sends")
+              .select("route_id")
+              .eq("user_id", profile.id)
+              .in("route_id", ids),
+          ]);
           if (active) {
             setMyGrades(
               new Map((data ?? []).map((g) => [g.route_id, g.grade])),
             );
+            const mine = new Set<string>();
+            const counts = new Map<string, number>();
+            for (const b of bms ?? []) {
+              if (b.user_id === profile.id) mine.add(b.route_id);
+              else counts.set(b.route_id, (counts.get(b.route_id) ?? 0) + 1);
+            }
+            setMyProjects(mine);
+            setProjCounts(counts);
+            setMySends(new Set((sent ?? []).map((s) => s.route_id)));
           }
         }
         // Author display names for the "posted by" strip.
@@ -168,6 +199,32 @@ export function Feed() {
     [typeFiltered],
   );
 
+  // My open projects at this gym — "pick up where you left off".
+  const projectRoutes = useMemo(
+    () => typeFiltered.filter((r) => myProjects.has(r.id) && !mySends.has(r.id)),
+    [typeFiltered, myProjects, mySends],
+  );
+  // Routes with 0–1 grades — your single opinion genuinely moves the needle.
+  const needsGrades = useMemo(
+    () =>
+      typeFiltered
+        .filter((r) => r.gradeValues.length <= 1 && !myGrades.has(r.id))
+        .slice(0, 12),
+    [typeFiltered, myGrades],
+  );
+  // Social bonus layer: what other climbers are projecting. Hidden entirely
+  // when nobody is — never render a dead social block.
+  const gymProjects = useMemo(
+    () =>
+      typeFiltered
+        .filter((r) => (projCounts.get(r.id) ?? 0) > 0)
+        .sort(
+          (a, b) => (projCounts.get(b.id) ?? 0) - (projCounts.get(a.id) ?? 0),
+        )
+        .slice(0, 12),
+    [typeFiltered, projCounts],
+  );
+
   return (
     <div>
       <AppHeader
@@ -228,20 +285,67 @@ export function Feed() {
         </div>
       ) : (
         // Keyed by tab so switching types re-runs the entrance animation.
-        <div key={tab} className="flex flex-col gap-4 px-5 pb-6">
-          {visible.map((route, i) => (
-            <RouteCard
-              key={route.id}
-              route={route}
+        <div key={tab} className="flex flex-col gap-5 px-5 pb-6">
+          {/* Solo-first sections. Each hides entirely when it has nothing. */}
+          {projectRoutes.length > 0 ? (
+            <Strip
+              title="Pick up where you left off"
+              routes={projectRoutes}
               system={system}
-              index={i}
-              myGrade={myGrades.get(route.id) ?? null}
-              authorName={
-                route.created_by ? authorNames.get(route.created_by) ?? null : null
-              }
-              onGrade={openGrade}
+              caption={() => "Projecting"}
+              captionTone="accent"
             />
-          ))}
+          ) : null}
+
+          {needsGrades.length > 0 ? (
+            <Strip
+              title="Needs grades"
+              routes={needsGrades}
+              system={system}
+              caption={(r) =>
+                r.gradeValues.length === 0
+                  ? "Be the first to grade"
+                  : "Only 1 vote so far"
+              }
+              captionTone="wide"
+            />
+          ) : null}
+
+          {gymProjects.length > 0 ? (
+            <Strip
+              title="What your gym is working on"
+              routes={gymProjects}
+              system={system}
+              caption={(r) => {
+                const n = projCounts.get(r.id) ?? 0;
+                return `${n} climber${n === 1 ? "" : "s"} projecting`;
+              }}
+              captionTone="muted"
+            />
+          ) : null}
+
+          <section>
+            <h2 className="mb-3 ml-1 text-sm font-semibold uppercase tracking-wide text-faint">
+              Recently set
+            </h2>
+            <div className="flex flex-col gap-4">
+              {visible.map((route, i) => (
+                <RouteCard
+                  key={route.id}
+                  route={route}
+                  system={system}
+                  index={i}
+                  myGrade={myGrades.get(route.id) ?? null}
+                  authorName={
+                    route.created_by
+                      ? authorNames.get(route.created_by) ?? null
+                      : null
+                  }
+                  onGrade={openGrade}
+                />
+              ))}
+            </div>
+          </section>
         </div>
       )}
 
@@ -299,5 +403,69 @@ export function Feed() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Horizontal scroll strip of compact route cards — used by home sections. */
+function Strip({
+  title,
+  routes,
+  system,
+  caption,
+  captionTone,
+}: {
+  title: string;
+  routes: RouteWithStats[];
+  system: GradeSystem;
+  caption: (r: RouteWithStats) => string;
+  captionTone: "accent" | "wide" | "muted";
+}) {
+  const toneClass =
+    captionTone === "accent"
+      ? "text-accent"
+      : captionTone === "wide"
+        ? "text-wide"
+        : "text-muted";
+  return (
+    <section>
+      <h2 className="mb-2 ml-1 text-sm font-semibold uppercase tracking-wide text-faint">
+        {title}
+      </h2>
+      <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-1">
+        {routes.map((r, i) => (
+          <Link
+            key={r.id}
+            to={`/route/${r.id}`}
+            style={{ animationDelay: `${Math.min(i * 40, 200)}ms` }}
+            className="w-32 shrink-0 animate-fade-up transition active:scale-[0.97]"
+          >
+            <div className="relative h-24 w-32 overflow-hidden rounded-2xl bg-surface-2 shadow-card">
+              <img
+                src={r.photo_url}
+                alt={`${r.hold_color} route on ${r.wall_section}`}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-bg/80 px-2 py-0.5 text-xs font-extrabold text-accent backdrop-blur">
+                {formatGradeStyled(
+                  communityGrade(r.gradeValues),
+                  r.climbing_type,
+                  system,
+                  r.gradingStyle,
+                )}
+              </span>
+            </div>
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-chalk">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full border border-white/10"
+                style={{ backgroundColor: holdHex(r.hold_color) }}
+              />
+              <span className="truncate">{r.wall_section}</span>
+            </p>
+            <p className={`truncate text-[10px] ${toneClass}`}>{caption(r)}</p>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
