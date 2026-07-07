@@ -9,7 +9,6 @@ import {
   formatGradeStyled,
   type GradeSystem,
 } from "../lib/grades";
-import { fetchNotifications } from "../lib/notifications";
 import { CLIMB_TYPES, climbTypeLabel, holdHex, type ClimbType } from "../lib/constants";
 import { RouteCard } from "../components/RouteCard";
 import { GradePicker } from "../components/GradePicker";
