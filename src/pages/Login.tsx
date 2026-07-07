@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { Button, ErrorText, Input } from "../components/ui";
+import { OAuthButtons } from "../components/OAuthButtons";
 
 export function Login() {
   const { signIn } = useAuth();
@@ -63,6 +64,10 @@ export function Login() {
           Forgot your password?
         </Link>
       </form>
+
+      <div className="relative mt-5">
+        <OAuthButtons />
+      </div>
 
       <p className="mt-6 text-center text-muted">
         New here?{" "}

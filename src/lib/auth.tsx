@@ -24,6 +24,10 @@ type AuthState = {
     displayName: string,
   ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  /** Kick off an OAuth redirect (Google / Apple). Resolves before redirect. */
+  signInWithProvider: (
+    provider: "google" | "apple",
+  ) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (patch: ProfileUpdate) => Promise<{ error: string | null }>;
@@ -70,6 +74,9 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     async signIn() {
       return { error: null };
     },
+    async signInWithProvider() {
+      return { error: null };
+    },
     async signOut() {},
     async refreshProfile() {},
     async updateProfile() {
@@ -108,13 +115,29 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
     return data ?? null;
   }
 
-  async function ensureProfile(id: string, email: string) {
-    let row = await loadProfile(id);
+  async function ensureProfile(user: Session["user"]) {
+    let row = await loadProfile(user.id);
     if (!row) {
-      const display = pendingName.current ?? email.split("@")[0] ?? "Climber";
-      await supabase.from("profiles").insert({ id, display_name: display });
+      // OAuth providers hand us a name/avatar — use them for a nicer default
+      // than the email prefix. Email signup still uses the typed display name.
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const metaName =
+        (meta.full_name as string) ||
+        (meta.name as string) ||
+        (meta.user_name as string) ||
+        null;
+      const display =
+        pendingName.current ??
+        metaName ??
+        user.email?.split("@")[0] ??
+        "Climber";
+      const avatar =
+        (meta.avatar_url as string) || (meta.picture as string) || null;
+      await supabase
+        .from("profiles")
+        .insert({ id: user.id, display_name: display, avatar_url: avatar });
       pendingName.current = null;
-      row = await loadProfile(id);
+      row = await loadProfile(user.id);
     }
     setProfile(row);
   }
@@ -142,7 +165,7 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
     }
     let active = true;
     setLoading(true);
-    ensureProfile(userId, session.user.email ?? "").finally(() => {
+    ensureProfile(session.user).finally(() => {
       if (active) setLoading(false);
     });
     return () => {
@@ -175,6 +198,15 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
+        });
+        return { error: error ? error.message : null };
+      },
+      async signInWithProvider(provider) {
+        // OAuth is a full-page redirect; on return, onAuthStateChange picks up
+        // the session and ensureProfile creates the profile if it's new.
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: window.location.origin },
         });
         return { error: error ? error.message : null };
       },
