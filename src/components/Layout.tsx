@@ -1,12 +1,14 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Home, Map, Plus, Trophy, User } from "lucide-react";
+import { BarChart3, BookOpen, Mountain, Plus, User } from "lucide-react";
 
-// The center tab (Log) is the hero — fast logging is the app's main loop.
+// Logbook-first IA: your history is the front door, the gym is where you
+// browse shared route intelligence, and the center Log button is the hero —
+// fast logging is the app's main loop.
 const tabs = [
-  { to: "/", label: "Home", Icon: Home, end: true, hero: false },
-  { to: "/map", label: "Map", Icon: Map, end: false, hero: false },
+  { to: "/", label: "Logbook", Icon: BookOpen, end: true, hero: false },
+  { to: "/gym", label: "Gym", Icon: Mountain, end: false, hero: false },
   { to: "/log", label: "Log", Icon: Plus, end: false, hero: true },
-  { to: "/sends", label: "Logbook", Icon: Trophy, end: false, hero: false },
+  { to: "/stats", label: "Stats", Icon: BarChart3, end: false, hero: false },
   { to: "/profile", label: "Profile", Icon: User, end: false, hero: false },
 ];
 

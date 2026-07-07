@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bell, Plus, X } from "lucide-react";
+import { Map as MapIcon, Plus, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchActiveRoutes, fetchRoute, type RouteWithStats } from "../lib/routes";
@@ -14,7 +14,7 @@ import { CLIMB_TYPES, climbTypeLabel, holdHex, type ClimbType } from "../lib/con
 import { RouteCard } from "../components/RouteCard";
 import { GradePicker } from "../components/GradePicker";
 import { AppHeader } from "../components/Layout";
-import { Button, CenterSpinner, SlideTabs } from "../components/ui";
+import { Button, ListSkeleton, SlideTabs } from "../components/ui";
 
 // The feed is intentionally simple: pick bouldering or top rope, optionally
 // narrow to a hold color, newest first. That's it.
@@ -37,7 +37,6 @@ export function Feed() {
     await refreshProfile();
   }
   const [gymName, setGymName] = useState<string | null>(null);
-  const [unread, setUnread] = useState(0);
   const [routes, setRoutes] = useState<RouteWithStats[]>([]);
   const [myGrades, setMyGrades] = useState<Map<string, number>>(new Map());
   // Solo-safe home sections: my open projects here, and (social, optional)
@@ -73,22 +72,6 @@ export function Feed() {
       .then(({ data }) => setGymName(data?.name ?? null));
   }, [gymId]);
 
-  // Unread notification badge.
-  useEffect(() => {
-    if (!profile) return;
-    let active = true;
-    fetchNotifications(
-      profile.id,
-      profile.home_gym_id,
-      profile.notifications_seen_at,
-    ).then((list) => {
-      if (active) setUnread(list.filter((n) => n.unread).length);
-    });
-    return () => {
-      active = false;
-    };
-  }, [profile]);
-
   useEffect(() => {
     if (!gymId || !profile) return;
     let active = true;
@@ -115,6 +98,7 @@ export function Feed() {
               .from("sends")
               .select("route_id")
               .eq("user_id", profile.id)
+              .neq("send_type", "attempt")
               .in("route_id", ids),
           ]);
           if (active) {
@@ -232,16 +216,11 @@ export function Feed() {
         title={gymName ?? "your gym"}
         right={
           <button
-            onClick={() => navigate("/notifications")}
-            aria-label="Notifications"
-            className="relative rounded-full p-2 text-muted transition hover:text-chalk"
+            onClick={() => navigate("/map")}
+            aria-label="Find gyms on the map"
+            className="flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-2 text-xs font-semibold text-chalk transition active:scale-95"
           >
-            <Bell size={22} />
-            {unread > 0 ? (
-              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-bg">
-                {unread > 9 ? "9+" : unread}
-              </span>
-            ) : null}
+            <MapIcon size={15} className="text-accent" /> Map
           </button>
         }
       />
@@ -271,7 +250,7 @@ export function Feed() {
       </div>
 
       {loading ? (
-        <CenterSpinner />
+        <ListSkeleton rows={3} />
       ) : visible.length === 0 ? (
         <div className="flex flex-col items-center gap-4 px-8 py-16 text-center">
           <p className="text-faint">

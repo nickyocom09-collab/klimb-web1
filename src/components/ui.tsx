@@ -152,3 +152,29 @@ export function CenterSpinner() {
     </div>
   );
 }
+
+/** Shimmering placeholder block — compose these into layout-shaped loaders. */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={`animate-shimmer rounded-2xl bg-gradient-to-r from-surface via-surface-2 to-surface bg-[length:200%_100%] ${className}`}
+    />
+  );
+}
+
+/** Layout-shaped loading state for card/list screens (Logbook, Gym, Stats). */
+export function ListSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="flex flex-col gap-3 px-5 pt-2">
+      <div className="grid grid-cols-3 gap-2">
+        <Skeleton className="h-20" />
+        <Skeleton className="h-20" />
+        <Skeleton className="h-20" />
+      </div>
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} className="h-20" />
+      ))}
+    </div>
+  );
+}

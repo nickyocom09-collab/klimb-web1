@@ -59,6 +59,12 @@
   textarea {
     font-size: max(16px, 1em);
   }
+  /* Motion is decoration here — honor the OS preference. */
+  @media (prefers-reduced-motion: reduce) {
+    [class*="animate-"] {
+      animation: none !important;
+    }
+  }
 }
 
 /* ---- 2D gym map ------------------------------------------------------------

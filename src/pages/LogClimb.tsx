@@ -15,6 +15,8 @@ export function LogClimb() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const system = profile?.grade_system ?? "american";
+  // Log at the gym you're actually at — a "visiting" gym wins over home.
+  const gymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
 
   const [routes, setRoutes] = useState<RouteWithStats[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,13 +26,13 @@ export function LogClimb() {
   const [selected, setSelected] = useState<RouteWithStats | null>(null);
 
   useEffect(() => {
-    if (!profile?.home_gym_id) {
+    if (!gymId) {
       setLoading(false);
       return;
     }
     let active = true;
     setLoading(true);
-    fetchActiveRoutes(profile.home_gym_id).then((rs) => {
+    fetchActiveRoutes(gymId).then((rs) => {
       if (!active) return;
       setRoutes(rs);
       setLoading(false);

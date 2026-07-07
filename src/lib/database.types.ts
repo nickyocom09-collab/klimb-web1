@@ -11,7 +11,8 @@ export type GradingStyle = "classic" | "bands";
 export type RouteEventKind = "created" | "grade_shift" | "archived";
 export type ReportReasonEnum = "wrong_gym" | "duplicate" | "inappropriate";
 export type BookmarkKind = "project" | "favorite";
-export type SendType = "flash" | "send";
+export type SendType = "flash" | "send" | "attempt";
+export type RecapPeriod = "weekly" | "monthly";
 export type ReportTargetType = "route" | "comment" | "user";
 export type ContentReportReason =
   | "spam"
@@ -19,6 +20,26 @@ export type ContentReportReason =
   | "harassment"
   | "wrong_info"
   | "other";
+
+/** Shape of the JSON stats payload computed by generate_recaps() in the DB. */
+export type RecapPayload = {
+  climbs: number;
+  sends: number;
+  flashes: number;
+  attempts: number;
+  sessions: number;
+  flash_rate: number | null;
+  top_wall: string | null;
+  top_color: string | null;
+  hardest_send: { boulder: number | null; toprope: number | null };
+  hardest_flash: { boulder: number | null; toprope: number | null };
+  pyramid: { type: "boulder" | "toprope"; ordinal: number; count: number }[];
+  new_grades: { type: "boulder" | "toprope"; ordinal: number }[];
+  prev: { climbs: number; sends: number };
+  projects_open: number;
+  oldest_project_days: number | null;
+  streak: number;
+};
 
 export interface Database {
   public: {
@@ -215,6 +236,8 @@ export interface Database {
           user_id: string;
           send_type: SendType;
           note: string | null;
+          attempts: number | null;
+          photo_url: string | null;
           created_at: string;
         };
         Insert: {
@@ -223,11 +246,15 @@ export interface Database {
           user_id: string;
           send_type?: SendType;
           note?: string | null;
+          attempts?: number | null;
+          photo_url?: string | null;
           created_at?: string;
         };
         Update: {
           send_type?: SendType;
           note?: string | null;
+          attempts?: number | null;
+          photo_url?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -406,6 +433,30 @@ export interface Database {
         Update: Record<string, never>;
         Relationships: [];
       };
+      recaps: {
+        Row: {
+          id: string;
+          user_id: string;
+          period: RecapPeriod;
+          period_start: string;
+          payload: RecapPayload;
+          generated_at: string;
+          seen_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          period: RecapPeriod;
+          period_start: string;
+          payload: RecapPayload;
+          generated_at?: string;
+          seen_at?: string | null;
+        };
+        Update: {
+          seen_at?: string | null;
+        };
+        Relationships: [];
+      };
       content_reports: {
         Row: {
           id: string;
@@ -438,6 +489,8 @@ export interface Database {
           route_id: string;
           grade_values: number[];
           send_count: number;
+          climbers: number;
+          avg_attempts: number | null;
           fun_avg: number | null;
           fun_count: number;
           recent_activity: number;

@@ -4,6 +4,10 @@ import type { GradingStyle, RouteRow } from "./database.types";
 export type RouteWithStats = RouteRow & {
   gradeValues: number[];
   sendCount: number;
+  /** Distinct climbers who have logged this route (incl. attempts). */
+  climbers: number;
+  /** Average tries reported per log, null when nobody reported attempts. */
+  avgAttempts: number | null;
   /** Average 1-5 "fun factor" rating, null when unrated. */
   funAvg: number | null;
   funCount: number;
@@ -48,6 +52,8 @@ async function attachStats(
       ...r,
       gradeValues: s?.grade_values ?? [],
       sendCount: s?.send_count ?? 0,
+      climbers: s?.climbers ?? 0,
+      avgAttempts: s?.avg_attempts ?? null,
       funAvg: s?.fun_avg ?? null,
       funCount: s?.fun_count ?? 0,
       recentActivity: s?.recent_activity ?? 0,

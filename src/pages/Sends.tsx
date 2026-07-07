@@ -1,30 +1,39 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Bookmark, Check, TrendingUp, Zap } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Bell,
+  Bookmark,
+  Check,
+  Clapperboard,
+  Plus,
+  RotateCcw,
+  Sparkles,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
+import {
+  computeLogStats,
+  DAY_MS,
+  fetchLogbook,
+  formatHardest,
+  type LoggedItem,
+  type ProjectItem,
+} from "../lib/logstats";
+import {
+  fetchRecaps,
+  markRecapSeen,
+  recapCountdownLabel,
+  type RecapRow,
+} from "../lib/recaps";
 import { communityGrade, formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
+import { fetchNotifications } from "../lib/notifications";
 import { AppHeader } from "../components/Layout";
-import { CenterSpinner } from "../components/ui";
-import type { SendType } from "../lib/database.types";
-
-type LoggedItem = {
-  route: RouteWithStats;
-  sendType: SendType;
-  note: string | null;
-  date: string;
-  /** Best-known ordinal for this climb: your grade > community > gym. */
-  ordinal: number | null;
-};
-
-type ProjectItem = {
-  route: RouteWithStats;
-  since: string;
-};
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { RecapStory } from "../components/RecapStory";
+import { Button, ListSkeleton } from "../components/ui";
+import type { RouteWithStats } from "../lib/routes";
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -49,14 +58,18 @@ function daysOpen(iso: string): string {
   return `Open ${days} day${days === 1 ? "" : "s"}`;
 }
 
-// The Logbook: the heart of the single-player app. Everything on this page is
-// computed from the user's own history, so it's fully useful with zero other
-// users. Sends survive route archival — history never disappears.
+// The Logbook IS the home tab — the app's front door and its soul. Every
+// number here is computed from the user's own history, so it's fully alive
+// with zero other users. Sends survive route archival; history is permanent.
 export function Sends() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const system = profile?.grade_system ?? "american";
   const [logged, setLogged] = useState<LoggedItem[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [latestRecap, setLatestRecap] = useState<RecapRow | null>(null);
+  const [story, setStory] = useState<RecapRow | null>(null);
+  const [unread, setUnread] = useState(0);
   const [gymName, setGymName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"logged" | "projecting">("logged");
@@ -66,25 +79,10 @@ export function Sends() {
     let active = true;
     setLoading(true);
     (async () => {
-      const [{ data: sends }, { data: bms }, { data: myGradeRows }] =
-        await Promise.all([
-          supabase
-            .from("sends")
-            .select("route_id, send_type, note, created_at")
-            .eq("user_id", profile.id)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("bookmarks")
-            .select("route_id, created_at")
-            .eq("user_id", profile.id)
-            .eq("kind", "project")
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("grades")
-            .select("route_id, grade")
-            .eq("user_id", profile.id),
-        ]);
-
+      const [book, recs] = await Promise.all([
+        fetchLogbook(profile.id),
+        fetchRecaps(profile.id),
+      ]);
       if (profile.home_gym_id) {
         const { data: gym } = await supabase
           .from("gyms")
@@ -93,122 +91,29 @@ export function Sends() {
           .maybeSingle();
         if (active) setGymName(gym?.name ?? null);
       }
-
-      const sendRows = sends ?? [];
-      const bmRows = bms ?? [];
-      const myGrades = new Map(
-        (myGradeRows ?? []).map((g) => [g.route_id, g.grade]),
-      );
-      const routeIds = [
-        ...new Set([
-          ...sendRows.map((s) => s.route_id),
-          ...bmRows.map((b) => b.route_id),
-        ]),
-      ];
-      const routes = await fetchRoutesByIds(routeIds);
-      const byId = new Map(routes.map((r) => [r.id, r]));
-
       if (!active) return;
-      setLogged(
-        sendRows
-          .filter((s) => byId.has(s.route_id))
-          .map((s) => {
-            const route = byId.get(s.route_id)!;
-            const ordinal =
-              myGrades.get(s.route_id) ??
-              communityGrade(route.gradeValues) ??
-              route.gym_grade ??
-              null;
-            return {
-              route,
-              sendType: (s.send_type ?? "send") as SendType,
-              note: s.note,
-              date: s.created_at,
-              ordinal,
-            };
-          }),
-      );
-      // Projects you haven't logged a send on yet = "still projecting".
-      const sentIds = new Set(sendRows.map((s) => s.route_id));
-      setProjects(
-        bmRows
-          .filter((b) => byId.has(b.route_id) && !sentIds.has(b.route_id))
-          .map((b) => ({ route: byId.get(b.route_id)!, since: b.created_at })),
-      );
+      setLogged(book.logged);
+      setProjects(book.projects);
+      setLatestRecap(recs.latestWeekly ?? recs.latestMonthly);
       setLoading(false);
     })();
+    // Unread notification badge (home carries the bell now).
+    fetchNotifications(
+      profile.id,
+      profile.home_gym_id,
+      profile.notifications_seen_at,
+    ).then((list) => {
+      if (active) setUnread(list.filter((n) => n.unread).length);
+    });
     return () => {
       active = false;
     };
   }, [profile]);
 
-  const stats = useMemo(() => {
-    const now = Date.now();
-    const flashes = logged.filter((l) => l.sendType === "flash");
-    const thisWeek = logged.filter(
-      (l) => now - new Date(l.date).getTime() < 7 * DAY_MS,
-    ).length;
-    const lastWeek = logged.filter((l) => {
-      const age = now - new Date(l.date).getTime();
-      return age >= 7 * DAY_MS && age < 14 * DAY_MS;
-    }).length;
-
-    // Grade pyramid: sends bucketed by their display label, ordered easy→hard
-    // (boulders first, then ropes), in the route's own grading style.
-    const buckets = new Map<string, { count: number; sort: number }>();
-    for (const l of logged) {
-      if (l.ordinal === null) continue;
-      const label = formatGradeStyled(
-        l.ordinal,
-        l.route.climbing_type,
-        system,
-        l.route.gradingStyle,
-      );
-      const sort =
-        (l.route.climbing_type === "toprope" ? 100 : 0) + l.ordinal;
-      const cur = buckets.get(label) ?? { count: 0, sort };
-      cur.count += 1;
-      buckets.set(label, cur);
-    }
-    const pyramid = [...buckets.entries()]
-      .map(([label, v]) => ({ label, ...v }))
-      .sort((a, b) => a.sort - b.sort);
-
-    // Hardest send / flash, per climbing type (V-scale and YDS ordinals
-    // aren't comparable across types).
-    const hardest = (items: LoggedItem[]) => {
-      let boulder: LoggedItem | null = null;
-      let toprope: LoggedItem | null = null;
-      for (const l of items) {
-        if (l.ordinal === null) continue;
-        if (l.route.climbing_type === "boulder") {
-          if (!boulder || l.ordinal > boulder.ordinal!) boulder = l;
-        } else if (!toprope || l.ordinal > toprope.ordinal!) toprope = l;
-      }
-      return { boulder, toprope };
-    };
-
-    // Sends per week for the last 8 rolling weeks (oldest → newest).
-    const weeks = Array.from({ length: 8 }, (_, i) => {
-      const hi = now - (7 - i) * 7 * DAY_MS + 7 * DAY_MS;
-      const lo = hi - 7 * DAY_MS;
-      return logged.filter((l) => {
-        const t = new Date(l.date).getTime();
-        return t >= lo && t < hi;
-      }).length;
-    });
-
-    return {
-      total: logged.length,
-      flashes: flashes.length,
-      thisWeek,
-      lastWeek,
-      pyramid,
-      hardestSend: hardest(logged),
-      hardestFlash: hardest(flashes),
-      weeks,
-    };
-  }, [logged, system]);
+  const stats = useMemo(
+    () => computeLogStats(logged, system),
+    [logged, system],
+  );
 
   const groups = useMemo(() => {
     const out: { label: string; items: LoggedItem[] }[] = [];
@@ -221,28 +126,17 @@ export function Sends() {
     return out;
   }, [logged]);
 
-  const fmtHardest = (h: { boulder: LoggedItem | null; toprope: LoggedItem | null }) => {
-    const parts: string[] = [];
-    if (h.boulder)
-      parts.push(
-        formatGradeStyled(
-          h.boulder.ordinal,
-          "boulder",
-          system,
-          h.boulder.route.gradingStyle,
-        ),
+  function openStory(r: RecapRow) {
+    setStory(r);
+    if (!r.seen_at) {
+      markRecapSeen(r.id);
+      setLatestRecap((prev) =>
+        prev && prev.id === r.id
+          ? { ...prev, seen_at: new Date().toISOString() }
+          : prev,
       );
-    if (h.toprope)
-      parts.push(
-        formatGradeStyled(
-          h.toprope.ordinal,
-          "toprope",
-          system,
-          h.toprope.route.gradingStyle,
-        ),
-      );
-    return parts.length ? parts.join(" · ") : "—";
-  };
+    }
+  }
 
   const weekMax = Math.max(...stats.weeks, 1);
   const delta = stats.thisWeek - stats.lastWeek;
@@ -251,15 +145,73 @@ export function Sends() {
     <div>
       <AppHeader
         title="Logbook"
-        subtitle={gymName ? `Climbing out of ${gymName}` : "Everything you've climbed"}
+        subtitle={gymName ? `Climbing out of ${gymName}` : "Your climbing history"}
+        right={
+          <button
+            onClick={() => navigate("/notifications")}
+            aria-label="Notifications"
+            className="relative rounded-full p-2 text-muted transition hover:text-chalk"
+          >
+            <Bell size={22} />
+            {unread > 0 ? (
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-bg">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            ) : null}
+          </button>
+        }
       />
 
       {loading ? (
-        <CenterSpinner />
+        <ListSkeleton rows={4} />
+      ) : logged.length === 0 && projects.length === 0 ? (
+        /* First-run: a warm nudge straight to the first log. */
+        <div className="flex flex-col items-center gap-4 px-8 py-16 text-center">
+          <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-accent/10">
+            <TrendingUp size={36} className="text-accent" />
+          </span>
+          <h2 className="text-xl font-extrabold text-chalk">
+            Your logbook starts here
+          </h2>
+          <p className="max-w-xs text-sm text-muted">
+            Log your first climb and this page fills with your history, grade
+            pyramid, streaks, and a weekly recap every Sunday.
+          </p>
+          <Button onClick={() => navigate("/log")}>
+            <Plus size={18} className="mr-2" /> Log my first climb
+          </Button>
+        </div>
       ) : (
         <>
-          {/* ---- Progress dashboard (all from your own history) ---- */}
-          <div className="flex flex-col gap-3 px-5 pt-1">
+          {/* ---- Recap card: fresh one is loud, otherwise a quiet teaser --- */}
+          <div className="px-5 pt-1">
+            {latestRecap && !latestRecap.seen_at ? (
+              <button
+                onClick={() => openStory(latestRecap)}
+                className="relative w-full overflow-hidden rounded-3xl bg-accent/10 p-5 text-left shadow-card ring-1 ring-accent/40 transition active:scale-[0.99]"
+              >
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-accent/20 blur-2xl"
+                />
+                <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-accent">
+                  <Clapperboard size={13} /> Ready to watch
+                </p>
+                <p className="mt-1 text-lg font-extrabold text-chalk">
+                  Your {latestRecap.period === "weekly" ? "week" : "month"} in
+                  climbing is in 🎬
+                </p>
+              </button>
+            ) : (
+              <p className="ml-1 flex items-center gap-1.5 text-xs text-faint">
+                <Sparkles size={12} className="text-accent" /> Next weekly recap
+                in {recapCountdownLabel()}
+              </p>
+            )}
+          </div>
+
+          {/* ---- Hero week stats ---- */}
+          <div className="flex flex-col gap-3 px-5 pt-3">
             <div className="grid grid-cols-3 gap-2">
               <Stat n={String(stats.total)} label="Sends" />
               <Stat n={String(stats.flashes)} label="Flashes" />
@@ -283,7 +235,7 @@ export function Sends() {
                       Hardest send
                     </p>
                     <p className="mt-0.5 text-2xl font-extrabold leading-tight text-accent">
-                      {fmtHardest(stats.hardestSend)}
+                      {formatHardest(stats.hardestSend, system)}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-surface px-4 py-3 shadow-card">
@@ -291,12 +243,11 @@ export function Sends() {
                       <Zap size={11} className="text-accent" /> Hardest flash
                     </p>
                     <p className="mt-0.5 text-2xl font-extrabold leading-tight text-chalk">
-                      {fmtHardest(stats.hardestFlash)}
+                      {formatHardest(stats.hardestFlash, system)}
                     </p>
                   </div>
                 </div>
 
-                {/* Grade pyramid */}
                 {stats.pyramid.length > 0 ? (
                   <div className="rounded-2xl bg-surface p-4 shadow-card">
                     <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
@@ -322,7 +273,7 @@ export function Sends() {
                                 }}
                               />
                             </div>
-                            <span className="w-5 shrink-0 text-xs text-faint">
+                            <span className="w-5 shrink-0 text-xs tabular-nums text-faint">
                               {b.count}
                             </span>
                           </div>
@@ -332,13 +283,12 @@ export function Sends() {
                   </div>
                 ) : null}
 
-                {/* Weekly activity sparkline */}
                 <div className="rounded-2xl bg-surface p-4 shadow-card">
                   <div className="flex items-center justify-between">
                     <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
                       Last 8 weeks
                     </h2>
-                    <span className="text-xs text-muted">
+                    <span className="text-xs tabular-nums text-muted">
                       {stats.weeks.reduce((a, b) => a + b, 0)} climbs
                     </span>
                   </div>
@@ -404,13 +354,21 @@ export function Sends() {
                               <Badge tone="accent">
                                 <Zap size={12} /> Flash
                               </Badge>
+                            ) : item.sendType === "attempt" ? (
+                              <Badge tone="muted">
+                                <RotateCcw size={12} /> Attempt
+                              </Badge>
                             ) : (
                               <Badge tone="muted">
                                 <Check size={12} /> Send
                               </Badge>
                             )
                           }
-                          sub={fmt(item.date)}
+                          sub={`${fmt(item.date)}${
+                            item.attempts && item.attempts > 1
+                              ? ` · ${item.attempts} tries`
+                              : ""
+                          }`}
                           note={item.note}
                         />
                       ))}
@@ -441,6 +399,10 @@ export function Sends() {
           )}
         </>
       )}
+
+      {story ? (
+        <RecapStory recap={story} system={system} onClose={() => setStory(null)} />
+      ) : null}
     </div>
   );
 }
@@ -464,7 +426,7 @@ function Stat({
         : "text-faint";
   return (
     <div className="rounded-2xl bg-surface px-3 py-3 text-center shadow-card">
-      <p className="text-2xl font-extrabold text-chalk">{n}</p>
+      <p className="text-2xl font-extrabold tabular-nums text-chalk">{n}</p>
       <p className="text-[11px] uppercase tracking-wide text-muted">{label}</p>
       {sub ? <p className={`mt-0.5 text-[10px] ${tone}`}>{sub}</p> : null}
     </div>

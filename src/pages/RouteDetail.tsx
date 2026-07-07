@@ -101,6 +101,8 @@ export function RouteDetail() {
   const [logOpen, setLogOpen] = useState(false);
   const [hasSent, setHasSent] = useState(false);
   const [mySendType, setMySendType] = useState<SendType | null>(null);
+  // Photos attached to logs — the route's crowd-built gallery.
+  const [gallery, setGallery] = useState<string[]>([]);
   const [events, setEvents] = useState<RouteEventRow[]>([]);
   const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -217,6 +219,20 @@ export function RouteDetail() {
       .eq("route_id", id)
       .order("created_at", { ascending: false });
     setEvents(eventRows ?? []);
+
+    // Crowd gallery: photos people attached to their logs.
+    const { data: logPhotos } = await supabase
+      .from("sends")
+      .select("photo_url")
+      .eq("route_id", id)
+      .not("photo_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    setGallery(
+      (logPhotos ?? [])
+        .map((p) => p.photo_url)
+        .filter((p): p is string => !!p),
+    );
 
     const { data: myRating } = await supabase
       .from("route_ratings")
@@ -830,7 +846,10 @@ export function RouteDetail() {
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Community says
               </p>
-              <p className="mt-0.5 text-4xl font-extrabold leading-none text-accent">
+              <p
+                key={grade ?? -1}
+                className="mt-0.5 animate-pop text-4xl font-extrabold leading-none tabular-nums text-accent"
+              >
                 {fmt(grade)}
               </p>
               <p className={`mt-1.5 text-xs font-semibold ${verdictClass}`}>
@@ -849,6 +868,47 @@ export function RouteDetail() {
               </div>
             ) : null}
           </div>
+
+          {/* Crowd gallery — photos from everyone's logs */}
+          {gallery.length > 0 ? (
+            <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
+              {gallery.map((url, i) => (
+                <img
+                  key={url}
+                  src={url}
+                  alt={`Log photo ${i + 1}`}
+                  loading="lazy"
+                  style={{ animationDelay: `${Math.min(i * 40, 200)}ms` }}
+                  className="h-20 w-20 shrink-0 animate-fade-up rounded-2xl object-cover shadow-card"
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {/* Shared intelligence at a glance */}
+          <p className="ml-1 text-xs text-muted">
+            {route.climbers > 0 ? (
+              <>
+                <span className="font-semibold text-chalk">
+                  {route.climbers}
+                </span>{" "}
+                climber{route.climbers === 1 ? "" : "s"} logged this
+                {route.avgAttempts !== null ? (
+                  <>
+                    {" "}
+                    · avg{" "}
+                    <span className="font-semibold text-chalk">
+                      {Math.round(route.avgAttempts * 10) / 10}
+                    </span>{" "}
+                    tries
+                  </>
+                ) : null}{" "}
+                · set {formatDate(route.created_at)}
+              </>
+            ) : (
+              <>No logs yet — be the first on it. Set {formatDate(route.created_at)}</>
+            )}
+          </p>
 
           {/* Vote breakdown */}
           <button
@@ -962,8 +1022,8 @@ export function RouteDetail() {
             </Button>
           </div>
 
-          {/* Log — the same sheet as the Log tab (flash/send/project + note) */}
-          {hasSent ? (
+          {/* Log — the same sheet as the Log tab (unified logging path) */}
+          {hasSent && mySendType !== "attempt" ? (
             <Button className="w-full" variant="secondary" disabled>
               {mySendType === "flash" ? (
                 <>
@@ -977,7 +1037,10 @@ export function RouteDetail() {
             </Button>
           ) : (
             <Button className="w-full" onClick={() => setLogOpen(true)}>
-              <Trophy size={18} className="mr-2" /> Log this climb
+              <Trophy size={18} className="mr-2" />
+              {mySendType === "attempt"
+                ? "Tried it — log another go"
+                : "Log this climb"}
             </Button>
           )}
 

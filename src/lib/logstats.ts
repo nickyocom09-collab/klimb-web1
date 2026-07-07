@@ -1,0 +1,216 @@
+// Shared personal-logbook data + stats computation, used by the Logbook
+// (home) and the Stats tab. Everything here derives from the user's OWN
+// rows, so it's fully meaningful with zero other users.
+import { supabase } from "./supabase";
+import { fetchRoutesByIds, type RouteWithStats } from "./routes";
+import { communityGrade, formatGradeStyled, type GradeSystem } from "./grades";
+import type { SendType } from "./database.types";
+
+export type LoggedItem = {
+  route: RouteWithStats;
+  sendType: SendType;
+  note: string | null;
+  attempts: number | null;
+  date: string;
+  /** Best-known ordinal for this climb: your grade > community > gym. */
+  ordinal: number | null;
+};
+
+export type ProjectItem = {
+  route: RouteWithStats;
+  since: string;
+};
+
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+export async function fetchLogbook(profileId: string): Promise<{
+  logged: LoggedItem[];
+  projects: ProjectItem[];
+}> {
+  const [{ data: sends }, { data: bms }, { data: myGradeRows }] =
+    await Promise.all([
+      supabase
+        .from("sends")
+        .select("route_id, send_type, note, attempts, created_at")
+        .eq("user_id", profileId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("bookmarks")
+        .select("route_id, created_at")
+        .eq("user_id", profileId)
+        .eq("kind", "project")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("grades")
+        .select("route_id, grade")
+        .eq("user_id", profileId),
+    ]);
+
+  const sendRows = sends ?? [];
+  const bmRows = bms ?? [];
+  const myGrades = new Map(
+    (myGradeRows ?? []).map((g) => [g.route_id, g.grade]),
+  );
+  const routeIds = [
+    ...new Set([
+      ...sendRows.map((s) => s.route_id),
+      ...bmRows.map((b) => b.route_id),
+    ]),
+  ];
+  const routes = await fetchRoutesByIds(routeIds);
+  const byId = new Map(routes.map((r) => [r.id, r]));
+
+  const logged: LoggedItem[] = sendRows
+    .filter((s) => byId.has(s.route_id))
+    .map((s) => {
+      const route = byId.get(s.route_id)!;
+      return {
+        route,
+        sendType: (s.send_type ?? "send") as SendType,
+        note: s.note,
+        attempts: s.attempts,
+        date: s.created_at,
+        ordinal:
+          myGrades.get(s.route_id) ??
+          communityGrade(route.gradeValues) ??
+          route.gym_grade ??
+          null,
+      };
+    });
+
+  // Projects you haven't actually sent = "still projecting".
+  const sentIds = new Set(
+    sendRows.filter((s) => s.send_type !== "attempt").map((s) => s.route_id),
+  );
+  const projects: ProjectItem[] = bmRows
+    .filter((b) => byId.has(b.route_id) && !sentIds.has(b.route_id))
+    .map((b) => ({ route: byId.get(b.route_id)!, since: b.created_at }));
+
+  return { logged, projects };
+}
+
+export type LogStats = {
+  total: number;
+  flashes: number;
+  attemptsTotal: number;
+  sessions: number;
+  flashRate: number | null;
+  thisWeek: number;
+  lastWeek: number;
+  topWall: string | null;
+  topColor: string | null;
+  pyramid: { label: string; count: number; sort: number }[];
+  hardestSend: { boulder: LoggedItem | null; toprope: LoggedItem | null };
+  hardestFlash: { boulder: LoggedItem | null; toprope: LoggedItem | null };
+  weeks: number[];
+};
+
+export function computeLogStats(
+  logged: LoggedItem[],
+  system: GradeSystem,
+): LogStats {
+  const now = Date.now();
+  const sent = logged.filter((l) => l.sendType !== "attempt");
+  const flashes = logged.filter((l) => l.sendType === "flash");
+  const thisWeek = logged.filter(
+    (l) => now - new Date(l.date).getTime() < 7 * DAY_MS,
+  ).length;
+  const lastWeek = logged.filter((l) => {
+    const age = now - new Date(l.date).getTime();
+    return age >= 7 * DAY_MS && age < 14 * DAY_MS;
+  }).length;
+
+  const mode = (vals: string[]): string | null => {
+    if (vals.length === 0) return null;
+    const counts = new Map<string, number>();
+    for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  };
+
+  // Grade pyramid: sends bucketed by display label, easy→hard.
+  const buckets = new Map<string, { count: number; sort: number }>();
+  for (const l of sent) {
+    if (l.ordinal === null) continue;
+    const label = formatGradeStyled(
+      l.ordinal,
+      l.route.climbing_type,
+      system,
+      l.route.gradingStyle,
+    );
+    const sort = (l.route.climbing_type === "toprope" ? 100 : 0) + l.ordinal;
+    const cur = buckets.get(label) ?? { count: 0, sort };
+    cur.count += 1;
+    buckets.set(label, cur);
+  }
+  const pyramid = [...buckets.entries()]
+    .map(([label, v]) => ({ label, ...v }))
+    .sort((a, b) => a.sort - b.sort);
+
+  const hardest = (items: LoggedItem[]) => {
+    let boulder: LoggedItem | null = null;
+    let toprope: LoggedItem | null = null;
+    for (const l of items) {
+      if (l.ordinal === null) continue;
+      if (l.route.climbing_type === "boulder") {
+        if (!boulder || l.ordinal > boulder.ordinal!) boulder = l;
+      } else if (!toprope || l.ordinal > toprope.ordinal!) toprope = l;
+    }
+    return { boulder, toprope };
+  };
+
+  // Sends per week for the last 8 rolling weeks (oldest → newest).
+  const weeks = Array.from({ length: 8 }, (_, i) => {
+    const hi = now - (7 - i) * 7 * DAY_MS + 7 * DAY_MS;
+    const lo = hi - 7 * DAY_MS;
+    return logged.filter((l) => {
+      const t = new Date(l.date).getTime();
+      return t >= lo && t < hi;
+    }).length;
+  });
+
+  return {
+    total: sent.length,
+    flashes: flashes.length,
+    attemptsTotal: logged.reduce((a, l) => a + (l.attempts ?? 1), 0),
+    sessions: new Set(logged.map((l) => new Date(l.date).toDateString())).size,
+    flashRate:
+      sent.length > 0
+        ? Math.round((100 * flashes.length) / sent.length)
+        : null,
+    thisWeek,
+    lastWeek,
+    topWall: mode(logged.map((l) => l.route.wall_section)),
+    topColor: mode(logged.map((l) => l.route.hold_color)),
+    pyramid,
+    hardestSend: hardest(sent),
+    hardestFlash: hardest(flashes),
+    weeks,
+  };
+}
+
+/** "V6-V8 · 5.11-" style label for the hardest-climb tiles. */
+export function formatHardest(
+  h: { boulder: LoggedItem | null; toprope: LoggedItem | null },
+  system: GradeSystem,
+): string {
+  const parts: string[] = [];
+  if (h.boulder)
+    parts.push(
+      formatGradeStyled(
+        h.boulder.ordinal,
+        "boulder",
+        system,
+        h.boulder.route.gradingStyle,
+      ),
+    );
+  if (h.toprope)
+    parts.push(
+      formatGradeStyled(
+        h.toprope.ordinal,
+        "toprope",
+        system,
+        h.toprope.route.gradingStyle,
+      ),
+    );
+  return parts.length ? parts.join(" · ") : "—";
+}

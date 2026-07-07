@@ -43,7 +43,8 @@ export function Profile() {
       const sends = await supabase
         .from("sends")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", profile.id);
+        .eq("user_id", profile.id)
+        .neq("send_type", "attempt");
       if (active) setSendCount(sends.count ?? 0);
       const flashes = await supabase
         .from("sends")

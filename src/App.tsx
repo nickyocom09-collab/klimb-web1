@@ -20,6 +20,7 @@ import { Profile } from "./pages/Profile";
 import { Settings } from "./pages/Settings";
 import { Gyms } from "./pages/Gyms";
 import { Glossary } from "./pages/Glossary";
+import { Stats } from "./pages/Stats";
 
 // The 3D globe pulls in three.js — keep it out of the main bundle so the
 // feed loads fast; the globe chunk streams in when the Map tab is opened.
@@ -162,7 +163,10 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<Feed />} />
+        {/* Logbook-first: your history is the home tab. */}
+        <Route path="/" element={<Sends />} />
+        <Route path="/gym" element={<Feed />} />
+        <Route path="/stats" element={<Stats />} />
         <Route
           path="/map"
           element={
@@ -176,7 +180,8 @@ export default function App() {
         <Route path="/add" element={<AddRoute />} />
         <Route path="/activity" element={<ActivityFeed />} />
         <Route path="/profile" element={<Profile />} />
-        <Route path="/sends" element={<Sends />} />
+        {/* Old bookmark-able paths keep working. */}
+        <Route path="/sends" element={<Navigate to="/" replace />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

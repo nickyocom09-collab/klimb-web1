@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, Plus, Star, Trophy, Video } from "lucide-react";
 import {
@@ -67,11 +68,9 @@ export function RouteCard({
         </div>
 
         <div className="relative aspect-[4/3] w-full bg-surface-2">
-          <img
+          <FadeImg
             src={route.photo_url}
             alt={`${route.hold_color} route on ${route.wall_section}`}
-            className="h-full w-full object-cover"
-            loading="lazy"
           />
           {route.video_url ? (
             <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-bg/80 px-2 py-1 backdrop-blur">
@@ -152,5 +151,21 @@ export function RouteCard({
         </button>
       ) : null}
     </div>
+  );
+}
+
+/** Blur-up image: soft placeholder surface, then the photo fades in. */
+function FadeImg({ src, alt }: { src: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      onLoad={() => setLoaded(true)}
+      className={`h-full w-full object-cover transition-[opacity,filter] duration-500 ${
+        loaded ? "opacity-100 blur-0" : "opacity-0 blur-md"
+      }`}
+    />
   );
 }
