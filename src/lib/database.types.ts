@@ -520,6 +520,10 @@ export interface Database {
         Args: { p_route_id: string };
         Returns: undefined;
       };
+      set_gym_grade: {
+        Args: { p_route_id: string; p_grade: number };
+        Returns: undefined;
+      };
     };
     Enums: {
       route_status: RouteStatus;

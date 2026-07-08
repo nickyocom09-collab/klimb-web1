@@ -13,6 +13,7 @@ import {
   MapPin,
   Plane,
   Search,
+  Trophy,
   X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -38,11 +39,16 @@ function esc(s: string): string {
 
 const HOUSE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>`;
 
-/** Green glowing dot with the gym's name on a pill underneath. */
-function pinIcon(name: string, home: boolean): L.DivIcon {
+/** Dot + name pill. Home = green pulse, collected = gold glow, else dim. */
+function pinIcon(name: string, home: boolean, collected: boolean): L.DivIcon {
+  const mod = home
+    ? " klimb-pin--home"
+    : collected
+      ? " klimb-pin--collected"
+      : " klimb-pin--dim";
   return L.divIcon({
     className: "klimb-pin-wrap",
-    html: `<div class="klimb-pin${home ? " klimb-pin--home" : ""}">
+    html: `<div class="klimb-pin${mod}">
       <div class="klimb-pin__dot"></div>
       <div class="klimb-pin__label">${home ? HOUSE_SVG : ""}<span>${esc(name)}</span></div>
     </div>`,
@@ -91,10 +97,12 @@ function MapSizeSync() {
 function GymLayer({
   gyms,
   homeId,
+  collected,
   onSelect,
 }: {
   gyms: GymWithCount[];
   homeId: string | null | undefined;
+  collected: Set<string>;
   onSelect: (g: GymWithCount) => void;
 }) {
   const map = useMap();
@@ -115,8 +123,8 @@ function GymLayer({
     for (const gym of gyms) {
       const isHome = gym.id === homeId;
       const m = L.marker([gym.latitude!, gym.longitude!], {
-        icon: pinIcon(gym.name, isHome),
-        zIndexOffset: isHome ? 1000 : 0,
+        icon: pinIcon(gym.name, isHome, collected.has(gym.id)),
+        zIndexOffset: isHome ? 1000 : collected.has(gym.id) ? 500 : 0,
         riseOnHover: true,
       });
       m.on("click", () => onSelect(gym));
@@ -132,7 +140,7 @@ function GymLayer({
       map.removeLayer(group);
       homeMarker?.remove();
     };
-  }, [map, gyms, homeId, onSelect]);
+  }, [map, gyms, homeId, collected, onSelect]);
   return null;
 }
 
@@ -146,6 +154,11 @@ export function GymMap() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<GymWithCount | null>(null);
   const [saving, setSaving] = useState<"home" | "visit" | null>(null);
+  // Gyms you've logged a send at — your "collected" gyms.
+  const [collected, setCollected] = useState<Set<string>>(new Set());
+  const [collectedCounts, setCollectedCounts] = useState<Map<string, number>>(
+    new Map(),
+  );
 
   // Match the tiles to the app theme.
   const dark =
@@ -179,10 +192,52 @@ export function GymMap() {
     };
   }, []);
 
+  // Which gyms you've collected (a send there), + how many sends at each.
+  useEffect(() => {
+    if (!profile) return;
+    let active = true;
+    (async () => {
+      const { data: mySends } = await supabase
+        .from("sends")
+        .select("route_id")
+        .eq("user_id", profile.id);
+      const ids = [...new Set((mySends ?? []).map((s) => s.route_id))];
+      if (ids.length === 0) {
+        if (active) {
+          setCollected(new Set());
+          setCollectedCounts(new Map());
+        }
+        return;
+      }
+      const { data: rows } = await supabase
+        .from("routes")
+        .select("gym_id")
+        .in("id", ids);
+      const counts = new Map<string, number>();
+      for (const r of rows ?? [])
+        counts.set(r.gym_id, (counts.get(r.gym_id) ?? 0) + 1);
+      if (active) {
+        setCollectedCounts(counts);
+        setCollected(new Set(counts.keys()));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [profile?.id]);
+
   const home = useMemo(
     () => gyms.find((g) => g.id === profile?.home_gym_id) ?? null,
     [gyms, profile?.home_gym_id],
   );
+
+  // Collection progress: gyms collected + distinct states stamped.
+  const collectedStats = useMemo(() => {
+    const states = new Set<string>();
+    for (const g of gyms)
+      if (collected.has(g.id) && g.state) states.add(g.state);
+    return { gyms: collected.size, states: states.size };
+  }, [gyms, collected]);
 
   function focusGym(gym: GymWithCount, zoom = 13) {
     setSelected(gym);
@@ -293,6 +348,7 @@ export function GymMap() {
           <GymLayer
             gyms={gyms}
             homeId={profile?.home_gym_id}
+            collected={collected}
             onSelect={(g) =>
               focusGym(g, Math.max(mapRef.current?.getZoom() ?? 12, 12))
             }
@@ -340,6 +396,25 @@ export function GymMap() {
           ) : null}
         </div>
       </div>
+
+      {/* Collection progress — how many gyms you've stamped */}
+      {!loading ? (
+        <div className="absolute left-4 top-20 z-10">
+          <div className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-bold text-chalk shadow-lg backdrop-blur">
+            <Trophy size={14} style={{ color: "#ffc24b" }} />
+            <span className="tabular-nums">
+              {collectedStats.gyms}/{gyms.length}
+            </span>{" "}
+            gyms
+            {collectedStats.states > 0 ? (
+              <span className="text-muted">
+                · {collectedStats.states} state
+                {collectedStats.states === 1 ? "" : "s"}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {/* Quick actions: jump home + browse as list */}
       <div className="absolute right-4 top-20 z-10 flex flex-col items-end gap-2">
@@ -399,6 +474,17 @@ export function GymMap() {
                   {selected.routeCount} active{" "}
                   {selected.routeCount === 1 ? "route" : "routes"}
                 </p>
+                {collected.has(selected.id) ? (
+                  <p
+                    className="mt-1 flex items-center gap-1 text-xs font-bold"
+                    style={{ color: "#ffc24b" }}
+                  >
+                    <Trophy size={12} /> Collected ·{" "}
+                    {collectedCounts.get(selected.id) ?? 0} send
+                    {(collectedCounts.get(selected.id) ?? 0) === 1 ? "" : "s"}{" "}
+                    here
+                  </p>
+                ) : null}
               </div>
               <button
                 onClick={() => setSelected(null)}

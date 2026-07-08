@@ -63,6 +63,7 @@ export function LogSheet({
 
   const [outcome, setOutcome] = useState<LogOutcome | null>(null);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
+  const [gymGrade, setGymGrade] = useState<number | null>(null);
   const [stars, setStars] = useState<number | null>(null);
   const [tries, setTries] = useState(1);
   const [note, setNote] = useState("");
@@ -112,6 +113,16 @@ export function LogSheet({
         },
         { onConflict: "route_id,user_id" },
       );
+    }
+    // The gym's official grade — seed it if this route doesn't have one yet.
+    if (
+      gymGrade !== null &&
+      (route.gym_grade === null || route.gym_grade === undefined)
+    ) {
+      await supabase.rpc("set_gym_grade", {
+        p_route_id: route.id,
+        p_grade: gymGrade,
+      });
     }
     // Quality stars feed the route's shared rating.
     if (stars !== null) {
@@ -269,12 +280,12 @@ export function LogSheet({
           </div>
         ) : null}
 
-        {/* Felt grade */}
+        {/* Your grade */}
         <div className="mt-4">
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
-            Felt grade
+            Your grade
             <span className="ml-1 font-normal normal-case text-faint">
-              (optional)
+              (what did it feel like?)
             </span>
           </h3>
           <GradePicker
@@ -282,8 +293,36 @@ export function LogSheet({
             onChange={setFeltGrade}
             climbingType={route.climbing_type}
             system={system}
-            gradeStyle={route.gradingStyle}
           />
+        </div>
+
+        {/* Gym's grade — seeds the route's official grade if it's not set yet */}
+        <div className="mt-4">
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
+            Gym's grade
+            <span className="ml-1 font-normal normal-case text-faint">
+              (what does the tag say?)
+            </span>
+          </h3>
+          {route.gym_grade !== null && route.gym_grade !== undefined ? (
+            <p className="text-sm text-muted">
+              Gym says{" "}
+              <span className="font-bold text-chalk">
+                {formatGradeStyled(
+                  route.gym_grade,
+                  route.climbing_type,
+                  system,
+                )}
+              </span>
+            </p>
+          ) : (
+            <GradePicker
+              value={gymGrade}
+              onChange={setGymGrade}
+              climbingType={route.climbing_type}
+              system={system}
+            />
+          )}
         </div>
 
         {/* Note + photo */}

@@ -4,6 +4,7 @@ import {
   Bell,
   Bookmark,
   Check,
+  ChevronRight,
   Clapperboard,
   Plus,
   RotateCcw,
@@ -17,7 +18,6 @@ import {
   computeLogStats,
   DAY_MS,
   fetchLogbook,
-  formatHardest,
   type LoggedItem,
   type ProjectItem,
 } from "../lib/logstats";
@@ -138,7 +138,6 @@ export function Sends() {
     }
   }
 
-  const weekMax = Math.max(...stats.weeks, 1);
   const delta = stats.thisWeek - stats.lastWeek;
 
   return (
@@ -228,86 +227,16 @@ export function Sends() {
             </div>
 
             {logged.length > 0 ? (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl bg-surface px-4 py-3 shadow-card">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                      Hardest send
-                    </p>
-                    <p className="mt-0.5 text-2xl font-extrabold leading-tight text-accent">
-                      {formatHardest(stats.hardestSend, system)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-surface px-4 py-3 shadow-card">
-                    <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-                      <Zap size={11} className="text-accent" /> Hardest flash
-                    </p>
-                    <p className="mt-0.5 text-2xl font-extrabold leading-tight text-chalk">
-                      {formatHardest(stats.hardestFlash, system)}
-                    </p>
-                  </div>
-                </div>
-
-                {stats.pyramid.length > 0 ? (
-                  <div className="rounded-2xl bg-surface p-4 shadow-card">
-                    <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
-                      <TrendingUp size={14} className="text-accent" /> Grade
-                      pyramid
-                    </h2>
-                    <div className="flex flex-col gap-1.5">
-                      {stats.pyramid.map((b) => {
-                        const max = Math.max(
-                          ...stats.pyramid.map((x) => x.count),
-                        );
-                        return (
-                          <div key={b.label} className="flex items-center gap-2">
-                            <span className="w-14 shrink-0 text-right text-xs font-semibold text-muted">
-                              {b.label}
-                            </span>
-                            <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-2">
-                              <div
-                                className="h-full rounded-full bg-accent transition-all"
-                                style={{
-                                  width: `${(b.count / max) * 100}%`,
-                                  minWidth: "0.5rem",
-                                }}
-                              />
-                            </div>
-                            <span className="w-5 shrink-0 text-xs tabular-nums text-faint">
-                              {b.count}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="rounded-2xl bg-surface p-4 shadow-card">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
-                      Last 8 weeks
-                    </h2>
-                    <span className="text-xs tabular-nums text-muted">
-                      {stats.weeks.reduce((a, b) => a + b, 0)} climbs
-                    </span>
-                  </div>
-                  <div className="mt-3 flex h-12 items-end gap-1.5">
-                    {stats.weeks.map((n, i) => (
-                      <div
-                        key={i}
-                        className={`flex-1 rounded-t-md ${
-                          i === 7 ? "bg-accent" : "bg-surface-2"
-                        }`}
-                        style={{
-                          height: `${Math.max((n / weekMax) * 100, n > 0 ? 18 : 6)}%`,
-                        }}
-                        title={`${n} climb${n === 1 ? "" : "s"}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </>
+              <button
+                onClick={() => navigate("/stats")}
+                className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition active:scale-[0.99]"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+                  <TrendingUp size={16} className="text-accent" /> Your pyramid,
+                  streaks &amp; records
+                </span>
+                <ChevronRight size={16} className="text-faint" />
+              </button>
             ) : null}
           </div>
 
