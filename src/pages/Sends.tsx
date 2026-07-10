@@ -316,12 +316,16 @@ export function Sends() {
                   route={p.route}
                   system={system}
                   index={i}
+                  to={`/project/${p.route.id}`}
                   badge={
                     <Badge tone="muted">
                       <Bookmark size={12} /> Projecting
                     </Badge>
                   }
-                  sub={daysOpen(p.since)}
+                  sub={`${daysOpen(p.since)}${
+                    p.attempts ? ` · ${p.attempts} tries` : ""
+                  }`}
+                  note={p.notePeek}
                 />
               ))}
             </ul>
@@ -393,6 +397,7 @@ function RowLink({
   badge,
   sub,
   note,
+  to,
 }: {
   route: RouteWithStats;
   system: "american" | "european";
@@ -400,12 +405,14 @@ function RowLink({
   badge: React.ReactNode;
   sub: string;
   note?: string | null;
+  /** Override destination (projects open their journal, not the route). */
+  to?: string;
 }) {
   const grade = communityGrade(route.gradeValues);
   return (
     <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
       <Link
-        to={`/route/${route.id}`}
+        to={to ?? `/route/${route.id}`}
         className="flex animate-fade-up items-center gap-3 rounded-2xl bg-surface p-3 shadow-card transition active:scale-[0.99]"
       >
         <img

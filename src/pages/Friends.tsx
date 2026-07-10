@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { ChevronLeft, QrCode, UserPlus, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 import {
   addFriendByUsername,
   fetchFriends,
@@ -22,10 +23,62 @@ export function Friends() {
   const [qrOpen, setQrOpen] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
 
+  // Light peek at what each (public) friend is climbing: their latest send
+  // and how many projects they have open. No feed — just a subtitle.
+  const [peeks, setPeeks] = useState<Map<string, string>>(new Map());
+
+  async function loadPeeks(list: FriendProfile[]) {
+    const ids = list.map((f) => f.id);
+    if (ids.length === 0) return;
+    const [{ data: sendsRows }, { data: bmRows }] = await Promise.all([
+      supabase
+        .from("sends")
+        .select("user_id, route_id, created_at")
+        .in("user_id", ids)
+        .neq("send_type", "attempt")
+        .order("created_at", { ascending: false })
+        .limit(60),
+      supabase
+        .from("bookmarks")
+        .select("user_id, route_id")
+        .in("user_id", ids)
+        .eq("kind", "project"),
+    ]);
+    const latest = new Map<string, string>(); // user -> route_id
+    for (const s of sendsRows ?? [])
+      if (!latest.has(s.user_id)) latest.set(s.user_id, s.route_id);
+    const projCount = new Map<string, number>();
+    for (const b of bmRows ?? [])
+      projCount.set(b.user_id, (projCount.get(b.user_id) ?? 0) + 1);
+    const routeIds = [...new Set(latest.values())];
+    const labelMap = new Map<string, string>();
+    if (routeIds.length > 0) {
+      const { data: rs } = await supabase
+        .from("routes")
+        .select("id, hold_color, wall_section")
+        .in("id", routeIds);
+      for (const r of rs ?? [])
+        labelMap.set(r.id, `${r.hold_color} · ${r.wall_section}`);
+    }
+    const out = new Map<string, string>();
+    for (const f of list) {
+      const parts: string[] = [];
+      const rid = latest.get(f.id);
+      if (rid && labelMap.has(rid))
+        parts.push(`Sent ${labelMap.get(rid)}`);
+      const n = projCount.get(f.id) ?? 0;
+      if (n > 0) parts.push(`projecting ${n}`);
+      if (parts.length) out.set(f.id, parts.join(" · "));
+    }
+    setPeeks(out);
+  }
+
   async function reload() {
     if (!profile) return;
-    setFriends(await fetchFriends(profile.id));
+    const list = await fetchFriends(profile.id);
+    setFriends(list);
     setLoading(false);
+    loadPeeks(list);
   }
 
   useEffect(() => {
@@ -139,6 +192,11 @@ export function Friends() {
                     {f.username ? (
                       <p className="truncate text-sm text-muted">
                         @{f.username}
+                      </p>
+                    ) : null}
+                    {peeks.has(f.id) ? (
+                      <p className="truncate text-xs text-accent">
+                        {peeks.get(f.id)}
                       </p>
                     ) : null}
                   </div>

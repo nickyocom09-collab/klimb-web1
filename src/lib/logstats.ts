@@ -19,6 +19,10 @@ export type LoggedItem = {
 export type ProjectItem = {
   route: RouteWithStats;
   since: string;
+  /** Latest private journal note for this project, if any. */
+  notePeek: string | null;
+  /** Tries logged so far (from an 'attempt' log), if any. */
+  attempts: number | null;
 };
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -82,9 +86,33 @@ export async function fetchLogbook(profileId: string): Promise<{
   const sentIds = new Set(
     sendRows.filter((s) => s.send_type !== "attempt").map((s) => s.route_id),
   );
-  const projects: ProjectItem[] = bmRows
-    .filter((b) => byId.has(b.route_id) && !sentIds.has(b.route_id))
-    .map((b) => ({ route: byId.get(b.route_id)!, since: b.created_at }));
+  const projectRows = bmRows.filter(
+    (b) => byId.has(b.route_id) && !sentIds.has(b.route_id),
+  );
+
+  // Attach each project's private note peek + tries so far.
+  const projectIds = projectRows.map((b) => b.route_id);
+  const noteMap = new Map<string, string>();
+  if (projectIds.length > 0) {
+    const { data: notes } = await supabase
+      .from("project_notes")
+      .select("route_id, body")
+      .eq("user_id", profileId)
+      .in("route_id", projectIds);
+    for (const n of notes ?? []) if (n.body.trim()) noteMap.set(n.route_id, n.body);
+  }
+  const attemptMap = new Map<string, number>();
+  for (const s of sendRows) {
+    if (s.send_type === "attempt" && s.attempts)
+      attemptMap.set(s.route_id, s.attempts);
+  }
+
+  const projects: ProjectItem[] = projectRows.map((b) => ({
+    route: byId.get(b.route_id)!,
+    since: b.created_at,
+    notePeek: noteMap.get(b.route_id) ?? null,
+    attempts: attemptMap.get(b.route_id) ?? null,
+  }));
 
   return { logged, projects };
 }

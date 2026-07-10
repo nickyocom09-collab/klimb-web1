@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../lib/auth";
+import { IntroTutorial } from "./IntroTutorial";
 import { BarChart3, BookOpen, MapPin, Plus, User } from "lucide-react";
 
 // Logbook-first IA: your history is the front door, the map is where you climb
@@ -13,8 +15,14 @@ const tabs = [
 ];
 
 export function Layout() {
+  const { profile } = useAuth();
+  // First launch only: a quick "how Klimb works" carousel. The seen_intro
+  // flag lives on the profile so it never reappears, on any device.
+  const showIntro = !!profile && profile.onboarded && !profile.seen_intro;
+
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
+      {showIntro ? <IntroTutorial /> : null}
       <main className="flex-1 overflow-y-auto pb-28">
         <Outlet />
       </main>

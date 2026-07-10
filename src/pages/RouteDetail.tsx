@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
-  Ban,
   BarChart3,
   Bookmark,
   Check,
   ChevronLeft,
-  Eye,
-  EyeOff,
   Flag,
   Heart,
   History,
-  Lightbulb,
-  MessageCircle,
-  MoreHorizontal,
-  Pencil,
   Plus,
   ShieldAlert,
   Sparkles,
@@ -35,16 +28,13 @@ import {
 } from "../lib/grades";
 import {
   climbTypeLabel,
-  CONTENT_REPORT_REASONS,
   holdHex,
   REPORT_REASONS,
 } from "../lib/constants";
-import type { ContentReason, ReportReason } from "../lib/constants";
+import type { ReportReason } from "../lib/constants";
 import { fetchRouteBookmarks, toggleBookmark } from "../lib/bookmarks";
-import { blockUser, fetchBlockedIds, reportContent } from "../lib/moderation";
 import { routeSummary } from "../lib/summary";
 import { Button, CenterSpinner } from "../components/ui";
-import { Avatar } from "../components/Avatar";
 import { LogSheet } from "../components/LogSheet";
 import { GradeBar } from "../components/GradeBar";
 import { GradeDonut } from "../components/GradeDonut";
@@ -52,15 +42,9 @@ import { GradePicker } from "../components/GradePicker";
 import { Stars } from "../components/Stars";
 import type {
   BookmarkKind,
-  CommentRow as CommentR,
   RouteEventRow,
   SendType,
 } from "../lib/database.types";
-
-type CommentWithAuthor = CommentR & {
-  authorName: string;
-  authorAvatar: string | null;
-};
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -68,22 +52,6 @@ function formatDate(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
-  const w = Math.floor(d / 7);
-  if (w < 5) return `${w}w`;
-  const mo = Math.floor(d / 30);
-  if (mo < 12) return `${mo}mo`;
-  return `${Math.floor(d / 365)}y`;
 }
 
 export function RouteDetail() {
@@ -113,69 +81,7 @@ export function RouteDetail() {
   const [hasReportedGone, setHasReportedGone] = useState(false);
   const [myStars, setMyStars] = useState<number | null>(null);
 
-  const [comments, setComments] = useState<CommentWithAuthor[]>([]);
-  const [commentBody, setCommentBody] = useState("");
-  const [isBeta, setIsBeta] = useState(false);
-  const [postingComment, setPostingComment] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(
-    null,
-  );
-  const [liked, setLiked] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // Beta is a spoiler — hidden behind a blur until the user opts in.
-  const [showBeta, setShowBeta] = useState(false);
-  const [revealedBeta, setRevealedBeta] = useState<Set<string>>(new Set());
-
   const [bookmarks, setBookmarks] = useState<Set<BookmarkKind>>(new Set());
-  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
-  const [menuCommentId, setMenuCommentId] = useState<string | null>(null);
-  const [reportComment, setReportComment] = useState<CommentWithAuthor | null>(
-    null,
-  );
-  const [reportingComment, setReportingComment] = useState(false);
-  // Editing your own comment happens inline where the comment sits.
-  const [editingComment, setEditingComment] = useState<string | null>(null);
-  const [editBody, setEditBody] = useState("");
-  const [savingEdit, setSavingEdit] = useState(false);
-
-  const loadComments = useCallback(async (routeId: string) => {
-    const { data } = await supabase
-      .from("comments")
-      .select("*")
-      .eq("route_id", routeId)
-      .eq("hidden", false)
-      .order("created_at", { ascending: true });
-    const rows = data ?? [];
-    const userIds = [...new Set(rows.map((c) => c.user_id))];
-    const info = new Map<string, { name: string; avatar: string | null }>();
-    if (userIds.length > 0) {
-      const { data: users } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
-      for (const u of users ?? [])
-        info.set(u.id, { name: u.display_name, avatar: u.avatar_url });
-    }
-    setComments(
-      rows.map((c) => ({
-        ...c,
-        authorName: info.get(c.user_id)?.name ?? "Climber",
-        authorAvatar: info.get(c.user_id)?.avatar ?? null,
-      })),
-    );
-    // Which of these comments I've already liked (real rows, not local state).
-    if (profile && rows.length > 0) {
-      const { data: myLikes } = await supabase
-        .from("comment_likes")
-        .select("comment_id")
-        .eq("user_id", profile.id)
-        .in(
-          "comment_id",
-          rows.map((r) => r.id),
-        );
-      setLiked(new Set((myLikes ?? []).map((l) => l.comment_id)));
-    }
-  }, [profile]);
 
   const load = useCallback(async () => {
     if (!id || !profile) return;
@@ -249,9 +155,7 @@ export function RouteDetail() {
       .eq("user_id", profile.id);
     setHasReportedGone((myGoneCount ?? 0) > 0);
 
-    await loadComments(id);
     setBookmarks(await fetchRouteBookmarks(profile.id, id));
-    setBlockedIds(await fetchBlockedIds(profile.id));
 
     if (r && r.created_by) {
       const creator = r.created_by;
@@ -281,7 +185,7 @@ export function RouteDetail() {
     }
 
     setLoading(false);
-  }, [id, profile, loadComments]);
+  }, [id, profile]);
 
   useEffect(() => {
     load();
@@ -345,46 +249,6 @@ export function RouteDetail() {
         else next.delete(kind);
         return next;
       });
-    }
-  }
-
-  async function blockClimber(c: CommentWithAuthor) {
-    if (!profile) return;
-    if (
-      !window.confirm(
-        `Block ${c.authorName}? You won't see their comments or activity anymore.`,
-      )
-    )
-      return;
-    setMenuCommentId(null);
-    const { error } = await blockUser(profile.id, c.user_id);
-    if (error) {
-      window.alert(error);
-      return;
-    }
-    setBlockedIds((prev) => new Set(prev).add(c.user_id));
-  }
-
-  async function submitCommentReport(reason: ContentReason) {
-    if (!reportComment) return;
-    setReportingComment(true);
-    const { count, error } = await reportContent(
-      "comment",
-      reportComment.id,
-      reason,
-    );
-    setReportingComment(false);
-    const target = reportComment;
-    setReportComment(null);
-    if (error) {
-      window.alert(error);
-      return;
-    }
-    if (count >= 3 && id) {
-      setComments((prev) => prev.filter((x) => x.id !== target.id));
-      window.alert("Thanks — this comment was hidden pending review.");
-    } else {
-      window.alert("Report submitted. Thanks for keeping Klimb clean.");
     }
   }
 
@@ -456,139 +320,6 @@ export function RouteDetail() {
     navigate("/", { replace: true });
   }
 
-  async function submitComment() {
-    if (!id || !profile || commentBody.trim().length === 0) return;
-    setPostingComment(true);
-    await supabase.from("comments").insert({
-      route_id: id,
-      user_id: profile.id,
-      body: commentBody.trim(),
-      is_beta: isBeta,
-      parent_id: replyTo?.id ?? null,
-    });
-    setCommentBody("");
-    setIsBeta(false);
-    const wasReplyingTo = replyTo?.id;
-    setReplyTo(null);
-    await loadComments(id);
-    if (wasReplyingTo)
-      setExpanded((prev) => new Set(prev).add(wasReplyingTo));
-    setPostingComment(false);
-  }
-
-  // Toggle a like: real per-user rows in comment_likes (a DB trigger keeps
-  // comments.upvotes in sync), so likes persist and can't be double-counted.
-  async function like(c: CommentWithAuthor) {
-    if (!profile) return;
-    const wasLiked = liked.has(c.id);
-    // Optimistic flip.
-    setLiked((prev) => {
-      const next = new Set(prev);
-      if (wasLiked) next.delete(c.id);
-      else next.add(c.id);
-      return next;
-    });
-    setComments((prev) =>
-      prev.map((x) =>
-        x.id === c.id
-          ? { ...x, upvotes: Math.max(0, x.upvotes + (wasLiked ? -1 : 1)) }
-          : x,
-      ),
-    );
-    const { error } = wasLiked
-      ? await supabase
-          .from("comment_likes")
-          .delete()
-          .eq("comment_id", c.id)
-          .eq("user_id", profile.id)
-      : await supabase
-          .from("comment_likes")
-          .insert({ comment_id: c.id, user_id: profile.id });
-    if (error) {
-      // Roll back the optimistic flip.
-      setLiked((prev) => {
-        const next = new Set(prev);
-        if (wasLiked) next.add(c.id);
-        else next.delete(c.id);
-        return next;
-      });
-      setComments((prev) =>
-        prev.map((x) =>
-          x.id === c.id
-            ? { ...x, upvotes: Math.max(0, x.upvotes + (wasLiked ? 1 : -1)) }
-            : x,
-        ),
-      );
-    }
-  }
-
-  function startEdit(c: CommentWithAuthor) {
-    setMenuCommentId(null);
-    setEditingComment(c.id);
-    setEditBody(c.body);
-  }
-
-  async function saveEdit() {
-    if (!editingComment || editBody.trim().length === 0) return;
-    setSavingEdit(true);
-    const now = new Date().toISOString();
-    const { error } = await supabase
-      .from("comments")
-      .update({ body: editBody.trim(), edited_at: now })
-      .eq("id", editingComment);
-    setSavingEdit(false);
-    if (error) {
-      window.alert(error.message);
-      return;
-    }
-    setComments((prev) =>
-      prev.map((x) =>
-        x.id === editingComment
-          ? { ...x, body: editBody.trim(), edited_at: now }
-          : x,
-      ),
-    );
-    setEditingComment(null);
-    setEditBody("");
-  }
-
-  async function deleteComment(c: CommentWithAuthor) {
-    if (!window.confirm("Delete this comment?")) return;
-    setMenuCommentId(null);
-    const { data, error } = await supabase
-      .from("comments")
-      .delete()
-      .eq("id", c.id)
-      .select();
-    if (error) {
-      window.alert(error.message);
-      return;
-    }
-    if (!data || data.length === 0) {
-      window.alert("Couldn't delete this comment.");
-      return;
-    }
-    // Replies to it are orphaned client-side; drop them from view too.
-    setComments((prev) =>
-      prev.filter((x) => x.id !== c.id && x.parent_id !== c.id),
-    );
-  }
-
-  function startReply(c: CommentWithAuthor) {
-    setReplyTo({ id: c.parent_id ?? c.id, name: c.authorName });
-    const el = document.getElementById("comment-input");
-    el?.focus();
-  }
-
-  function toggleReplies(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   if (loading) {
     return (
       <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
@@ -611,10 +342,6 @@ export function RouteDetail() {
   // Every grade on this page renders in the gym's house style.
   const fmt = (g: number | null | undefined) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
-  const visibleComments = comments.filter((c) => !blockedIds.has(c.user_id));
-  const topLevel = visibleComments.filter((c) => !c.parent_id);
-  const repliesOf = (parentId: string) =>
-    visibleComments.filter((c) => c.parent_id === parentId);
 
   const summary = routeSummary({
     gradeValues: route.gradeValues,
@@ -625,7 +352,7 @@ export function RouteDetail() {
     funAvg: route.funAvg,
     funCount: route.funCount,
     sendCount: route.sendCount,
-    comments: visibleComments.map((c) => ({ body: c.body, is_beta: c.is_beta })),
+    comments: [],
   });
 
   let verdictLabel = "No grades yet";
@@ -638,154 +365,6 @@ export function RouteDetail() {
       : tone === "orange"
         ? "text-wide"
         : "text-faint";
-
-  const renderComment = (c: CommentWithAuthor, isReply: boolean) => {
-    const mine = c.user_id === profile?.id;
-    const size = isReply ? 30 : 38;
-    const betaHidden =
-      c.is_beta && !showBeta && !revealedBeta.has(c.id) && !mine;
-    return (
-      <div className="flex gap-3">
-        <Link to={`/u/${c.user_id}`} className="shrink-0">
-          <Avatar name={c.authorName} url={c.authorAvatar} size={size} />
-        </Link>
-        <div className="min-w-0 flex-1">
-          {editingComment === c.id ? (
-            <div className="flex flex-col gap-2">
-              <textarea
-                value={editBody}
-                onChange={(e) => setEditBody(e.target.value)}
-                className="min-h-[60px] w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm text-chalk outline-none focus:border-accent"
-                autoFocus
-              />
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={saveEdit}
-                  disabled={savingEdit || editBody.trim().length === 0}
-                  className="text-xs font-bold text-accent disabled:opacity-50"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => {
-                    setEditingComment(null);
-                    setEditBody("");
-                  }}
-                  className="text-xs text-faint hover:text-chalk"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-          <p className="text-sm leading-snug text-chalk">
-            <Link to={`/u/${c.user_id}`} className="font-semibold hover:underline">
-              {c.authorName}
-            </Link>{" "}
-            {betaHidden ? (
-              <button
-                onClick={() =>
-                  setRevealedBeta((prev) => new Set(prev).add(c.id))
-                }
-                title="Tap to reveal beta"
-                className="align-middle text-chalk/90"
-              >
-                <span className="select-none blur-[5px]">{c.body}</span>
-                <span className="ml-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-surface-2 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-accent blur-0">
-                  <EyeOff size={10} /> beta · tap to reveal
-                </span>
-              </button>
-            ) : (
-              <span className="text-chalk/90">{c.body}</span>
-            )}
-            {c.edited_at ? (
-              <span className="ml-1 text-[11px] text-faint">(edited)</span>
-            ) : null}
-          </p>
-          )}
-          <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-faint">
-            <span>{timeAgo(c.created_at)}</span>
-            {c.is_beta ? (
-              <span className="flex items-center gap-1 text-accent">
-                <Lightbulb size={12} /> Beta
-              </span>
-            ) : null}
-            {c.upvotes > 0 ? (
-              <span>
-                {c.upvotes} like{c.upvotes === 1 ? "" : "s"}
-              </span>
-            ) : null}
-            <button
-              onClick={() => startReply(c)}
-              className="font-semibold hover:text-chalk"
-            >
-              Reply
-            </button>
-            <div className="relative">
-              <button
-                onClick={() =>
-                  setMenuCommentId((p) => (p === c.id ? null : c.id))
-                }
-                aria-label="Options"
-                className="hover:text-chalk"
-              >
-                <MoreHorizontal size={15} />
-              </button>
-              {menuCommentId === c.id ? (
-                <div className="absolute left-0 top-6 z-20 w-40 overflow-hidden rounded-xl border border-border bg-surface-2 shadow-card">
-                  {mine ? (
-                    <>
-                      <button
-                        onClick={() => startEdit(c)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
-                      >
-                        <Pencil size={14} /> Edit
-                      </button>
-                      <button
-                        onClick={() => deleteComment(c)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
-                      >
-                        <Trash2 size={14} /> Delete
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => {
-                          setMenuCommentId(null);
-                          setReportComment(c);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-chalk hover:bg-surface"
-                      >
-                        <Flag size={14} /> Report
-                      </button>
-                      <button
-                        onClick={() => blockClimber(c)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-wide hover:bg-surface"
-                      >
-                        <Ban size={14} /> Block climber
-                      </button>
-                    </>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={() => like(c)}
-          aria-label="Like"
-          className="mt-1 shrink-0 text-faint transition hover:text-wide"
-        >
-          <Heart
-            size={15}
-            className={liked.has(c.id) ? "text-wide" : ""}
-            fill={liked.has(c.id) ? "currentColor" : "none"}
-          />
-        </button>
-      </div>
-    );
-  };
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
@@ -1044,69 +623,6 @@ export function RouteDetail() {
             </Button>
           )}
 
-          {/* Comments — Instagram style */}
-          <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-faint">
-                <MessageCircle size={15} /> Comments
-                {topLevel.length > 0 ? ` · ${topLevel.length}` : ""}
-              </h2>
-              {visibleComments.some((c) => c.is_beta) ? (
-                <button
-                  onClick={() => setShowBeta((v) => !v)}
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                    showBeta
-                      ? "bg-accent/15 text-accent"
-                      : "bg-surface-2 text-muted hover:text-chalk"
-                  }`}
-                >
-                  {showBeta ? <Eye size={14} /> : <EyeOff size={14} />}
-                  {showBeta ? "Hide beta" : "Show beta"}
-                </button>
-              ) : null}
-            </div>
-
-            {topLevel.length === 0 ? (
-              <p className="text-sm text-faint">
-                No comments yet. Start the conversation.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-4">
-                {topLevel.map((c) => {
-                  const replies = repliesOf(c.id);
-                  const isOpen = expanded.has(c.id);
-                  return (
-                    <li key={c.id}>
-                      {renderComment(c, false)}
-                      {replies.length > 0 ? (
-                        <div className="ml-[50px] mt-2">
-                          <button
-                            onClick={() => toggleReplies(c.id)}
-                            className="flex items-center gap-2 text-xs font-semibold text-faint hover:text-muted"
-                          >
-                            <span className="h-px w-6 bg-border" />
-                            {isOpen
-                              ? "Hide replies"
-                              : `View ${replies.length} ${
-                                  replies.length === 1 ? "reply" : "replies"
-                                }`}
-                          </button>
-                          {isOpen ? (
-                            <ul className="mt-3 flex flex-col gap-3">
-                              {replies.map((rc) => (
-                                <li key={rc.id}>{renderComment(rc, true)}</li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
           {/* Route history — the permanent timeline of this route's life. */}
           {events.length > 0 ? (
             <section className="rounded-2xl bg-surface p-4 shadow-card">
@@ -1221,49 +737,6 @@ export function RouteDetail() {
         </div>
       </div>
 
-      {/* Sticky composer */}
-      <div className="border-t border-border bg-bg px-4 py-2.5">
-        {replyTo ? (
-          <div className="mb-2 flex items-center justify-between rounded-lg bg-surface-2 px-3 py-1.5 text-xs text-muted">
-            <span>
-              Replying to <span className="text-chalk">{replyTo.name}</span>
-            </span>
-            <button onClick={() => setReplyTo(null)} aria-label="Cancel reply">
-              <X size={15} />
-            </button>
-          </div>
-        ) : null}
-        <div className="flex items-center gap-2">
-          <Avatar name={profile?.display_name} url={profile?.avatar_url} size={32} />
-          <input
-            id="comment-input"
-            value={commentBody}
-            onChange={(e) => setCommentBody(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitComment()}
-            placeholder="Add a comment…"
-            className="h-10 flex-1 rounded-full bg-surface-2 px-4 text-base text-chalk placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
-          />
-          <button
-            onClick={() => setIsBeta((v) => !v)}
-            aria-label="Mark as beta"
-            className={`rounded-full p-2 transition ${
-              isBeta ? "text-accent" : "text-faint hover:text-chalk"
-            }`}
-          >
-            <Lightbulb size={18} />
-          </button>
-          {commentBody.trim().length > 0 ? (
-            <button
-              onClick={submitComment}
-              disabled={postingComment}
-              className="shrink-0 px-2 text-sm font-bold text-accent disabled:opacity-50"
-            >
-              Post
-            </button>
-          ) : null}
-        </div>
-      </div>
-
       {/* Stats sheet */}
       {statsOpen ? (
         <div
@@ -1351,37 +824,6 @@ export function RouteDetail() {
         </div>
       ) : null}
 
-      {/* Comment report reasons sheet */}
-      {reportComment ? (
-        <div className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4">
-          <div className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card">
-            <h3 className="text-lg font-bold text-chalk">Report comment</h3>
-            <p className="mt-1 text-sm text-muted">
-              Why are you reporting this? After 3 reports it's hidden pending
-              review.
-            </p>
-            <div className="mt-4 flex flex-col gap-2">
-              {CONTENT_REPORT_REASONS.map((r) => (
-                <button
-                  key={r.value}
-                  disabled={reportingComment}
-                  onClick={() => submitCommentReport(r.value)}
-                  className="w-full rounded-2xl bg-surface-2 py-3 text-sm font-semibold text-chalk transition hover:ring-1 hover:ring-accent disabled:opacity-50"
-                >
-                  {r.label}
-                </button>
-              ))}
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={() => setReportComment(null)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

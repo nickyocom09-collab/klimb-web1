@@ -81,7 +81,7 @@ export function Stats() {
       {loading ? (
         <ListSkeleton rows={3} />
       ) : (
-        <div className="flex flex-col gap-3 px-5 pb-6 pt-1">
+        <div className="flex flex-col gap-5 px-5 pb-8 pt-2">
           {/* ---- Recaps hub ---- */}
           {latest ? (
             <button
@@ -128,47 +128,82 @@ export function Stats() {
             </div>
           )}
 
-          {/* ---- All-time numbers ---- */}
-          <div className="grid grid-cols-3 gap-2">
-            <Tile n={String(stats.total)} label="Sends" />
-            <Tile n={String(stats.flashes)} label="Flashes" />
-            <Tile
-              n={stats.flashRate !== null ? `${stats.flashRate}%` : "—"}
-              label="Flash rate"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-2xl bg-surface px-4 py-3 shadow-card">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Hardest send
+          {logged.length === 0 ? (
+            /* Low data: encouragement, not a wall of zeros. */
+            <div className="rounded-3xl bg-surface px-6 py-10 text-center shadow-card">
+              <p className="text-lg font-extrabold text-chalk">
+                Your numbers start with one climb
               </p>
-              <p className="mt-0.5 text-2xl font-extrabold leading-tight text-accent">
-                {formatHardest(stats.hardestSend, system)}
+              <p className="mx-auto mt-2 max-w-xs text-sm text-muted">
+                Log your first send and this page fills in — hardest climbs,
+                grade pyramid, weekly volume, and a recap every Sunday.
               </p>
             </div>
-            <div className="rounded-2xl bg-surface px-4 py-3 shadow-card">
-              <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
-                <Zap size={11} className="text-accent" /> Hardest flash
-              </p>
-              <p className="mt-0.5 text-2xl font-extrabold leading-tight text-chalk">
-                {formatHardest(stats.hardestFlash, system)}
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <Tile n={String(stats.sessions)} label="Sessions" />
-            <Tile n={String(stats.attemptsTotal)} label="Total tries" />
-            <Tile n={stats.topWall ?? "—"} label="Fav wall" small />
+          ) : (
+            <>
+          {/* ---- ONE headline moment ---- */}
+          <div className="rounded-3xl bg-surface px-6 py-8 text-center shadow-card">
+            <p className="text-6xl font-extrabold leading-none tabular-nums text-accent">
+              {logged.length}
+            </p>
+            <p className="mt-2 text-base font-semibold text-chalk">
+              climb{logged.length === 1 ? "" : "s"} logged
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {stats.total} send{stats.total === 1 ? "" : "s"} ·{" "}
+              {stats.flashes} flash{stats.flashes === 1 ? "" : "es"}
+              {stats.flashRate !== null
+                ? ` · ${stats.flashRate}% first try`
+                : ""}
+            </p>
           </div>
 
-          {/* All-time pyramid */}
+          {/* ---- The four numbers that matter ---- */}
+          <div className="grid grid-cols-2 gap-3">
+            <BigStat label="Hardest send" tone="accent">
+              {formatHardest(stats.hardestSend, system)}
+            </BigStat>
+            <BigStat
+              label="Hardest flash"
+              icon={<Zap size={12} className="text-accent" />}
+            >
+              {formatHardest(stats.hardestFlash, system)}
+            </BigStat>
+            <BigStat
+              label="This week"
+              sub={
+                stats.thisWeek - stats.lastWeek === 0
+                  ? "same as last week"
+                  : `${stats.thisWeek - stats.lastWeek > 0 ? "+" : ""}${stats.thisWeek - stats.lastWeek} vs last week`
+              }
+              subTone={
+                stats.thisWeek - stats.lastWeek > 0
+                  ? "accent"
+                  : stats.thisWeek - stats.lastWeek < 0
+                    ? "wide"
+                    : "faint"
+              }
+            >
+              {String(stats.thisWeek)}
+            </BigStat>
+            <BigStat label="Sessions">{String(stats.sessions)}</BigStat>
+          </div>
+
+          {/* Grade pyramid — one chart, one takeaway */}
           {stats.pyramid.length > 0 ? (
-            <div className="rounded-2xl bg-surface p-4 shadow-card">
-              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
-                <TrendingUp size={14} className="text-accent" /> All-time
-                pyramid
+            <div className="rounded-3xl bg-surface p-5 shadow-card">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
+                <TrendingUp size={14} className="text-accent" /> Grade pyramid
               </h2>
-              <div className="flex flex-col gap-1.5">
+              <p className="mb-4 mt-1 text-sm text-muted">
+                {(() => {
+                  const top = stats.pyramid.reduce((a, b) =>
+                    b.count > a.count ? b : a,
+                  );
+                  return `Most of your sends land at ${top.label}.`;
+                })()}
+              </p>
+              <div className="flex flex-col gap-2">
                 {stats.pyramid.map((b) => {
                   const max = Math.max(...stats.pyramid.map((x) => x.count));
                   return (
@@ -195,19 +230,21 @@ export function Stats() {
             </div>
           ) : null}
 
-          {/* Weekly volume */}
-          <div className="rounded-2xl bg-surface p-4 shadow-card">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
-                Last 8 weeks
-              </h2>
-              <span className="text-xs tabular-nums text-muted">
-                {stats.thisWeek} this week ·{" "}
-                {stats.thisWeek - stats.lastWeek >= 0 ? "+" : ""}
-                {stats.thisWeek - stats.lastWeek} vs last
-              </span>
-            </div>
-            <div className="mt-3 flex h-12 items-end gap-1.5">
+          {/* Weekly volume — one chart, one takeaway */}
+          <div className="rounded-3xl bg-surface p-5 shadow-card">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
+              Last 8 weeks
+            </h2>
+            <p className="mb-4 mt-1 text-sm text-muted">
+              {stats.thisWeek - stats.lastWeek > 0
+                ? "You're climbing more than last week — keep it rolling."
+                : stats.thisWeek - stats.lastWeek < 0
+                  ? "A quieter week than last — the wall will be there."
+                  : stats.thisWeek > 0
+                    ? "Steady as she goes — same pace as last week."
+                    : "Nothing logged yet this week."}
+            </p>
+            <div className="flex h-16 items-end gap-2">
               {stats.weeks.map((n, i) => (
                 <div
                   key={i}
@@ -221,6 +258,9 @@ export function Stats() {
               ))}
             </div>
           </div>
+
+            </>
+          )}
 
           {/* Past recaps */}
           {recaps.length > 1 ? (
@@ -251,12 +291,6 @@ export function Stats() {
             </section>
           ) : null}
 
-          {logged.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-faint">
-              Log your first climb and this page comes alive — pyramid, streaks,
-              recaps, all of it.
-            </p>
-          ) : null}
         </div>
       )}
 
@@ -267,23 +301,42 @@ export function Stats() {
   );
 }
 
-function Tile({
-  n,
+/** One big, plainly-labeled number — the only stat-card style on this page. */
+function BigStat({
   label,
-  small = false,
+  children,
+  sub,
+  subTone = "faint",
+  tone,
+  icon,
 }: {
-  n: string;
   label: string;
-  small?: boolean;
+  children: React.ReactNode;
+  sub?: string;
+  subTone?: "accent" | "wide" | "faint";
+  tone?: "accent";
+  icon?: React.ReactNode;
 }) {
+  const subClass =
+    subTone === "accent"
+      ? "text-accent"
+      : subTone === "wide"
+        ? "text-wide"
+        : "text-faint";
   return (
-    <div className="rounded-2xl bg-surface px-3 py-3 text-center shadow-card">
-      <p
-        className={`font-extrabold tabular-nums text-chalk ${small ? "truncate text-base leading-8" : "text-2xl"}`}
-      >
-        {n}
+    <div className="rounded-3xl bg-surface px-4 py-5 shadow-card">
+      <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+        {icon}
+        {label}
       </p>
-      <p className="text-[11px] uppercase tracking-wide text-muted">{label}</p>
+      <p
+        className={`mt-1.5 text-3xl font-extrabold leading-none tabular-nums ${
+          tone === "accent" ? "text-accent" : "text-chalk"
+        }`}
+      >
+        {children}
+      </p>
+      {sub ? <p className={`mt-1.5 text-xs ${subClass}`}>{sub}</p> : null}
     </div>
   );
 }

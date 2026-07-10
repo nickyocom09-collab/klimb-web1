@@ -21,6 +21,7 @@ import { Settings } from "./pages/Settings";
 import { Gyms } from "./pages/Gyms";
 import { Glossary } from "./pages/Glossary";
 import { Stats } from "./pages/Stats";
+import { ProjectDetail } from "./pages/ProjectDetail";
 
 // The 3D globe pulls in three.js — keep it out of the main bundle so the
 // feed loads fast; the globe chunk streams in when the Map tab is opened.
@@ -114,6 +115,14 @@ export default function App() {
         element={
           <RequireAuth>
             <RouteDetail />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/project/:routeId"
+        element={
+          <RequireAuth>
+            <ProjectDetail />
           </RequireAuth>
         }
       />
