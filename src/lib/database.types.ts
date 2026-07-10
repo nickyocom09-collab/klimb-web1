@@ -58,6 +58,7 @@ export interface Database {
           theme: ThemeEnum;
           default_climb_filter: ClimbFilterEnum;
           onboarded: boolean;
+          seen_intro: boolean;
           notifications_seen_at: string;
           created_at: string;
         };
@@ -74,6 +75,7 @@ export interface Database {
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
           onboarded?: boolean;
+          seen_intro?: boolean;
           notifications_seen_at?: string;
           created_at?: string;
         };
@@ -89,6 +91,7 @@ export interface Database {
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
           onboarded?: boolean;
+          seen_intro?: boolean;
           notifications_seen_at?: string;
         };
         Relationships: [];
@@ -431,6 +434,29 @@ export interface Database {
           created_at?: string;
         };
         Update: Record<string, never>;
+        Relationships: [];
+      };
+      project_notes: {
+        Row: {
+          id: string;
+          user_id: string;
+          route_id: string;
+          body: string;
+          updated_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          route_id: string;
+          body?: string;
+          updated_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          body?: string;
+          updated_at?: string;
+        };
         Relationships: [];
       };
       recaps: {

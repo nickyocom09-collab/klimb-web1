@@ -179,6 +179,16 @@
 .klimb-pin--collected .klimb-pin__label {
   border-color: rgba(255, 194, 75, 0.45);
 }
+/* Gyms your friends have collected (optional overlay toggle). */
+.klimb-pin--friend .klimb-pin__dot {
+  background: #4cc3ff;
+  box-shadow:
+    0 0 6px 1px rgba(76, 195, 255, 0.7),
+    0 0 14px 3px rgba(76, 195, 255, 0.3);
+}
+.klimb-pin--friend .klimb-pin__label {
+  border-color: rgba(76, 195, 255, 0.45);
+}
 .klimb-cluster {
   background: none;
   border: none;

@@ -61,6 +61,7 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     theme: "dark",
     default_climb_filter: "all",
     onboarded: true,
+    seen_intro: true,
     notifications_seen_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
   };

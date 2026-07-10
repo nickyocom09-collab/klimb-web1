@@ -6,22 +6,40 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import {
+  Bookmark,
   Check,
   Home,
-  List,
   LocateFixed,
   MapPin,
   Plane,
   Search,
+  Stamp,
   Trophy,
+  Users,
   X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
+import { formatGradeStyled } from "../lib/grades";
 import { Button, CenterSpinner } from "../components/ui";
 import type { GymRow } from "../lib/database.types";
 
 type GymWithCount = GymRow & { routeCount: number };
+
+/** Everything you've done at one gym — the "what have I done here?" answer. */
+type MyGymStats = {
+  sends: number;
+  hardestLabel: string | null;
+  firstVisit: string;
+  lastVisit: string;
+};
+
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  });
+}
 
 const US_CENTER: [number, number] = [39.5, -98.35];
 
@@ -39,13 +57,21 @@ function esc(s: string): string {
 
 const HOUSE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>`;
 
-/** Dot + name pill. Home = green pulse, collected = gold glow, else dim. */
-function pinIcon(name: string, home: boolean, collected: boolean): L.DivIcon {
+/** Dot + name pill. Home = green pulse, collected = gold glow, friend = blue,
+ * else dim. Your own collection always outranks the friends overlay. */
+function pinIcon(
+  name: string,
+  home: boolean,
+  collected: boolean,
+  friend: boolean,
+): L.DivIcon {
   const mod = home
     ? " klimb-pin--home"
     : collected
       ? " klimb-pin--collected"
-      : " klimb-pin--dim";
+      : friend
+        ? " klimb-pin--friend"
+        : " klimb-pin--dim";
   return L.divIcon({
     className: "klimb-pin-wrap",
     html: `<div class="klimb-pin${mod}">
@@ -98,11 +124,13 @@ function GymLayer({
   gyms,
   homeId,
   collected,
+  friendGyms,
   onSelect,
 }: {
   gyms: GymWithCount[];
   homeId: string | null | undefined;
   collected: Set<string>;
+  friendGyms: Set<string>;
   onSelect: (g: GymWithCount) => void;
 }) {
   const map = useMap();
@@ -123,8 +151,19 @@ function GymLayer({
     for (const gym of gyms) {
       const isHome = gym.id === homeId;
       const m = L.marker([gym.latitude!, gym.longitude!], {
-        icon: pinIcon(gym.name, isHome, collected.has(gym.id)),
-        zIndexOffset: isHome ? 1000 : collected.has(gym.id) ? 500 : 0,
+        icon: pinIcon(
+          gym.name,
+          isHome,
+          collected.has(gym.id),
+          friendGyms.has(gym.id),
+        ),
+        zIndexOffset: isHome
+          ? 1000
+          : collected.has(gym.id)
+            ? 500
+            : friendGyms.has(gym.id)
+              ? 250
+              : 0,
         riseOnHover: true,
       });
       m.on("click", () => onSelect(gym));
@@ -140,7 +179,7 @@ function GymLayer({
       map.removeLayer(group);
       homeMarker?.remove();
     };
-  }, [map, gyms, homeId, collected, onSelect]);
+  }, [map, gyms, homeId, collected, friendGyms, onSelect]);
   return null;
 }
 
@@ -154,11 +193,20 @@ export function GymMap() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<GymWithCount | null>(null);
   const [saving, setSaving] = useState<"home" | "visit" | null>(null);
-  // Gyms you've logged a send at — your "collected" gyms.
+  // Gyms you've logged a send at — your "collected" gyms — plus what you've
+  // actually done at each (sends, hardest, first/last visit) and your open
+  // projects there.
   const [collected, setCollected] = useState<Set<string>>(new Set());
-  const [collectedCounts, setCollectedCounts] = useState<Map<string, number>>(
+  const [myStats, setMyStats] = useState<Map<string, MyGymStats>>(new Map());
+  const [projectsByGym, setProjectsByGym] = useState<Map<string, string[]>>(
     new Map(),
   );
+  // Light social: friends' collected gyms (only fetched when toggled on).
+  const [friendsOn, setFriendsOn] = useState(false);
+  const [friendGyms, setFriendGyms] = useState<Set<string>>(new Set());
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+  // Passport: the at-a-glance stamp book (state → collected gyms).
+  const [passportOpen, setPassportOpen] = useState(false);
 
   // Match the tiles to the app theme.
   const dark =
@@ -192,39 +240,209 @@ export function GymMap() {
     };
   }, []);
 
-  // Which gyms you've collected (a send there), + how many sends at each.
+  // Which gyms you've collected (a send there), plus per-gym stats and your
+  // open projects — all derived from your own sends/bookmarks/grades.
   useEffect(() => {
     if (!profile) return;
     let active = true;
     (async () => {
-      const { data: mySends } = await supabase
-        .from("sends")
-        .select("route_id")
-        .eq("user_id", profile.id);
-      const ids = [...new Set((mySends ?? []).map((s) => s.route_id))];
-      if (ids.length === 0) {
+      const [{ data: mySends }, { data: myBms }, { data: myGrades }] =
+        await Promise.all([
+          supabase
+            .from("sends")
+            .select("route_id, send_type, created_at")
+            .eq("user_id", profile.id),
+          supabase
+            .from("bookmarks")
+            .select("route_id")
+            .eq("user_id", profile.id)
+            .eq("kind", "project"),
+          supabase
+            .from("grades")
+            .select("route_id, grade")
+            .eq("user_id", profile.id),
+        ]);
+      const sendRows = (mySends ?? []).filter(
+        (s) => s.send_type !== "attempt",
+      );
+      const allRouteIds = [
+        ...new Set([
+          ...(mySends ?? []).map((s) => s.route_id),
+          ...(myBms ?? []).map((b) => b.route_id),
+        ]),
+      ];
+      if (allRouteIds.length === 0) {
         if (active) {
           setCollected(new Set());
-          setCollectedCounts(new Map());
+          setMyStats(new Map());
+          setProjectsByGym(new Map());
         }
         return;
       }
-      const { data: rows } = await supabase
+      const { data: routeRows } = await supabase
         .from("routes")
-        .select("gym_id")
-        .in("id", ids);
-      const counts = new Map<string, number>();
-      for (const r of rows ?? [])
-        counts.set(r.gym_id, (counts.get(r.gym_id) ?? 0) + 1);
+        .select(
+          "id, gym_id, hold_color, wall_section, climbing_type, community_grade_cached, gym_grade, gyms(grading_style)",
+        )
+        .in("id", allRouteIds);
+      type RR = {
+        id: string;
+        gym_id: string;
+        hold_color: string;
+        wall_section: string;
+        climbing_type: "boulder" | "toprope";
+        community_grade_cached: number | null;
+        gym_grade: number | null;
+        gyms: { grading_style: "classic" | "bands" } | null;
+      };
+      const routeMap = new Map(
+        ((routeRows ?? []) as unknown as RR[]).map((r) => [r.id, r]),
+      );
+      const gradeMap = new Map(
+        (myGrades ?? []).map((g) => [g.route_id, g.grade]),
+      );
+
+      // Per-gym: sends count, hardest send (best label), first + last visit.
+      const stats = new Map<
+        string,
+        MyGymStats & { hardestOrd: number; hardestType: string }
+      >();
+      for (const s of sendRows) {
+        const r = routeMap.get(s.route_id);
+        if (!r) continue;
+        const ord =
+          gradeMap.get(s.route_id) ??
+          r.community_grade_cached ??
+          r.gym_grade ??
+          -1;
+        const cur = stats.get(r.gym_id);
+        if (!cur) {
+          stats.set(r.gym_id, {
+            sends: 1,
+            hardestOrd: ord,
+            hardestType: r.climbing_type,
+            hardestLabel:
+              ord >= 0
+                ? formatGradeStyled(
+                    ord,
+                    r.climbing_type,
+                    profile.grade_system,
+                    r.gyms?.grading_style ?? "classic",
+                  )
+                : null,
+            firstVisit: s.created_at,
+            lastVisit: s.created_at,
+          });
+        } else {
+          cur.sends += 1;
+          if (s.created_at < cur.firstVisit) cur.firstVisit = s.created_at;
+          if (s.created_at > cur.lastVisit) cur.lastVisit = s.created_at;
+          // Compare within climbing type only (V vs 5.x aren't comparable);
+          // boulders win ties for the headline.
+          if (
+            ord > cur.hardestOrd &&
+            (r.climbing_type === cur.hardestType || cur.hardestOrd < 0)
+          ) {
+            cur.hardestOrd = ord;
+            cur.hardestType = r.climbing_type;
+            cur.hardestLabel = formatGradeStyled(
+              ord,
+              r.climbing_type,
+              profile.grade_system,
+              r.gyms?.grading_style ?? "classic",
+            );
+          }
+        }
+      }
+
+      // Open projects per gym (not yet sent).
+      const sentRouteIds = new Set(sendRows.map((s) => s.route_id));
+      const projects = new Map<string, string[]>();
+      for (const b of myBms ?? []) {
+        if (sentRouteIds.has(b.route_id)) continue;
+        const r = routeMap.get(b.route_id);
+        if (!r) continue;
+        const list = projects.get(r.gym_id) ?? [];
+        list.push(`${r.hold_color} · ${r.wall_section}`);
+        projects.set(r.gym_id, list);
+      }
+
       if (active) {
-        setCollectedCounts(counts);
-        setCollected(new Set(counts.keys()));
+        setMyStats(stats);
+        setCollected(new Set(stats.keys()));
+        setProjectsByGym(projects);
       }
     })();
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
+
+  // Friends' collected gyms — fetched lazily the first time the toggle is
+  // flipped on. Only friends with public logbooks (sends_public) count.
+  useEffect(() => {
+    if (!friendsOn || friendsLoaded || !profile) return;
+    let active = true;
+    (async () => {
+      const { data: fr } = await supabase
+        .from("friendships")
+        .select("requester_id, addressee_id")
+        .eq("status", "accepted")
+        .or(`requester_id.eq.${profile.id},addressee_id.eq.${profile.id}`);
+      const friendIds = [
+        ...new Set(
+          (fr ?? []).map((f) =>
+            f.requester_id === profile.id ? f.addressee_id : f.requester_id,
+          ),
+        ),
+      ];
+      if (friendIds.length === 0) {
+        if (active) {
+          setFriendGyms(new Set());
+          setFriendsLoaded(true);
+        }
+        return;
+      }
+      const { data: pubs } = await supabase
+        .from("profiles")
+        .select("id")
+        .in("id", friendIds)
+        .eq("sends_public", true);
+      const publicIds = (pubs ?? []).map((p) => p.id);
+      if (publicIds.length === 0) {
+        if (active) {
+          setFriendGyms(new Set());
+          setFriendsLoaded(true);
+        }
+        return;
+      }
+      const { data: fSends } = await supabase
+        .from("sends")
+        .select("route_id")
+        .in("user_id", publicIds)
+        .neq("send_type", "attempt");
+      const rids = [...new Set((fSends ?? []).map((s) => s.route_id))];
+      if (rids.length === 0) {
+        if (active) {
+          setFriendGyms(new Set());
+          setFriendsLoaded(true);
+        }
+        return;
+      }
+      const { data: rs } = await supabase
+        .from("routes")
+        .select("gym_id")
+        .in("id", rids);
+      if (active) {
+        setFriendGyms(new Set((rs ?? []).map((r) => r.gym_id)));
+        setFriendsLoaded(true);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [friendsOn, friendsLoaded, profile]);
 
   const home = useMemo(
     () => gyms.find((g) => g.id === profile?.home_gym_id) ?? null,
@@ -288,7 +506,7 @@ export function GymMap() {
   async function setHome(gym: GymWithCount) {
     if (!profile) return;
     if (gym.id === profile.home_gym_id && !profile.visiting_gym_id) {
-      navigate("/");
+      navigate("/gym");
       return;
     }
     setSaving("home");
@@ -298,7 +516,7 @@ export function GymMap() {
       .eq("id", profile.id);
     await refreshProfile();
     setSaving(null);
-    navigate("/");
+    navigate("/gym");
   }
 
   async function visitGym(gym: GymWithCount) {
@@ -310,7 +528,7 @@ export function GymMap() {
       .eq("id", profile.id);
     await refreshProfile();
     setSaving(null);
-    navigate("/");
+    navigate("/gym");
   }
 
   const isHome = selected?.id === profile?.home_gym_id;
@@ -349,6 +567,7 @@ export function GymMap() {
             gyms={gyms}
             homeId={profile?.home_gym_id}
             collected={collected}
+            friendGyms={friendsOn ? friendGyms : new Set()}
             onSelect={(g) =>
               focusGym(g, Math.max(mapRef.current?.getZoom() ?? 12, 12))
             }
@@ -416,13 +635,24 @@ export function GymMap() {
         </div>
       ) : null}
 
-      {/* Quick actions: jump home + browse as list */}
+      {/* Quick actions: passport, friends overlay, home, me */}
       <div className="absolute right-4 top-20 z-10 flex flex-col items-end gap-2">
         <button
-          onClick={() => navigate("/gyms")}
+          onClick={() => setPassportOpen(true)}
           className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur transition active:scale-95"
         >
-          <List size={15} /> List
+          <Stamp size={15} style={{ color: "#ffc24b" }} /> Passport
+        </button>
+        <button
+          onClick={() => setFriendsOn((v) => !v)}
+          aria-pressed={friendsOn}
+          className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur transition active:scale-95 ${
+            friendsOn
+              ? "bg-[#4cc3ff] text-bg"
+              : "bg-surface/95 text-chalk"
+          }`}
+        >
+          <Users size={15} /> Friends
         </button>
         {home ? (
           <button
@@ -450,6 +680,98 @@ export function GymMap() {
         </div>
       ) : null}
 
+      {/* Passport — the stamp book: your footprint grouped by state */}
+      {passportOpen ? (
+        <div className="absolute inset-0 z-20 flex flex-col bg-bg/97 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-app items-center justify-between px-5 pb-2 pt-6">
+            <div>
+              <h2 className="flex items-center gap-2 text-2xl font-extrabold text-chalk">
+                <Stamp size={22} style={{ color: "#ffc24b" }} /> Passport
+              </h2>
+              <p className="mt-0.5 text-sm text-muted">
+                {collectedStats.gyms} of {gyms.length} gyms ·{" "}
+                {collectedStats.states} state
+                {collectedStats.states === 1 ? "" : "s"} stamped
+              </p>
+            </div>
+            <button
+              onClick={() => setPassportOpen(false)}
+              aria-label="Close passport"
+              className="rounded-full bg-surface p-2 text-muted transition hover:text-chalk"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="mx-auto w-full max-w-app flex-1 overflow-y-auto px-5 pb-28 pt-2">
+            {collected.size === 0 ? (
+              <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
+                <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-surface">
+                  <Stamp size={28} className="text-faint" />
+                </span>
+                <p className="font-semibold text-chalk">No stamps yet</p>
+                <p className="max-w-xs text-sm text-muted">
+                  Log a send at any gym and it turns gold on your map — your
+                  first stamp is one climb away.
+                </p>
+              </div>
+            ) : (
+              (() => {
+                const byState = new Map<string, GymWithCount[]>();
+                for (const g of gyms) {
+                  if (!collected.has(g.id)) continue;
+                  const key = g.state?.trim() || "Elsewhere";
+                  const list = byState.get(key) ?? [];
+                  list.push(g);
+                  byState.set(key, list);
+                }
+                return [...byState.entries()]
+                  .sort((a, b) => a[0].localeCompare(b[0]))
+                  .map(([state, list]) => (
+                    <section key={state} className="mb-5">
+                      <h3 className="mb-2 ml-1 text-sm font-semibold uppercase tracking-wide text-faint">
+                        {state} · {list.length}
+                      </h3>
+                      <ul className="flex flex-col gap-1.5">
+                        {list.map((g) => {
+                          const s = myStats.get(g.id);
+                          return (
+                            <li key={g.id}>
+                              <button
+                                onClick={() => {
+                                  setPassportOpen(false);
+                                  focusGym(g);
+                                }}
+                                className="flex w-full items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition active:scale-[0.99]"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-semibold text-chalk">
+                                    {g.name}
+                                  </span>
+                                  <span className="block truncate text-xs text-muted">
+                                    {[g.city, s ? shortDate(s.firstVisit) : null]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                  </span>
+                                </span>
+                                <span
+                                  className="flex shrink-0 items-center gap-1 text-xs font-bold tabular-nums"
+                                  style={{ color: "#ffc24b" }}
+                                >
+                                  <Trophy size={12} /> {s?.sends ?? 0}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  ));
+              })()
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {/* Selected-gym card */}
       {selected ? (
         <div className="absolute inset-x-0 bottom-24 z-10 animate-fade-up p-4">
@@ -474,17 +796,6 @@ export function GymMap() {
                   {selected.routeCount} active{" "}
                   {selected.routeCount === 1 ? "route" : "routes"}
                 </p>
-                {collected.has(selected.id) ? (
-                  <p
-                    className="mt-1 flex items-center gap-1 text-xs font-bold"
-                    style={{ color: "#ffc24b" }}
-                  >
-                    <Trophy size={12} /> Collected ·{" "}
-                    {collectedCounts.get(selected.id) ?? 0} send
-                    {(collectedCounts.get(selected.id) ?? 0) === 1 ? "" : "s"}{" "}
-                    here
-                  </p>
-                ) : null}
               </div>
               <button
                 onClick={() => setSelected(null)}
@@ -494,6 +805,69 @@ export function GymMap() {
                 <X size={20} />
               </button>
             </div>
+            {/* What have I done here? */}
+            {(() => {
+              const s = myStats.get(selected.id);
+              const projs = projectsByGym.get(selected.id) ?? [];
+              if (!s && projs.length === 0) {
+                return (
+                  <p className="mt-3 rounded-2xl bg-surface-2 px-3 py-2.5 text-xs text-muted">
+                    You haven't climbed here yet
+                    {friendsOn && friendGyms.has(selected.id)
+                      ? " — but a friend has. "
+                      : ". "}
+                    Set it as home or log a visit to stamp it gold.
+                  </p>
+                );
+              }
+              return (
+                <div className="mt-3 flex flex-col gap-2">
+                  {s ? (
+                    <div
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl px-3 py-2.5 text-xs font-semibold"
+                      style={{
+                        color: "#ffc24b",
+                        backgroundColor: "rgba(255,194,75,0.10)",
+                      }}
+                    >
+                      <span className="flex items-center gap-1">
+                        <Trophy size={12} /> {s.sends} send
+                        {s.sends === 1 ? "" : "s"}
+                      </span>
+                      {s.hardestLabel ? (
+                        <span>hardest {s.hardestLabel}</span>
+                      ) : null}
+                      <span className="font-normal opacity-80">
+                        {shortDate(s.firstVisit) === shortDate(s.lastVisit)
+                          ? shortDate(s.firstVisit)
+                          : `${shortDate(s.firstVisit)} → ${shortDate(s.lastVisit)}`}
+                      </span>
+                    </div>
+                  ) : null}
+                  {projs.length > 0 ? (
+                    <p className="flex items-start gap-1.5 rounded-2xl bg-surface-2 px-3 py-2.5 text-xs text-muted">
+                      <Bookmark
+                        size={13}
+                        className="mt-0.5 shrink-0 text-accent"
+                      />
+                      <span>
+                        <span className="font-semibold text-chalk">
+                          Projecting here:
+                        </span>{" "}
+                        {projs.slice(0, 3).join(", ")}
+                        {projs.length > 3 ? ` +${projs.length - 3} more` : ""}
+                      </span>
+                    </p>
+                  ) : null}
+                  {friendsOn && friendGyms.has(selected.id) && s ? (
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-[#4cc3ff]">
+                      <Users size={13} /> You and a friend both climbed here
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })()}
+
             <div className="mt-4 flex gap-2">
               <Button
                 className="flex-1"
@@ -502,7 +876,7 @@ export function GymMap() {
               >
                 {isHome ? (
                   <>
-                    <Check size={16} className="mr-1.5" /> View routes
+                    <Check size={16} className="mr-1.5" /> Browse routes
                   </>
                 ) : (
                   "Set as home"
