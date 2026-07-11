@@ -13,7 +13,7 @@ import { CLIMB_TYPES, climbTypeLabel, holdHex, type ClimbType } from "../lib/con
 import { RouteCard } from "../components/RouteCard";
 import { GradePicker } from "../components/GradePicker";
 import { AppHeader } from "../components/Layout";
-import { Button, ListSkeleton, SlideTabs } from "../components/ui";
+import { Button, CenterSpinner, SlideTabs } from "../components/ui";
 
 // The feed is intentionally simple: pick bouldering or top rope, optionally
 // narrow to a hold color, newest first. That's it.
@@ -249,7 +249,7 @@ export function Feed() {
       </div>
 
       {loading ? (
-        <ListSkeleton rows={3} />
+        <CenterSpinner />
       ) : visible.length === 0 ? (
         <div className="flex flex-col items-center gap-4 px-8 py-16 text-center">
           <p className="text-faint">

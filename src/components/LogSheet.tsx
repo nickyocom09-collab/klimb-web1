@@ -5,7 +5,6 @@ import {
   Check,
   Minus,
   Plus,
-  RotateCcw,
   X,
   Zap,
 } from "lucide-react";
@@ -29,9 +28,8 @@ const OUTCOMES: {
   Icon: typeof Zap;
 }[] = [
   { value: "flash", label: "Flash", hint: "First try", Icon: Zap },
-  { value: "send", label: "Send", hint: "Topped it", Icon: Check },
-  { value: "attempt", label: "Attempt", hint: "Not yet", Icon: RotateCcw },
-  { value: "project", label: "Project", hint: "Save it", Icon: Bookmark },
+  { value: "send", label: "Sent", hint: "Topped it", Icon: Check },
+  { value: "project", label: "Project", hint: "Working on it", Icon: Bookmark },
 ];
 
 const REWARD: Record<LogOutcome, { title: string; sub: string }> = {
@@ -221,7 +219,7 @@ export function LogSheet({
         )}
 
         {/* Outcome */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {OUTCOMES.map(({ value, label, hint, Icon }) => {
             const on = outcome === value;
             return (

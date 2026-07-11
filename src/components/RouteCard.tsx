@@ -4,6 +4,7 @@ import { Check, Plus, Star, Trophy, Video } from "lucide-react";
 import {
   communityGrade,
   formatGradeStyled,
+  formatGymGrade,
   gradeConsensus,
   type GradeSystem,
 } from "../lib/grades";
@@ -84,7 +85,7 @@ export function RouteCard({
           <div className="flex gap-3">
             <div className="flex-1 rounded-2xl bg-surface-2 px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Community says
+                Climbers say
               </p>
               <p className="mt-0.5 text-3xl font-extrabold leading-none text-accent">
                 {fmt(community)}
@@ -99,7 +100,12 @@ export function RouteCard({
                   Gym says
                 </p>
                 <p className="mt-0.5 text-3xl font-extrabold leading-none text-chalk">
-                  {fmt(route.gym_grade)}
+                  {formatGymGrade(
+                    route.gym_grade,
+                    route.climbing_type,
+                    system,
+                    route.gradingStyle,
+                  )}
                 </p>
                 <p className="mt-1 text-[11px] text-faint">official</p>
               </div>

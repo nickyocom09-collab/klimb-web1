@@ -20,7 +20,7 @@ const SLIDES: Slide[] = [
   {
     Icon: Mountain,
     title: "Welcome to Klimb",
-    body: "Your climbing logbook. Track every send, project, and gym — all in one place.",
+    body: "Your logs. Your stats. All in one place.",
   },
   {
     Icon: Trophy,

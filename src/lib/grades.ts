@@ -145,6 +145,52 @@ export function pickerOptions(
   return gradeLabels(type, system).map((label, value) => ({ value, label }));
 }
 
+// --- Gym-grade bands (Climb Bentonville) -------------------------------------
+// Bentonville posts boulder circuits as overlapping bands rather than exact
+// V-grades. Only the GYM's grade uses these; your felt grade stays exact.
+// Each band stores a representative ordinal so the number stays comparable.
+export const GYM_GRADE_BANDS: { label: string; rep: number }[] = [
+  { label: "V0-V2", rep: 1 },
+  { label: "V1-V3", rep: 2 },
+  { label: "V2-V4", rep: 3 },
+  { label: "V3-V5", rep: 4 },
+  { label: "V4-V6", rep: 5 },
+  { label: "V6-V8", rep: 7 },
+  { label: "V8-V10+", rep: 9 },
+];
+
+/** Options for the "gym's grade" picker — bands at a bands gym, else exact. */
+export function gymGradeOptions(
+  type: ClimbingType,
+  system: GradeSystem,
+  style: GradeStyle,
+): { value: number; label: string }[] {
+  if (style === "bands" && type === "boulder") {
+    return GYM_GRADE_BANDS.map((b) => ({ value: b.rep, label: b.label }));
+  }
+  return pickerOptions(type, system);
+}
+
+/** Display a stored gym grade — band label at a bands gym, else exact. */
+export function formatGymGrade(
+  grade: number | null | undefined,
+  type: ClimbingType,
+  system: GradeSystem,
+  style: GradeStyle,
+): string {
+  if (grade === null || grade === undefined) return "—";
+  if (style === "bands" && type === "boulder") {
+    const exact = GYM_GRADE_BANDS.find((b) => b.rep === grade);
+    if (exact) return exact.label;
+    // Legacy ordinals that don't hit a band exactly: nearest band.
+    const nearest = GYM_GRADE_BANDS.reduce((a, b) =>
+      Math.abs(b.rep - grade) < Math.abs(a.rep - grade) ? b : a,
+    );
+    return nearest.label;
+  }
+  return formatGrade(grade, type, system);
+}
+
 /** Group ordinals into display buckets for distributions (band-aware). */
 export function distributionBuckets(
   grades: number[],

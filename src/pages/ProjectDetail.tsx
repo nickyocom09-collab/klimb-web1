@@ -269,15 +269,8 @@ export function ProjectDetail() {
       {/* Sticky actions */}
       {!sent ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto max-w-app p-4 pb-6">
-          <div className="pointer-events-auto flex gap-2">
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => setLogOpen(true)}
-            >
-              <RotateCcw size={16} className="mr-1.5" /> Log an attempt
-            </Button>
-            <Button className="flex-1" onClick={() => setLogOpen(true)}>
+          <div className="pointer-events-auto">
+            <Button className="w-full" onClick={() => setLogOpen(true)}>
               <Trophy size={16} className="mr-1.5" /> I sent it!
             </Button>
           </div>

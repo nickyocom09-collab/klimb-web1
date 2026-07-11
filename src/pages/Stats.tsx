@@ -15,7 +15,7 @@ import {
 } from "../lib/recaps";
 import { AppHeader } from "../components/Layout";
 import { RecapStory } from "../components/RecapStory";
-import { ListSkeleton } from "../components/ui";
+import { CenterSpinner } from "../components/ui";
 
 function periodLabel(r: RecapRow): string {
   const d = new Date(`${r.period_start}T00:00:00`);
@@ -79,7 +79,7 @@ export function Stats() {
       <AppHeader title="Stats" subtitle="Your climbing, in numbers" />
 
       {loading ? (
-        <ListSkeleton rows={3} />
+        <CenterSpinner />
       ) : (
         <div className="flex flex-col gap-5 px-5 pb-8 pt-2">
           {/* ---- Recaps hub ---- */}
@@ -186,7 +186,19 @@ export function Stats() {
             >
               {String(stats.thisWeek)}
             </BigStat>
-            <BigStat label="Sessions">{String(stats.sessions)}</BigStat>
+            <BigStat
+              label="Streak"
+              sub={
+                stats.streakWeeks > 0
+                  ? "one session a week keeps it alive"
+                  : "climb this week to start one"
+              }
+              subTone={stats.streakWeeks > 0 ? "accent" : "faint"}
+            >
+              {stats.streakWeeks > 0
+                ? `🔥 ${stats.streakWeeks} wk${stats.streakWeeks === 1 ? "" : "s"}`
+                : "—"}
+            </BigStat>
           </div>
 
           {/* Grade pyramid — one chart, one takeaway */}

@@ -9,7 +9,6 @@ import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
 import { GymSelect } from "./pages/GymSelect";
 import { Feed } from "./pages/Feed";
-import { AddRoute } from "./pages/AddRoute";
 import { LogClimb } from "./pages/LogClimb";
 import { RouteDetail } from "./pages/RouteDetail";
 import { PublicProfile } from "./pages/PublicProfile";
@@ -186,7 +185,8 @@ export default function App() {
         />
         <Route path="/gyms" element={<Gyms />} />
         <Route path="/log" element={<LogClimb />} />
-        <Route path="/add" element={<AddRoute />} />
+        {/* Adding a route IS logging now — one flow. */}
+        <Route path="/add" element={<Navigate to="/log" replace />} />
         <Route path="/activity" element={<ActivityFeed />} />
         <Route path="/profile" element={<Profile />} />
         {/* Old bookmark-able paths keep working. */}

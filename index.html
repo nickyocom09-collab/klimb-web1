@@ -25,73 +25,37 @@
        replaces #root on mount, removing this automatically. Styles are inline
        here (the stylesheet hasn't loaded yet at first paint). -->
   <style>
-    /* Boot splash — solid dark stage, icon springs in, wordmark follows.
-       Mirrors .klimb-splash in the app stylesheet for a seamless handoff. */
+    /* Boot splash — the Klimb mark on pure black. Calm and quiet: the tile
+       eases in, then breathes gently. No text, no spinners. Mirrors
+       .klimb-splash in the app stylesheet for a seamless handoff. */
     #boot-splash {
       position: fixed;
       inset: 0;
       z-index: 9999;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      background: #0a0a0b;
-    }
-    #boot-splash .glow {
-      position: absolute;
-      width: 60vmin;
-      height: 60vmin;
-      border-radius: 9999px;
-      background: radial-gradient(circle, rgba(57, 255, 136, 0.18), transparent 62%);
-      filter: blur(30px);
-      animation: boot-breathe 2.8s ease-in-out infinite;
+      background: #000;
     }
     #boot-splash .mark {
-      position: relative;
-      width: 132px;
-      height: 132px;
-      filter: drop-shadow(0 12px 36px rgba(57, 255, 136, 0.28));
-      animation: boot-pop 0.6s cubic-bezier(0.34, 1.45, 0.5, 1) both;
+      width: 140px;
+      height: 140px;
+      filter: drop-shadow(0 18px 44px rgba(255, 255, 255, 0.08));
+      animation:
+        boot-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both,
+        boot-breathe 4.5s ease-in-out 0.9s infinite;
     }
-    /* The K draws itself in, stroke by stroke, then the hold dot pops. */
-    #boot-splash .k-stroke {
-      stroke-dasharray: 100;
-      stroke-dashoffset: 100;
-      animation: boot-draw 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    }
-    #boot-splash .k-stroke--2 { animation-delay: 0.25s; }
-    #boot-splash .k-dot {
-      transform-origin: 92px 33px;
-      transform: scale(0);
-      animation: boot-dot 0.4s cubic-bezier(0.34, 1.8, 0.5, 1) 0.85s forwards;
-    }
-    #boot-splash .k-extras {
-      opacity: 0;
-      animation: boot-extras 0.6s ease-out 1.05s forwards;
-    }
-    @keyframes boot-extras {
-      to { opacity: 1; }
-    }
-    @keyframes boot-pop {
-      0% { transform: scale(0.7); opacity: 0; }
+    @keyframes boot-in {
+      0% { transform: scale(0.86); opacity: 0; }
       100% { transform: scale(1); opacity: 1; }
     }
-    @keyframes boot-draw {
-      to { stroke-dashoffset: 0; }
-    }
-    @keyframes boot-dot {
-      to { transform: scale(1); }
-    }
     @keyframes boot-breathe {
-      0%, 100% { transform: scale(0.92); opacity: 0.65; }
-      50% { transform: scale(1.06); opacity: 1; }
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.035); }
     }
     @media (prefers-reduced-motion: reduce) {
-      #boot-splash .glow, #boot-splash .mark { animation: none; }
-      #boot-splash .k-stroke { animation: none; stroke-dashoffset: 0; }
-      #boot-splash .k-dot { animation: none; transform: scale(1); }
-      #boot-splash .k-extras { animation: none; opacity: 1; }
+      #boot-splash .mark { animation: none; }
     }
   </style>
 </head>
@@ -99,56 +63,16 @@
 <body>
   <div id="root">
     <div id="boot-splash">
-      <div class="glow"></div>
       <svg class="mark" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="boot-tile" gradientUnits="userSpaceOnUse" x1="60" y1="5" x2="60" y2="115">
-            <stop offset="0" stop-color="#1c2023"/>
-            <stop offset="0.55" stop-color="#101215"/>
-            <stop offset="1" stop-color="#0a0c0e"/>
-          </linearGradient>
-          <linearGradient id="boot-rim" gradientUnits="userSpaceOnUse" x1="60" y1="5" x2="60" y2="115">
-            <stop offset="0" stop-color="rgba(255,255,255,0.16)"/>
-            <stop offset="0.4" stop-color="rgba(57,255,136,0.10)"/>
-            <stop offset="1" stop-color="rgba(57,255,136,0.28)"/>
-          </linearGradient>
-          <!-- userSpaceOnUse: bounding-box gradients can't resolve on the
-               zero-width vertical stroke of the K. -->
-          <linearGradient id="boot-kg" gradientUnits="userSpaceOnUse" x1="0" y1="28" x2="0" y2="92">
-            <stop offset="0" stop-color="#c2ffdd"/>
-            <stop offset="0.45" stop-color="#4fe98d"/>
-            <stop offset="1" stop-color="#16a557"/>
-          </linearGradient>
-          <clipPath id="boot-clip"><rect x="5" y="5" width="110" height="110" rx="30"/></clipPath>
-        </defs>
-
-        <rect x="5" y="5" width="110" height="110" rx="30" fill="url(#boot-tile)"/>
-        <!-- Faceted gym-wall panels behind the K -->
-        <g clip-path="url(#boot-clip)">
-          <path d="M5 92 L64 34 L115 70 L115 115 L5 115 Z" fill="rgba(57,255,136,0.05)"/>
-          <path d="M5 115 L48 62 L115 104 L115 115 Z" fill="rgba(255,255,255,0.035)"/>
-        </g>
-        <rect x="5" y="5" width="110" height="110" rx="30" stroke="url(#boot-rim)" stroke-width="1.5"/>
-
-        <!-- K shadow, then the K draws itself in -->
-        <g opacity="0.4">
-          <path d="M42 35 V89" stroke="#000" stroke-width="14" stroke-linecap="round"/>
-          <path d="M79 37 L50 61.5 L81 89" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-        </g>
-        <path class="k-stroke" pathLength="100" d="M42 33 V87" stroke="url(#boot-kg)" stroke-width="13.5" stroke-linecap="round"/>
-        <path class="k-stroke k-stroke--2" pathLength="100" d="M79 35 L50 59.5 L81 87" stroke="url(#boot-kg)" stroke-width="13.5" stroke-linecap="round" stroke-linejoin="round"/>
-
-        <!-- The hold it's reaching for -->
-        <circle class="k-dot" cx="92" cy="33" r="7" fill="#FF9F45"/>
-        <circle class="k-dot" cx="89.6" cy="30.6" r="2.1" fill="rgba(255,255,255,0.55)"/>
-
-        <!-- Route holds trailing down the wall + chalk dust -->
-        <g class="k-extras">
-          <circle cx="101.5" cy="46" r="3.2" fill="#14B8A6" opacity="0.9"/>
-          <circle cx="106" cy="58.5" r="2.4" fill="#EC4899" opacity="0.85"/>
-          <circle cx="22" cy="97" r="1.8" fill="rgba(255,255,255,0.14)"/>
-          <circle cx="29" cy="103" r="1.3" fill="rgba(255,255,255,0.10)"/>
-          <circle cx="25" cy="90" r="1.1" fill="rgba(255,255,255,0.08)"/>
+        <!-- Black tile, hairline rim so it reads on pure black -->
+        <rect x="4" y="4" width="112" height="112" rx="30" fill="#0d0d0e"/>
+        <rect x="4" y="4" width="112" height="112" rx="30" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+        <!-- Chiseled K -->
+        <g fill="#f2efe8">
+          <path d="M42 26 L54 18 L54 55 L42 67 Z"/>
+          <path d="M42 72 L54 60 L54 96 L42 104 Z"/>
+          <path d="M88 22 L100 22 L60 66 L51 57 Z"/>
+          <path d="M58 71 L67 62 L101 100 L88 100 Z"/>
         </g>
       </svg>
     </div>

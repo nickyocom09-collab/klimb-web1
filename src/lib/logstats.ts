@@ -127,6 +127,10 @@ export type LogStats = {
   lastWeek: number;
   topWall: string | null;
   topColor: string | null;
+  /** Consecutive weeks with at least one log. Weekly on purpose — nobody
+   * climbs every day; one session a week keeps the flame alive. The current
+   * week gets a grace period: an empty week-so-far doesn't kill the streak. */
+  streakWeeks: number;
   pyramid: { label: string; count: number; sort: number }[];
   hardestSend: { boulder: LoggedItem | null; toprope: LoggedItem | null };
   hardestFlash: { boulder: LoggedItem | null; toprope: LoggedItem | null };
@@ -186,6 +190,17 @@ export function computeLogStats(
     return { boulder, toprope };
   };
 
+  // Weekly streak: consecutive rolling weeks with >=1 log, counting back from
+  // now. If this week is still empty, start from last week (grace) so the
+  // streak only breaks after a full week off the wall.
+  const weekHasLog = (i: number) =>
+    logged.some((l) => {
+      const t = new Date(l.date).getTime();
+      return t >= now - (i + 1) * 7 * DAY_MS && t < now - i * 7 * DAY_MS;
+    });
+  let streakWeeks = 0;
+  for (let i = weekHasLog(0) ? 0 : 1; weekHasLog(i); i++) streakWeeks++;
+
   // Sends per week for the last 8 rolling weeks (oldest → newest).
   const weeks = Array.from({ length: 8 }, (_, i) => {
     const hi = now - (7 - i) * 7 * DAY_MS + 7 * DAY_MS;
@@ -209,6 +224,7 @@ export function computeLogStats(
     lastWeek,
     topWall: mode(logged.map((l) => l.route.wall_section)),
     topColor: mode(logged.map((l) => l.route.hold_color)),
+    streakWeeks,
     pyramid,
     hardestSend: hardest(sent),
     hardestFlash: hardest(flashes),

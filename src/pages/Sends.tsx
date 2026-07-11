@@ -32,7 +32,7 @@ import { climbTypeLabel, holdHex } from "../lib/constants";
 import { fetchNotifications } from "../lib/notifications";
 import { AppHeader } from "../components/Layout";
 import { RecapStory } from "../components/RecapStory";
-import { Button, ListSkeleton } from "../components/ui";
+import { Button, CenterSpinner } from "../components/ui";
 import type { RouteWithStats } from "../lib/routes";
 
 function fmt(iso: string): string {
@@ -143,7 +143,7 @@ export function Sends() {
   return (
     <div>
       <AppHeader
-        title="Logbook"
+        title={view === "logged" ? "Sends" : "Projects"}
         subtitle={gymName ? `Climbing out of ${gymName}` : "Your climbing history"}
         right={
           <button
@@ -162,7 +162,7 @@ export function Sends() {
       />
 
       {loading ? (
-        <ListSkeleton rows={4} />
+        <CenterSpinner />
       ) : logged.length === 0 && projects.length === 0 ? (
         /* First-run: a warm nudge straight to the first log. */
         <div className="flex flex-col items-center gap-4 px-8 py-16 text-center">
@@ -253,9 +253,7 @@ export function Sends() {
                       : "text-muted hover:text-chalk"
                   }`}
                 >
-                  {v === "logged"
-                    ? "Logged"
-                    : `Projecting${projects.length ? ` · ${projects.length}` : ""}`}
+                  {v === "logged" ? "Sends" : "Projects"}
                 </button>
               ))}
             </div>
