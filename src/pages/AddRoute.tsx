@@ -20,6 +20,13 @@ const NOT_SURE = "Not sure";
 const NOT_SET = "Not set";
 const OTHER = "Other…";
 
+// Shown when a climb is logged without a photo — a quiet dark placeholder.
+const NO_PHOTO =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='#1b1e1c'/><path d='M110 205 L175 125 L215 172 L250 140 L300 205 Z' fill='#2a2f2c'/><circle cx='250' cy='95' r='16' fill='#2a2f2c'/></svg>",
+  );
+
 // You must actually be at (well, near) the gym to post a route there — this
 // is the anti-fake-route check. 50 miles leaves room for GPS slop and suburbs.
 const MAX_POST_DISTANCE_MILES = 50;
@@ -124,7 +131,6 @@ export function AddRoute() {
   const resolvedSection = section === OTHER ? customSection.trim() : section;
 
   function validate(): string | null {
-    if (!photo) return "Add a photo of the route.";
     if (!holdColor) return "Pick the hold color.";
     if (!resolvedSection) return "Choose or enter a wall section.";
     if (!targetGymId) return "No gym selected.";
@@ -154,7 +160,7 @@ export function AddRoute() {
   }
 
   async function create() {
-    if (!targetGymId || !photo) return;
+    if (!targetGymId) return;
     setConfirming(false);
     setBusy(true);
     try {
@@ -204,7 +210,7 @@ export function AddRoute() {
         );
       }
 
-      const photoUrl = await uploadFile(photo, "photo");
+      const photoUrl = photo ? await uploadFile(photo, "photo") : NO_PHOTO;
 
       const { data: route, error: insErr } = await supabase
         .from("routes")

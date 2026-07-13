@@ -291,11 +291,7 @@ export function Sends() {
                               </Badge>
                             )
                           }
-                          sub={`${fmt(item.date)}${
-                            item.attempts && item.attempts > 1
-                              ? ` · ${item.attempts} tries`
-                              : ""
-                          }`}
+                          sub={fmt(item.date)}
                           note={item.note}
                         />
                       ))}
@@ -320,9 +316,7 @@ export function Sends() {
                       <Bookmark size={12} /> Projecting
                     </Badge>
                   }
-                  sub={`${daysOpen(p.since)}${
-                    p.attempts ? ` · ${p.attempts} tries` : ""
-                  }`}
+                  sub={daysOpen(p.since)}
                   note={p.notePeek}
                 />
               ))}

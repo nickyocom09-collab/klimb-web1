@@ -36,31 +36,52 @@ function BigNumber({ n }: { n: number }) {
   );
 }
 
-const CONFETTI_COLORS = ["#39FF88", "#FF9F45", "#EC4899", "#14B8A6", "#FFD23F"];
+// Stone colours — chunks of rock, not party confetti.
+const ROCK_COLORS = [
+  "#7c776f",
+  "#9a938a",
+  "#5f5a54",
+  "#b0a89e",
+  "#4c4f52",
+  "#6b6357",
+];
+const ROCK_RADII = [
+  "40% 60% 55% 45% / 55% 40% 60% 45%",
+  "60% 40% 45% 55% / 45% 55% 40% 60%",
+  "50% 50% 62% 38% / 40% 60% 45% 55%",
+];
 
-function Confetti() {
+/** A shower of tumbling rocks — the "you crushed it" celebration. */
+function Rockfall() {
   const bits = useMemo(
     () =>
-      Array.from({ length: 26 }, (_, i) => ({
-        left: `${(i * 37) % 100}%`,
-        delay: `${(i % 9) * 0.14}s`,
-        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-        size: 5 + ((i * 13) % 6),
+      Array.from({ length: 22 }, (_, i) => ({
+        left: `${(i * 41) % 100}%`,
+        delay: `${(i % 7) * 0.16}s`,
+        dur: `${1.7 + (i % 5) * 0.24}s`,
+        color: ROCK_COLORS[i % ROCK_COLORS.length],
+        size: 9 + ((i * 7) % 13),
+        radius: ROCK_RADII[i % ROCK_RADII.length],
       })),
     [],
   );
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+    >
       {bits.map((b, i) => (
         <span
           key={i}
-          className="absolute -top-3 animate-confetti rounded-sm"
+          className="klimb-rock absolute -top-6"
           style={{
             left: b.left,
             width: b.size,
-            height: b.size * 1.6,
+            height: b.size,
             backgroundColor: b.color,
+            borderRadius: b.radius,
             animationDelay: b.delay,
+            animationDuration: b.dur,
           }}
         />
       ))}
@@ -145,7 +166,7 @@ export function RecapStory({
     ),
     () => (
       <>
-        {p.new_grades.length > 0 ? <Confetti /> : null}
+        {p.new_grades.length > 0 ? <Rockfall /> : null}
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">
           Hardest
         </p>

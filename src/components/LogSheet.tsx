@@ -1,23 +1,14 @@
 import { useRef, useState } from "react";
-import {
-  Bookmark,
-  Camera,
-  Check,
-  Minus,
-  Plus,
-  X,
-  Zap,
-} from "lucide-react";
+import { Bookmark, Camera, Check, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { toggleBookmark } from "../lib/bookmarks";
-import { communityGrade, formatGradeStyled } from "../lib/grades";
+import { formatGradeStyled } from "../lib/grades";
 import type { RouteWithStats } from "../lib/routes";
 import type { SendType } from "../lib/database.types";
 import { Button } from "./ui";
 import { GradePicker } from "./GradePicker";
-import { Stars } from "./Stars";
 
 export type LogOutcome = "flash" | "send" | "attempt" | "project";
 
@@ -40,10 +31,8 @@ const REWARD: Record<LogOutcome, { title: string; sub: string }> = {
 };
 
 /**
- * THE log sheet — the one way to log a climb everywhere in the app. Captures
- * outcome, felt grade, quality stars, try count, note, and an optional photo.
- * Every log feeds two places at once: the route's shared record (grades,
- * ratings, attempts, gallery) and the user's personal logbook + stats.
+ * The log sheet — captures outcome, your felt grade, the gym's grade, a note,
+ * and an optional photo (from camera or camera roll). Individual logbook only.
  */
 export function LogSheet({
   route,
@@ -62,32 +51,11 @@ export function LogSheet({
   const [outcome, setOutcome] = useState<LogOutcome | null>(null);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
-  const [stars, setStars] = useState<number | null>(null);
-  const [tries, setTries] = useState(1);
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState<LogOutcome | null>(null);
-
-  // What the crowd already thinks — shown right when it's most useful.
-  const crowdGrade = communityGrade(route.gradeValues);
-  const intel: string[] = [];
-  if (crowdGrade !== null)
-    intel.push(
-      `Others say ~${formatGradeStyled(crowdGrade, route.climbing_type, system, route.gradingStyle)}`,
-    );
-  if (route.funAvg !== null && route.funCount > 0)
-    intel.push(`★ ${route.funAvg.toFixed(1)}`);
-  if (route.avgAttempts !== null)
-    intel.push(`avg ${Math.round(route.avgAttempts * 10) / 10} tries`);
-  if (route.climbers > 0)
-    intel.push(`${route.climbers} climber${route.climbers === 1 ? "" : "s"}`);
-
-  function pickOutcome(o: LogOutcome) {
-    setOutcome(o);
-    if (o === "flash") setTries(1); // a flash is by definition one try
-  }
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -100,7 +68,6 @@ export function LogSheet({
     if (!profile || !outcome) return;
     setSaving(true);
 
-    // A felt grade feeds the community grade no matter the outcome.
     if (feltGrade !== null) {
       await supabase.from("grades").upsert(
         {
@@ -112,7 +79,6 @@ export function LogSheet({
         { onConflict: "route_id,user_id" },
       );
     }
-    // The gym's official grade — seed it if this route doesn't have one yet.
     if (
       gymGrade !== null &&
       (route.gym_grade === null || route.gym_grade === undefined)
@@ -122,23 +88,10 @@ export function LogSheet({
         p_grade: gymGrade,
       });
     }
-    // Quality stars feed the route's shared rating.
-    if (stars !== null) {
-      await supabase.from("route_ratings").upsert(
-        {
-          route_id: route.id,
-          user_id: profile.id,
-          stars,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "route_id,user_id" },
-      );
-    }
 
     if (outcome === "project") {
       await toggleBookmark(profile.id, route.id, "project", false);
     } else {
-      // Optional photo joins the route's shared gallery.
       let photoUrl: string | null = null;
       if (photo) {
         try {
@@ -162,7 +115,6 @@ export function LogSheet({
           route_id: route.id,
           user_id: profile.id,
           send_type: outcome as SendType,
-          attempts: tries,
           note: trimmed.length ? trimmed : null,
           ...(photoUrl ? { photo_url: photoUrl } : {}),
         },
@@ -171,7 +123,6 @@ export function LogSheet({
     }
 
     setSaving(false);
-    // The reward moment — let it land, then hand back to the caller.
     setReward(outcome);
     setTimeout(() => onSaved(outcome), 1100);
   }
@@ -180,7 +131,7 @@ export function LogSheet({
     <div className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4 backdrop-blur-[2px]">
       <div className="relative w-full animate-fade-up overflow-hidden rounded-3xl border border-border bg-surface p-5 shadow-card">
         {/* Route header */}
-        <div className="mb-3 flex items-center gap-3">
+        <div className="mb-4 flex items-center gap-3">
           <img
             src={route.photo_url}
             alt=""
@@ -207,17 +158,6 @@ export function LogSheet({
           </button>
         </div>
 
-        {/* Shared intelligence, right when you need it */}
-        {intel.length > 0 ? (
-          <p className="mb-4 rounded-xl bg-surface-2 px-3 py-2 text-xs text-muted">
-            {intel.join(" · ")}
-          </p>
-        ) : (
-          <p className="mb-4 rounded-xl bg-surface-2 px-3 py-2 text-xs text-faint">
-            No one's logged this yet — your log sets the tone.
-          </p>
-        )}
-
         {/* Outcome */}
         <div className="grid grid-cols-3 gap-2">
           {OUTCOMES.map(({ value, label, hint, Icon }) => {
@@ -225,7 +165,7 @@ export function LogSheet({
             return (
               <button
                 key={value}
-                onClick={() => pickOutcome(value)}
+                onClick={() => setOutcome(value)}
                 className={`flex flex-col items-center gap-1 rounded-2xl border py-3 transition ${
                   on
                     ? "border-accent bg-accent/10 text-accent"
@@ -239,44 +179,6 @@ export function LogSheet({
             );
           })}
         </div>
-
-        {/* Tries + quality — hidden for project saves */}
-        {outcome && outcome !== "project" ? (
-          <div className="mt-4 flex animate-fade-in items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold uppercase tracking-wide text-faint">
-                Tries
-              </span>
-              <div className="flex items-center gap-1 rounded-full bg-surface-2 p-1">
-                <button
-                  onClick={() => setTries((t) => Math.max(1, t - 1))}
-                  disabled={outcome === "flash" || tries <= 1}
-                  aria-label="Fewer tries"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition hover:text-chalk disabled:opacity-30"
-                >
-                  <Minus size={14} />
-                </button>
-                <span className="w-6 text-center text-sm font-bold tabular-nums text-chalk">
-                  {tries}
-                </span>
-                <button
-                  onClick={() => setTries((t) => Math.min(200, t + 1))}
-                  disabled={outcome === "flash"}
-                  aria-label="More tries"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition hover:text-chalk disabled:opacity-30"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold uppercase tracking-wide text-faint">
-                Quality
-              </span>
-              <Stars value={stars} onChange={setStars} size={20} />
-            </div>
-          </div>
-        ) : null}
 
         {/* Your grade */}
         <div className="mt-4">
@@ -294,7 +196,7 @@ export function LogSheet({
           />
         </div>
 
-        {/* Gym's grade — seeds the route's official grade if it's not set yet */}
+        {/* Gym's grade */}
         <div className="mt-4">
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
             Gym's grade
@@ -306,11 +208,7 @@ export function LogSheet({
             <p className="text-sm text-muted">
               Gym says{" "}
               <span className="font-bold text-chalk">
-                {formatGradeStyled(
-                  route.gym_grade,
-                  route.climbing_type,
-                  system,
-                )}
+                {formatGradeStyled(route.gym_grade, route.climbing_type, system)}
               </span>
             </p>
           ) : (
@@ -338,7 +236,6 @@ export function LogSheet({
                 ref={photoRef}
                 type="file"
                 accept="image/*"
-                capture="environment"
                 onChange={onPickPhoto}
                 className="hidden"
               />
