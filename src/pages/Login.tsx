@@ -30,7 +30,9 @@ export function Login() {
         <h1 className="text-6xl font-extrabold tracking-tight text-accent drop-shadow-[0_2px_24px_rgb(var(--c-accent)/0.4)]">
           Klimb
         </h1>
-        <p className="mt-2 text-muted">Community grades for your gym.</p>
+        <p className="mt-2 text-muted">
+          Your sends, your stats, all in one place.
+        </p>
       </div>
 
       <form
