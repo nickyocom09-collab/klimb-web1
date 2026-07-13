@@ -741,10 +741,6 @@ export function GymMap() {
                     {[selected.city, selected.state].filter(Boolean).join(", ")}
                   </p>
                 ) : null}
-                <p className="mt-1 text-xs text-faint">
-                  {selected.routeCount} active{" "}
-                  {selected.routeCount === 1 ? "route" : "routes"}
-                </p>
               </div>
               <button
                 onClick={() => setSelected(null)}

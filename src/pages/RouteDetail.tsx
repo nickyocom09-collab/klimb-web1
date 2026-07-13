@@ -216,32 +216,41 @@ export function RouteDetail() {
           {/* Your log — read-only until you hit Edit */}
           {hasSent ? (
             <div className="rounded-2xl bg-surface p-4 shadow-card">
-              <div className="flex items-center justify-between gap-3">
-                <p className="flex items-center gap-2 text-sm font-bold text-chalk">
-                  {mySendType === "flash" ? (
-                    <>
-                      <Zap size={16} className="text-accent" /> You flashed this
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} className="text-accent" /> You sent this
-                    </>
-                  )}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-bold text-chalk">
+                    {mySendType === "flash" ? (
+                      <>
+                        <Zap size={16} className="shrink-0 text-accent" /> You
+                        flashed this
+                      </>
+                    ) : (
+                      <>
+                        <Check size={16} className="shrink-0 text-accent" /> You
+                        sent this
+                      </>
+                    )}
+                  </p>
                   {myGrade !== null ? (
-                    <span className="text-muted">· felt {fmt(myGrade)}</span>
+                    <p className="mt-1 text-xs text-muted">
+                      Felt like{" "}
+                      <span className="font-semibold text-chalk">
+                        {fmt(myGrade)}
+                      </span>
+                    </p>
                   ) : null}
-                </p>
-                <div className="flex shrink-0 gap-2">
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
                   <button
                     onClick={deleteLog}
                     aria-label="Delete this log"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-faint transition hover:text-wide"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-faint transition hover:text-wide"
                   >
                     <Trash2 size={16} />
                   </button>
                   <Button
                     variant="secondary"
-                    className="h-10 px-4"
+                    className="h-9 px-4"
                     onClick={() => setLogOpen(true)}
                   >
                     <Pencil size={14} className="mr-1.5" /> Edit
@@ -249,7 +258,9 @@ export function RouteDetail() {
                 </div>
               </div>
               {myNote ? (
-                <p className="mt-2 text-sm italic text-muted">"{myNote}"</p>
+                <p className="mt-3 border-t border-border/60 pt-3 text-sm italic text-muted">
+                  "{myNote}"
+                </p>
               ) : null}
             </div>
           ) : isProject ? (

@@ -18,17 +18,21 @@ export function StreakFlame({
       aria-hidden
     >
       {active ? (
-        <div
-          className="klimb-flame-glow absolute inset-0 rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(255,150,40,0.55), transparent 65%)",
-          }}
-        />
+        <>
+          <div
+            className="klimb-flame-glow absolute inset-0 rounded-full"
+            style={{
+              background:
+                "radial-gradient(circle, rgba(255,150,40,0.55), transparent 65%)",
+            }}
+          />
+          {/* One-time spark ring that bursts out as the flame ignites. */}
+          <span className="klimb-spark-ring absolute inset-0 rounded-full border-2 border-[#ffb03a]" />
+        </>
       ) : null}
       <svg
         viewBox="0 0 48 64"
-        className={active ? "klimb-flame relative" : "relative"}
+        className={active ? "klimb-flame-enter relative" : "relative"}
         style={{ width: size, height: size }}
       >
         <defs>

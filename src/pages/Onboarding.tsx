@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
   MapPin,
-  Mountain,
   Search,
-  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -16,12 +13,12 @@ import { Button, CenterSpinner, Input } from "../components/ui";
 import { US_STATES, STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 
-type Step = "welcome" | "name" | "gym" | "how";
+type Step = "name" | "gym";
 
 export function Onboarding() {
   const { profile, updateProfile } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>("welcome");
+  const [step, setStep] = useState<Step>("name");
   const [name, setName] = useState(profile?.display_name ?? "");
   // Username is captured up front so friends-by-username works from day one.
   const [uname, setUname] = useState(profile?.username ?? "");
@@ -79,7 +76,7 @@ export function Onboarding() {
     [gyms, openState],
   );
 
-  const stepOrder: Step[] = ["welcome", "name", "gym", "how"];
+  const stepOrder: Step[] = ["name", "gym"];
   function goBack() {
     const i = stepOrder.indexOf(step);
     if (i > 0) setStep(stepOrder[i - 1]);
@@ -153,8 +150,7 @@ export function Onboarding() {
     setStep("gym");
   }
 
-  // End onboarding somewhere that already pays off: straight into logging
-  // their first climb, or the (pre-seeded, never-empty) gym feed.
+  // End onboarding straight in the app.
   async function finish(dest: "/log" | "/") {
     setFinishing(true);
     const { error } = await updateProfile({
@@ -177,7 +173,7 @@ export function Onboarding() {
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       {/* Back button + progress dots */}
       <div className="relative flex items-center justify-center px-3 pt-6">
-        {step !== "welcome" ? (
+        {stepOrder.indexOf(step) > 0 ? (
           <button
             onClick={goBack}
             aria-label="Back"
@@ -197,24 +193,6 @@ export function Onboarding() {
           ))}
         </div>
       </div>
-
-      {step === "welcome" ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-accent/10">
-            <Mountain size={40} className="text-accent" />
-          </div>
-          <h1 className="text-3xl font-extrabold text-chalk">
-            Welcome to Klimb
-          </h1>
-          <p className="max-w-xs text-muted">
-            See what your gym thinks a route is graded, log your sends, and share
-            beta — all in one place.
-          </p>
-          <Button className="mt-2 w-full" onClick={() => setStep("name")}>
-            Get started
-          </Button>
-        </div>
-      ) : null}
 
       {step === "name" ? (
         <div className="flex flex-1 flex-col px-6 pt-10">
@@ -357,41 +335,10 @@ export function Onboarding() {
             )}
           </div>
 
-          <div className="py-6">
+          <div className="flex flex-col gap-2 py-6">
             <Button
               className="w-full"
               disabled={!gymId}
-              onClick={() => setStep("how")}
-            >
-              Continue
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {step === "how" ? (
-        <div className="flex flex-1 flex-col px-6 pt-10">
-          <h1 className="text-2xl font-extrabold text-chalk">How Klimb works</h1>
-          <div className="mt-6 flex flex-col gap-5">
-            <HowRow
-              Icon={Camera}
-              title="Snap a route"
-              body="Add a photo of any boulder or rope route at your gym."
-            />
-            <HowRow
-              Icon={TrendingUp}
-              title="Grade it together"
-              body="Everyone submits a grade — the community consensus is what you see."
-            />
-            <HowRow
-              Icon={Check}
-              title="Log your sends"
-              body="Your send history sticks around even after a route is reset."
-            />
-          </div>
-          <div className="mt-auto flex flex-col gap-2 pb-8">
-            <Button
-              className="w-full"
               loading={finishing}
               onClick={() => finish("/log")}
             >
@@ -400,7 +347,7 @@ export function Onboarding() {
             <Button
               variant="secondary"
               className="w-full"
-              disabled={finishing}
+              disabled={!gymId || finishing}
               onClick={() => finish("/")}
             >
               Browse my gym first
@@ -408,28 +355,6 @@ export function Onboarding() {
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function HowRow({
-  Icon,
-  title,
-  body,
-}: {
-  Icon: typeof Camera;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="flex items-start gap-4">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-        <Icon size={20} />
-      </span>
-      <div>
-        <p className="font-semibold text-chalk">{title}</p>
-        <p className="mt-0.5 text-sm text-muted">{body}</p>
-      </div>
     </div>
   );
 }

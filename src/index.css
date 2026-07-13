@@ -409,16 +409,63 @@
 .klimb-flame-glow {
   animation: klimb-flame-glow 1.6s ease-in-out infinite;
 }
+/* One-time "ignite" when the streak is alive: the flame pops up, then
+   settles into the ongoing flicker. */
+@keyframes klimb-flame-ignite {
+  0% {
+    transform: scale(0.35) translateY(8px);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.22) translateY(-3px);
+    opacity: 1;
+  }
+  78% {
+    transform: scale(0.94) translateY(1px);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+  }
+}
+.klimb-flame-enter {
+  transform-origin: 50% 92%;
+  animation:
+    klimb-flame-ignite 0.72s cubic-bezier(0.22, 1, 0.36, 1) both,
+    klimb-flame 1.1s ease-in-out 0.72s infinite;
+}
+/* Expanding spark ring that bursts once as the flame catches. */
+@keyframes klimb-spark-ring {
+  0% {
+    transform: scale(0.25);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.klimb-spark-ring {
+  animation: klimb-spark-ring 0.85s ease-out forwards;
+}
 @media (prefers-reduced-motion: reduce) {
   .klimb-flame,
-  .klimb-flame-glow {
+  .klimb-flame-enter,
+  .klimb-flame-glow,
+  .klimb-spark-ring {
     animation: none;
+  }
+  .klimb-spark-ring {
+    display: none;
   }
 }
 
 .klimb-splash__mark {
   width: 140px;
   height: 140px;
+  color: #f2efe8;
   filter: drop-shadow(0 18px 44px rgba(255, 255, 255, 0.08));
   animation:
     klimb-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both,

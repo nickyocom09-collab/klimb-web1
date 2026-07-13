@@ -4,10 +4,8 @@ import { BookOpen, ChevronRight, Trash2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
-  CLIMB_FILTERS,
   GRADE_SYSTEMS,
   THEMES,
-  type ClimbFilter,
   type GradeSystemPref,
   type ThemePref,
 } from "../lib/constants";
@@ -126,7 +124,6 @@ export function Settings() {
     if (!error) setUname(h);
   }
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
-  const defaultFilter = (profile?.default_climb_filter ?? "all") as ClimbFilter;
 
   async function saveName() {
     const trimmed = name.trim();
@@ -158,17 +155,6 @@ export function Settings() {
           />
           <p className="ml-1 text-xs text-faint">
             How grades display across the app (V-scale / YDS vs. Font / French).
-          </p>
-        </Section>
-
-        <Section title="Default feed filter">
-          <Segmented<ClimbFilter>
-            value={defaultFilter}
-            options={CLIMB_FILTERS}
-            onChange={(v) => updateProfile({ default_climb_filter: v })}
-          />
-          <p className="ml-1 text-xs text-faint">
-            Which climbing type the feed shows when you open it.
           </p>
         </Section>
 

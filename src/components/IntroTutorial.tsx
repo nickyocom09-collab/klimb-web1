@@ -2,23 +2,23 @@ import { useRef, useState } from "react";
 import {
   BookmarkPlus,
   MapPin,
-  Mountain,
   Trophy,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { Button } from "./ui";
+import { KMark } from "./KMark";
 
 type Slide = {
-  Icon: LucideIcon;
+  Icon: LucideIcon | null;
   title: string;
   body: string;
 };
 
 const SLIDES: Slide[] = [
   {
-    Icon: Mountain,
+    Icon: null, // slide 0 uses the K mark
     title: "Welcome to Klimb",
     body: "Your logs. Your stats. All in one place.",
   },
@@ -110,7 +110,11 @@ export function IntroTutorial() {
         className="relative flex flex-1 animate-fade-up flex-col items-center justify-center gap-5 px-10 text-center"
       >
         <span className="flex h-24 w-24 animate-pop items-center justify-center rounded-3xl bg-accent/10">
-          <Icon size={44} className="text-accent" strokeWidth={1.8} />
+          {Icon ? (
+            <Icon size={44} className="text-accent" strokeWidth={1.8} />
+          ) : (
+            <KMark className="h-12 w-12 text-accent" />
+          )}
         </span>
         {slide === 0 ? (
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-accent">
