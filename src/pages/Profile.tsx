@@ -24,7 +24,7 @@ export function Profile() {
   const [gymName, setGymName] = useState<string | null>(null);
   const [sendCount, setSendCount] = useState<number | null>(null);
   const [flashCount, setFlashCount] = useState<number | null>(null);
-  const [gradeCount, setGradeCount] = useState<number | null>(null);
+  const [projectCount, setProjectCount] = useState<number | null>(null);
   const [friendCount, setFriendCount] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -52,11 +52,12 @@ export function Profile() {
         .eq("user_id", profile.id)
         .eq("send_type", "flash");
       if (active) setFlashCount(flashes.count ?? 0);
-      const grades = await supabase
-        .from("grades")
+      const projects = await supabase
+        .from("bookmarks")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", profile.id);
-      if (active) setGradeCount(grades.count ?? 0);
+        .eq("user_id", profile.id)
+        .eq("kind", "project");
+      if (active) setProjectCount(projects.count ?? 0);
       const friends = await supabase
         .from("friendships")
         .select("id", { count: "exact", head: true })
@@ -174,7 +175,7 @@ export function Profile() {
       <div className="grid grid-cols-3 gap-2 px-5">
         <Stat label="Sends" value={sendCount} />
         <Stat label="Flashes" value={flashCount} />
-        <Stat label="Grades" value={gradeCount} />
+        <Stat label="Projects" value={projectCount} />
       </div>
 
       {/* Door to the logbook — the routes themselves live on the Sends tab. */}

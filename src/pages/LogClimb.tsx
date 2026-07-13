@@ -114,8 +114,7 @@ export function LogClimb() {
   }
 
   async function save() {
-    // Validate quietly and inline — no popups mid-form.
-    if (!photo) return setError("Add a photo of the climb.");
+    // Validate quietly and inline — no popups mid-form. Photo is optional.
     if (!holdColor) return setError("Pick the hold color.");
     if (!resolvedSection) return setError("Choose or enter a wall section.");
     if (!outcome) return setError("How'd it go? Flash, Sent, or Project.");
@@ -123,16 +122,24 @@ export function LogClimb() {
     setError(null);
     setBusy(true);
     try {
-      // 1) The route itself — yours, on your gym.
-      const ext = photo.name.split(".").pop() || "jpg";
-      const path = `${profile.id}/${Date.now()}-photo.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("route-photos")
-        .upload(path, photo, { contentType: photo.type });
-      if (upErr) throw upErr;
-      const photoUrl = supabase.storage
-        .from("route-photos")
-        .getPublicUrl(path).data.publicUrl;
+      // 1) The route itself — yours, on your gym. Photo optional; without one
+      // we store a quiet dark placeholder.
+      let photoUrl =
+        "data:image/svg+xml;utf8," +
+        encodeURIComponent(
+          "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='#1b1e1c'/><path d='M110 205 L175 125 L215 172 L250 140 L300 205 Z' fill='#2a2f2c'/><circle cx='250' cy='95' r='16' fill='#2a2f2c'/></svg>",
+        );
+      if (photo) {
+        const ext = photo.name.split(".").pop() || "jpg";
+        const path = `${profile.id}/${Date.now()}-photo.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("route-photos")
+          .upload(path, photo, { contentType: photo.type });
+        if (upErr) throw upErr;
+        photoUrl = supabase.storage
+          .from("route-photos")
+          .getPublicUrl(path).data.publicUrl;
+      }
 
       const { data: route, error: insErr } = await supabase
         .from("routes")
@@ -255,7 +262,9 @@ export function LogClimb() {
 
         {/* Photo */}
         <div>
-          <p className="mb-2 ml-1 text-sm text-muted">Photo</p>
+          <p className="mb-2 ml-1 text-sm text-muted">
+            Photo <span className="text-faint">(optional)</span>
+          </p>
           <input
             ref={photoRef}
             type="file"

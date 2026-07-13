@@ -5,7 +5,7 @@ import {
   Check,
   ChevronLeft,
   NotebookPen,
-  RotateCcw,
+  Trash2,
   Trophy,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -31,7 +31,6 @@ export function ProjectDetail() {
   const [route, setRoute] = useState<RouteWithStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [since, setSince] = useState<string | null>(null);
-  const [attempts, setAttempts] = useState<number | null>(null);
   const [sent, setSent] = useState(false);
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [myStars, setMyStars] = useState<number | null>(null);
@@ -56,7 +55,7 @@ export function ProjectDetail() {
           .maybeSingle(),
         supabase
           .from("sends")
-          .select("send_type, attempts")
+          .select("send_type")
           .eq("user_id", profile.id)
           .eq("route_id", routeId)
           .maybeSingle(),
@@ -81,7 +80,6 @@ export function ProjectDetail() {
       ]);
     setRoute(r);
     setSince(bm?.created_at ?? null);
-    setAttempts(send?.attempts ?? null);
     setSent(!!send && send.send_type !== "attempt");
     setMyGrade(grade?.grade ?? null);
     setMyStars(rating?.stars ?? null);
@@ -115,6 +113,30 @@ export function ProjectDetail() {
     } else {
       window.alert(error.message);
     }
+  }
+
+  async function deleteProject() {
+    if (!routeId || !profile) return;
+    if (
+      !window.confirm(
+        "Remove this project? Your notes for it will be deleted too.",
+      )
+    )
+      return;
+    await Promise.all([
+      supabase
+        .from("bookmarks")
+        .delete()
+        .eq("user_id", profile.id)
+        .eq("route_id", routeId)
+        .eq("kind", "project"),
+      supabase
+        .from("project_notes")
+        .delete()
+        .eq("user_id", profile.id)
+        .eq("route_id", routeId),
+    ]);
+    navigate("/");
   }
 
   function onLogged(outcome: LogOutcome) {
@@ -167,6 +189,13 @@ export function ProjectDetail() {
         >
           <ChevronLeft size={22} />
         </button>
+        <button
+          onClick={deleteProject}
+          aria-label="Remove project"
+          className="absolute right-3 top-3 rounded-full bg-bg/70 p-2 text-faint backdrop-blur transition hover:text-wide"
+        >
+          <Trash2 size={20} />
+        </button>
         <span className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-bg/80 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent backdrop-blur">
           <Bookmark size={12} /> Project
         </span>
@@ -208,13 +237,6 @@ export function ProjectDetail() {
                 day{daysOpen === 1 ? "" : "s"} open
               </span>
             ) : null}
-            <span className="flex items-center gap-1.5 text-sm text-muted">
-              <RotateCcw size={14} className="text-wide" />
-              <span className="font-bold tabular-nums text-chalk">
-                {attempts ?? 0}
-              </span>{" "}
-              tr{(attempts ?? 0) === 1 ? "y" : "ies"} logged
-            </span>
             <span className="flex items-center gap-1.5">
               <Stars value={myStars} size={15} />
             </span>

@@ -8,6 +8,7 @@ import {
   History,
   Pencil,
   Plus,
+  Trash2,
   TrendingUp,
   Trophy,
   Zap,
@@ -94,6 +95,17 @@ export function RouteDetail() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function deleteLog() {
+    if (!id || !profile) return;
+    if (!window.confirm("Delete this climb from your logbook?")) return;
+    await supabase
+      .from("sends")
+      .delete()
+      .eq("route_id", id)
+      .eq("user_id", profile.id);
+    navigate("/");
+  }
 
   if (loading) {
     return (
@@ -219,13 +231,22 @@ export function RouteDetail() {
                     <span className="text-muted">· felt {fmt(myGrade)}</span>
                   ) : null}
                 </p>
-                <Button
-                  variant="secondary"
-                  className="h-10 shrink-0 px-4"
-                  onClick={() => setLogOpen(true)}
-                >
-                  <Pencil size={14} className="mr-1.5" /> Edit log
-                </Button>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    onClick={deleteLog}
+                    aria-label="Delete this log"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-faint transition hover:text-wide"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                  <Button
+                    variant="secondary"
+                    className="h-10 px-4"
+                    onClick={() => setLogOpen(true)}
+                  >
+                    <Pencil size={14} className="mr-1.5" /> Edit
+                  </Button>
+                </div>
               </div>
               {myNote ? (
                 <p className="mt-2 text-sm italic text-muted">"{myNote}"</p>
