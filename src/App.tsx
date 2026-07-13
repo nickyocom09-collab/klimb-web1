@@ -8,7 +8,6 @@ import { Signup } from "./pages/Signup";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
 import { GymSelect } from "./pages/GymSelect";
-import { Feed } from "./pages/Feed";
 import { LogClimb } from "./pages/LogClimb";
 import { RouteDetail } from "./pages/RouteDetail";
 import { PublicProfile } from "./pages/PublicProfile";
@@ -31,7 +30,6 @@ const GymMap = lazy(() =>
 const Friends = lazy(() =>
   import("./pages/Friends").then((m) => ({ default: m.Friends })),
 );
-import { ActivityFeed } from "./pages/Activity";
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
@@ -173,7 +171,8 @@ export default function App() {
       >
         {/* Logbook-first: your history is the home tab. */}
         <Route path="/" element={<Sends />} />
-        <Route path="/gym" element={<Feed />} />
+        {/* Community route-feed retired — this is an individual logbook now. */}
+        <Route path="/gym" element={<Navigate to="/" replace />} />
         <Route path="/stats" element={<Stats />} />
         <Route
           path="/map"
@@ -187,7 +186,7 @@ export default function App() {
         <Route path="/log" element={<LogClimb />} />
         {/* Adding a route IS logging now — one flow. */}
         <Route path="/add" element={<Navigate to="/log" replace />} />
-        <Route path="/activity" element={<ActivityFeed />} />
+        <Route path="/activity" element={<Navigate to="/" replace />} />
         <Route path="/profile" element={<Profile />} />
         {/* Old bookmark-able paths keep working. */}
         <Route path="/sends" element={<Navigate to="/" replace />} />

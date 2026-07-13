@@ -42,6 +42,26 @@ function shortDate(iso: string): string {
 
 const US_CENTER: [number, number] = [39.5, -98.35];
 
+// You have to actually be at a gym to make it yours / log there.
+const MAX_LOG_MILES = 30;
+
+/** Great-circle distance in miles between two lat/lng points. */
+function milesBetween(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 3958.8;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 // Gym names come from the DB (user-suggestable), so escape before injecting
 // into marker HTML.
 function esc(s: string): string {
@@ -412,12 +432,41 @@ export function GymMap() {
       .slice(0, 6);
   }, [gyms, query]);
 
+  // Best-effort device location, so we can gate logging to gyms you're at.
+  const [myLoc, setMyLoc] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (p) => setMyLoc({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 },
+    );
+  }, []);
+
+  function milesAway(gym: GymWithCount): number | null {
+    if (!myLoc || gym.latitude == null || gym.longitude == null) return null;
+    return milesBetween(myLoc.lat, myLoc.lng, gym.latitude, gym.longitude);
+  }
+
+  /** Block making a gym yours unless you're within range. Returns true if OK. */
+  function withinRange(gym: GymWithCount): boolean {
+    const away = milesAway(gym);
+    if (away !== null && away > MAX_LOG_MILES) {
+      window.alert(
+        `You're about ${Math.round(away)} mi from ${gym.name}. You need to be within ${MAX_LOG_MILES} miles to log there.`,
+      );
+      return false;
+    }
+    return true;
+  }
+
   async function setHome(gym: GymWithCount) {
     if (!profile) return;
     if (gym.id === profile.home_gym_id && !profile.visiting_gym_id) {
-      navigate("/gym");
+      navigate("/");
       return;
     }
+    if (!withinRange(gym)) return;
     setSaving("home");
     await supabase
       .from("profiles")
@@ -425,11 +474,12 @@ export function GymMap() {
       .eq("id", profile.id);
     await refreshProfile();
     setSaving(null);
-    navigate("/gym");
+    navigate("/");
   }
 
   async function visitGym(gym: GymWithCount) {
     if (!profile) return;
+    if (!withinRange(gym)) return;
     setSaving("visit");
     await supabase
       .from("profiles")
@@ -437,10 +487,12 @@ export function GymMap() {
       .eq("id", profile.id);
     await refreshProfile();
     setSaving(null);
-    navigate("/gym");
+    navigate("/");
   }
 
   const isHome = selected?.id === profile?.home_gym_id;
+  const selectedAway = selected ? milesAway(selected) : null;
+  const tooFar = selectedAway !== null && selectedAway > MAX_LOG_MILES;
 
   return (
     <div className="relative -mb-28 h-[calc(100%+7rem)] w-full bg-bg">
@@ -757,15 +809,22 @@ export function GymMap() {
               );
             })()}
 
+            {tooFar && !isHome ? (
+              <p className="mt-3 rounded-2xl bg-wide/10 px-3 py-2.5 text-xs font-semibold text-wide">
+                You're about {Math.round(selectedAway!)} mi away — get within{" "}
+                {MAX_LOG_MILES} miles to log here.
+              </p>
+            ) : null}
             <div className="mt-4 flex gap-2">
               <Button
                 className="flex-1"
                 loading={saving === "home"}
+                disabled={tooFar && !isHome}
                 onClick={() => setHome(selected)}
               >
                 {isHome ? (
                   <>
-                    <Check size={16} className="mr-1.5" /> Browse routes
+                    <Check size={16} className="mr-1.5" /> View logbook
                   </>
                 ) : (
                   "Set as home"
@@ -776,6 +835,7 @@ export function GymMap() {
                   variant="secondary"
                   className="flex-1"
                   loading={saving === "visit"}
+                  disabled={tooFar}
                   onClick={() => visitGym(selected)}
                 >
                   <Plane size={16} className="mr-1.5" /> I'm visiting

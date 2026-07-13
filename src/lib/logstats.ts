@@ -131,6 +131,8 @@ export type LogStats = {
    * climbs every day; one session a week keeps the flame alive. The current
    * week gets a grace period: an empty week-so-far doesn't kill the streak. */
   streakWeeks: number;
+  /** Days since the current streak started (0 when there's no streak). */
+  streakDays: number;
   pyramid: { label: string; count: number; sort: number }[];
   hardestSend: { boulder: LoggedItem | null; toprope: LoggedItem | null };
   hardestFlash: { boulder: LoggedItem | null; toprope: LoggedItem | null };
@@ -199,7 +201,21 @@ export function computeLogStats(
       return t >= now - (i + 1) * 7 * DAY_MS && t < now - i * 7 * DAY_MS;
     });
   let streakWeeks = 0;
+  const graceStart = !weekHasLog(0); // streak counted from last week (grace)
   for (let i = weekHasLog(0) ? 0 : 1; weekHasLog(i); i++) streakWeeks++;
+
+  // Days since the streak began = days from the oldest log in the streak span.
+  let streakDays = 0;
+  if (streakWeeks > 0) {
+    const weeksBack = streakWeeks + (graceStart ? 1 : 0);
+    const spanStart = now - weeksBack * 7 * DAY_MS;
+    const inStreak = logged
+      .map((l) => new Date(l.date).getTime())
+      .filter((t) => t >= spanStart);
+    if (inStreak.length > 0) {
+      streakDays = Math.max(1, Math.floor((now - Math.min(...inStreak)) / DAY_MS));
+    }
+  }
 
   // Sends per week for the last 8 rolling weeks (oldest → newest).
   const weeks = Array.from({ length: 8 }, (_, i) => {
@@ -225,6 +241,7 @@ export function computeLogStats(
     topWall: mode(logged.map((l) => l.route.wall_section)),
     topColor: mode(logged.map((l) => l.route.hold_color)),
     streakWeeks,
+    streakDays,
     pyramid,
     hardestSend: hardest(sent),
     hardestFlash: hardest(flashes),

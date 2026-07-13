@@ -9,6 +9,7 @@ import {
   Plus,
   RotateCcw,
   Sparkles,
+  Trash2,
   TrendingUp,
   Zap,
 } from "lucide-react";
@@ -125,6 +126,17 @@ export function Sends() {
     }
     return out;
   }, [logged]);
+
+  async function deleteSend(routeId: string) {
+    if (!profile) return;
+    if (!window.confirm("Delete this climb from your logbook?")) return;
+    await supabase
+      .from("sends")
+      .delete()
+      .eq("user_id", profile.id)
+      .eq("route_id", routeId);
+    setLogged((prev) => prev.filter((l) => l.route.id !== routeId));
+  }
 
   function openStory(r: RecapRow) {
     setStory(r);
@@ -293,6 +305,7 @@ export function Sends() {
                           }
                           sub={fmt(item.date)}
                           note={item.note}
+                          onDelete={() => deleteSend(item.route.id)}
                         />
                       ))}
                     </ul>
@@ -390,6 +403,7 @@ function RowLink({
   sub,
   note,
   to,
+  onDelete,
 }: {
   route: RouteWithStats;
   system: "american" | "european";
@@ -399,10 +413,24 @@ function RowLink({
   note?: string | null;
   /** Override destination (projects open their journal, not the route). */
   to?: string;
+  /** When provided, shows a delete control for this logged climb. */
+  onDelete?: () => void;
 }) {
   const grade = communityGrade(route.gradeValues);
   return (
-    <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
+    <li
+      className="relative"
+      style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}
+    >
+      {onDelete ? (
+        <button
+          onClick={onDelete}
+          aria-label="Delete this log"
+          className="absolute right-2 top-2 z-10 rounded-full bg-bg/70 p-1.5 text-faint backdrop-blur transition hover:text-wide"
+        >
+          <Trash2 size={14} />
+        </button>
+      ) : null}
       <Link
         to={to ?? `/route/${route.id}`}
         className="flex animate-fade-up items-center gap-3 rounded-2xl bg-surface p-3 shadow-card transition active:scale-[0.99]"

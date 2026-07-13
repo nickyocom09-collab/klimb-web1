@@ -8,7 +8,6 @@ import {
   History,
   Pencil,
   Plus,
-  Sparkles,
   TrendingUp,
   Trophy,
   Zap,
@@ -16,13 +15,8 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
-import {
-  communityGrade,
-  formatGrade,
-  formatGymGrade,
-} from "../lib/grades";
+import { formatGrade, formatGymGrade } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
-import { aiConsensus } from "../lib/ai";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
 import type { RouteEventRow, SendType } from "../lib/database.types";
@@ -47,21 +41,19 @@ export function RouteDetail() {
   const system = profile?.grade_system ?? "american";
 
   const [route, setRoute] = useState<RouteWithStats | null>(null);
-  const [authorName, setAuthorName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [hasSent, setHasSent] = useState(false);
   const [mySendType, setMySendType] = useState<SendType | null>(null);
   const [myNote, setMyNote] = useState<string | null>(null);
   const [isProject, setIsProject] = useState(false);
-  const [gallery, setGallery] = useState<string[]>([]);
   const [events, setEvents] = useState<RouteEventRow[]>([]);
   const [logOpen, setLogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id || !profile) return;
     setLoading(true);
-    const [r, { data: mine }, { data: mySend }, { data: bm }, { data: eventRows }, { data: logPhotos }] =
+    const [r, { data: mine }, { data: mySend }, { data: bm }, { data: eventRows }] =
       await Promise.all([
         fetchRoute(id),
         supabase
@@ -88,13 +80,6 @@ export function RouteDetail() {
           .select("*")
           .eq("route_id", id)
           .order("created_at", { ascending: false }),
-        supabase
-          .from("sends")
-          .select("photo_url")
-          .eq("route_id", id)
-          .not("photo_url", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(12),
       ]);
     setRoute(r);
     setMyGrade(mine?.grade ?? null);
@@ -103,21 +88,6 @@ export function RouteDetail() {
     setMyNote(mySend?.note ?? null);
     setIsProject(!!bm);
     setEvents(eventRows ?? []);
-    setGallery(
-      (logPhotos ?? [])
-        .map((p) => p.photo_url)
-        .filter((p): p is string => !!p),
-    );
-    if (r?.created_by) {
-      const { data: author } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", r.created_by)
-        .maybeSingle();
-      setAuthorName(author?.display_name ?? null);
-    } else {
-      setAuthorName(null);
-    }
     setLoading(false);
   }, [id, profile]);
 
@@ -144,15 +114,6 @@ export function RouteDetail() {
 
   const fmt = (g: number | null | undefined) =>
     formatGrade(g, route.climbing_type, system);
-  const realVotes = route.gradeValues.length;
-  const median = communityGrade(route.gradeValues);
-  // What climbers say: real consensus once 2+ votes exist; before that, the
-  // logged grade (yours) with the Klimb AI vouching for it.
-  const displayGrade = realVotes >= 2 ? median : (myGrade ?? median);
-  const ai =
-    displayGrade !== null && realVotes < 2
-      ? aiConsensus(route.id, fmt(displayGrade))
-      : null;
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
@@ -202,45 +163,24 @@ export function RouteDetail() {
               </div>
             </div>
             <p className="mt-2 text-xs text-faint">
-              {authorName ? `Logged by ${authorName} · ` : ""}
               {formatDate(route.created_at)}
             </p>
           </div>
 
-          {/* Crowd gallery */}
-          {gallery.length > 0 ? (
-            <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
-              {gallery.map((url, i) => (
-                <img
-                  key={url}
-                  src={url}
-                  alt={`Log photo ${i + 1}`}
-                  loading="lazy"
-                  style={{ animationDelay: `${Math.min(i * 40, 200)}ms` }}
-                  className="h-20 w-20 shrink-0 animate-fade-up rounded-2xl object-cover shadow-card"
-                />
-              ))}
-            </div>
-          ) : null}
-
-          {/* Climbers say vs Gym says */}
+          {/* Your grade vs the gym's grade */}
           <div className="flex gap-3">
             <div className="flex-1 rounded-2xl bg-surface px-4 py-3 shadow-card">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Climbers say
+                Your grade
               </p>
               <p
-                key={displayGrade ?? -1}
+                key={myGrade ?? -1}
                 className="mt-0.5 animate-pop text-4xl font-extrabold leading-none tabular-nums text-accent"
               >
-                {fmt(displayGrade)}
+                {fmt(myGrade)}
               </p>
               <p className="mt-1.5 text-xs text-faint">
-                {realVotes >= 2
-                  ? `${realVotes} grades logged`
-                  : displayGrade !== null
-                    ? "your grade"
-                    : "no grade yet"}
+                {myGrade !== null ? "what it felt like" : "not graded yet"}
               </p>
             </div>
             {route.gym_grade !== null && route.gym_grade !== undefined ? (
@@ -260,44 +200,6 @@ export function RouteDetail() {
               </div>
             ) : null}
           </div>
-
-          {/* Klimb AI consensus — the app vouches for your grade */}
-          {ai ? (
-            <div className="flex items-start gap-2.5 rounded-2xl bg-surface p-4 shadow-card">
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10">
-                <Sparkles size={14} className="text-accent" />
-              </span>
-              <div>
-                <p className="text-sm text-chalk/90">{ai.line}</p>
-                <p className="mt-0.5 text-[10px] text-faint">Klimb AI</p>
-              </div>
-            </div>
-          ) : null}
-
-          {/* At a glance */}
-          <p className="ml-1 text-xs text-muted">
-            {route.climbers > 0 ? (
-              <>
-                <span className="font-semibold text-chalk">{route.climbers}</span>{" "}
-                climber{route.climbers === 1 ? "" : "s"} logged this
-                {route.funAvg !== null && route.funCount > 0 ? (
-                  <> · ★ {route.funAvg.toFixed(1)}</>
-                ) : null}
-                {route.avgAttempts !== null ? (
-                  <>
-                    {" "}
-                    · avg{" "}
-                    <span className="font-semibold text-chalk">
-                      {Math.round(route.avgAttempts * 10) / 10}
-                    </span>{" "}
-                    tries
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <>Not logged by anyone else yet.</>
-            )}
-          </p>
 
           {/* Your log — read-only until you hit Edit */}
           {hasSent ? (

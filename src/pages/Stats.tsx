@@ -15,7 +15,7 @@ import {
 } from "../lib/recaps";
 import { AppHeader } from "../components/Layout";
 import { RecapStory } from "../components/RecapStory";
-import { StreakMonkey } from "../components/StreakMonkey";
+import { StreakFlame } from "../components/StreakFlame";
 import { CenterSpinner } from "../components/ui";
 
 function periodLabel(r: RecapRow): string {
@@ -159,19 +159,19 @@ export function Stats() {
             </p>
           </div>
 
-          {/* ---- Streak: a climbing-monkey mascot who thrives on your streak ---- */}
+          {/* ---- Streak: an animated flame, counted in days ---- */}
           <div className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-card">
-            <StreakMonkey weeks={stats.streakWeeks} size={76} />
+            <StreakFlame weeks={stats.streakWeeks} size={68} />
             <div className="min-w-0">
               <p className="text-3xl font-extrabold leading-none tabular-nums text-chalk">
                 {stats.streakWeeks > 0
-                  ? `${stats.streakWeeks} wk${stats.streakWeeks === 1 ? "" : "s"}`
+                  ? `${stats.streakDays} day${stats.streakDays === 1 ? "" : "s"}`
                   : "No streak"}
               </p>
               <p className="mt-1.5 text-sm text-muted">
                 {stats.streakWeeks > 0
-                  ? "He's stoked — climb once a week to keep him happy."
-                  : "He's dozing off. Climb this week to wake him up."}
+                  ? "Streak's alive — just one log a week keeps it burning."
+                  : "Log a climb this week to spark your streak."}
               </p>
             </div>
           </div>
