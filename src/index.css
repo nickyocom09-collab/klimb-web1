@@ -229,10 +229,87 @@
   inset: 0;
   z-index: 9999;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 34px;
   overflow: hidden;
   background: #000;
+}
+/* Stage holds the mark and the soft accent glow behind it. */
+.klimb-splash__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Accent-green glow that breathes behind the logo. */
+.klimb-splash__glow {
+  position: absolute;
+  width: 210px;
+  height: 210px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgb(57 255 136 / 0.28) 0%,
+    rgb(57 255 136 / 0.1) 42%,
+    transparent 70%
+  );
+  filter: blur(6px);
+  animation: klimb-splash-glow 2.8s ease-in-out 0.6s infinite;
+}
+@keyframes klimb-splash-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+/* Thin shimmer bar at the bottom — a quiet sense of loading. */
+.klimb-splash__bar {
+  position: relative;
+  width: 108px;
+  height: 3px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.08);
+}
+.klimb-splash__bar-fill {
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(57 255 136 / 0.95),
+    transparent
+  );
+  animation: klimb-splash-sweep 1.5s ease-in-out infinite;
+}
+@keyframes klimb-splash-sweep {
+  0% {
+    transform: translateX(-160%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .klimb-splash__glow {
+    animation: none;
+    opacity: 0.6;
+  }
+  .klimb-splash__bar-fill {
+    animation: none;
+    width: 100%;
+    transform: none;
+    opacity: 0.5;
+  }
 }
 /* Rockfall celebration — tumbling stones instead of confetti. */
 @keyframes klimb-rockfall {

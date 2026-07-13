@@ -6,11 +6,17 @@
 export function Splash() {
   return (
     <div className="klimb-splash">
-      <img
-        className="klimb-splash__mark"
-        src="/klimb.logo-removebg-preview.png"
-        alt="Klimb"
-      />
+      <div className="klimb-splash__stage">
+        <span className="klimb-splash__glow" aria-hidden="true" />
+        <img
+          className="klimb-splash__mark"
+          src="/klimb.logo-removebg-preview.png"
+          alt="Klimb"
+        />
+      </div>
+      <span className="klimb-splash__bar" aria-hidden="true">
+        <span className="klimb-splash__bar-fill" />
+      </span>
     </div>
   );
 }
