@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronRight, Trash2, X } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
   CLIMB_FILTERS,
@@ -77,6 +78,22 @@ export function Settings() {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [savingBio, setSavingBio] = useState(false);
   const [bioSaved, setBioSaved] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteAccount() {
+    setDeleting(true);
+    const { error } = await supabase.rpc("delete_account");
+    if (error) {
+      setDeleting(false);
+      window.alert(`Couldn't delete your account: ${error.message}`);
+      return;
+    }
+    // Account is gone — sign out and drop back to login.
+    await signOut();
+  }
 
   async function saveBio() {
     const trimmed = bio.trim();
@@ -276,8 +293,69 @@ export function Settings() {
           <Button variant="danger" className="w-full" onClick={signOut}>
             Sign out
           </Button>
+          <button
+            onClick={() => {
+              setConfirmText("");
+              setDeleteOpen(true);
+            }}
+            className="mt-1 flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold text-wide transition hover:opacity-80"
+          >
+            <Trash2 size={15} /> Delete account
+          </button>
         </Section>
       </div>
+
+      {/* Delete-account confirmation sheet */}
+      {deleteOpen ? (
+        <div className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 p-4">
+          <div className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-chalk">Delete account?</h3>
+              <button
+                onClick={() => setDeleteOpen(false)}
+                aria-label="Close"
+                className="rounded-full p-1 text-faint hover:text-chalk"
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <p className="text-sm text-muted">
+              This permanently deletes your profile, sends, projects, grades,
+              notes, and friends. Your logged history can't be recovered.
+              Routes you added stay for the community.
+            </p>
+            <p className="mt-4 mb-2 text-sm text-muted">
+              Type <span className="font-bold text-chalk">DELETE</span> to
+              confirm.
+            </p>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+              autoCapitalize="characters"
+              autoCorrect="off"
+            />
+            <div className="mt-4 flex flex-col gap-2">
+              <Button
+                variant="danger"
+                className="w-full"
+                loading={deleting}
+                disabled={confirmText.trim().toUpperCase() !== "DELETE"}
+                onClick={deleteAccount}
+              >
+                Permanently delete my account
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => setDeleteOpen(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

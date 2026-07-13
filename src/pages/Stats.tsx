@@ -15,6 +15,7 @@ import {
 } from "../lib/recaps";
 import { AppHeader } from "../components/Layout";
 import { RecapStory } from "../components/RecapStory";
+import { StreakFlame } from "../components/StreakFlame";
 import { CenterSpinner } from "../components/ui";
 
 function periodLabel(r: RecapRow): string {
@@ -158,47 +159,46 @@ export function Stats() {
             </p>
           </div>
 
-          {/* ---- The four numbers that matter ---- */}
-          <div className="grid grid-cols-2 gap-3">
-            <BigStat label="Hardest send" tone="accent">
-              {formatHardest(stats.hardestSend, system)}
-            </BigStat>
-            <BigStat
-              label="Hardest flash"
-              icon={<Zap size={12} className="text-accent" />}
-            >
-              {formatHardest(stats.hardestFlash, system)}
-            </BigStat>
-            <BigStat
-              label="This week"
-              sub={
-                stats.thisWeek - stats.lastWeek === 0
-                  ? "same as last week"
-                  : `${stats.thisWeek - stats.lastWeek > 0 ? "+" : ""}${stats.thisWeek - stats.lastWeek} vs last week`
-              }
-              subTone={
-                stats.thisWeek - stats.lastWeek > 0
-                  ? "accent"
-                  : stats.thisWeek - stats.lastWeek < 0
-                    ? "wide"
-                    : "faint"
-              }
-            >
-              {String(stats.thisWeek)}
-            </BigStat>
-            <BigStat
-              label="Streak"
-              sub={
-                stats.streakWeeks > 0
-                  ? "one session a week keeps it alive"
-                  : "climb this week to start one"
-              }
-              subTone={stats.streakWeeks > 0 ? "accent" : "faint"}
-            >
-              {stats.streakWeeks > 0
-                ? `🔥 ${stats.streakWeeks} wk${stats.streakWeeks === 1 ? "" : "s"}`
-                : "—"}
-            </BigStat>
+          {/* ---- Streak: a real animated flame, not an emoji ---- */}
+          <div className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-card">
+            <StreakFlame weeks={stats.streakWeeks} size={64} />
+            <div className="min-w-0">
+              <p className="text-3xl font-extrabold leading-none tabular-nums text-chalk">
+                {stats.streakWeeks > 0
+                  ? `${stats.streakWeeks} wk${stats.streakWeeks === 1 ? "" : "s"}`
+                  : "No streak"}
+              </p>
+              <p className="mt-1.5 text-sm text-muted">
+                {stats.streakWeeks > 0
+                  ? "Week streak — one session a week keeps it lit."
+                  : "Climb this week to light your streak."}
+              </p>
+            </div>
+          </div>
+
+          {/* ---- Personal bests: two clean lines, not clunky tiles ---- */}
+          <div className="rounded-3xl bg-surface p-5 shadow-card">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
+              Personal bests
+            </h2>
+            <div className="mt-3 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  Hardest send
+                </p>
+                <p className="mt-1 text-3xl font-extrabold leading-none tabular-nums text-accent">
+                  {formatHardest(stats.hardestSend, system)}
+                </p>
+              </div>
+              <div>
+                <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  <Zap size={11} className="text-accent" /> Hardest flash
+                </p>
+                <p className="mt-1 text-3xl font-extrabold leading-none tabular-nums text-chalk">
+                  {formatHardest(stats.hardestFlash, system)}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Grade pyramid — one chart, one takeaway */}
@@ -309,46 +309,6 @@ export function Stats() {
       {story ? (
         <RecapStory recap={story} system={system} onClose={() => setStory(null)} />
       ) : null}
-    </div>
-  );
-}
-
-/** One big, plainly-labeled number — the only stat-card style on this page. */
-function BigStat({
-  label,
-  children,
-  sub,
-  subTone = "faint",
-  tone,
-  icon,
-}: {
-  label: string;
-  children: React.ReactNode;
-  sub?: string;
-  subTone?: "accent" | "wide" | "faint";
-  tone?: "accent";
-  icon?: React.ReactNode;
-}) {
-  const subClass =
-    subTone === "accent"
-      ? "text-accent"
-      : subTone === "wide"
-        ? "text-wide"
-        : "text-faint";
-  return (
-    <div className="rounded-3xl bg-surface px-4 py-5 shadow-card">
-      <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-        {icon}
-        {label}
-      </p>
-      <p
-        className={`mt-1.5 text-3xl font-extrabold leading-none tabular-nums ${
-          tone === "accent" ? "text-accent" : "text-chalk"
-        }`}
-      >
-        {children}
-      </p>
-      {sub ? <p className={`mt-1.5 text-xs ${subClass}`}>{sub}</p> : null}
     </div>
   );
 }

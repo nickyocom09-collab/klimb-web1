@@ -15,7 +15,6 @@ import {
   Search,
   Stamp,
   Trophy,
-  Users,
   X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -57,21 +56,13 @@ function esc(s: string): string {
 
 const HOUSE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>`;
 
-/** Dot + name pill. Home = green pulse, collected = gold glow, friend = blue,
- * else dim. Your own collection always outranks the friends overlay. */
-function pinIcon(
-  name: string,
-  home: boolean,
-  collected: boolean,
-  friend: boolean,
-): L.DivIcon {
+/** Dot + name pill. Home = green pulse, collected = gold glow, else dim. */
+function pinIcon(name: string, home: boolean, collected: boolean): L.DivIcon {
   const mod = home
     ? " klimb-pin--home"
     : collected
       ? " klimb-pin--collected"
-      : friend
-        ? " klimb-pin--friend"
-        : " klimb-pin--dim";
+      : " klimb-pin--dim";
   return L.divIcon({
     className: "klimb-pin-wrap",
     html: `<div class="klimb-pin${mod}">
@@ -124,13 +115,11 @@ function GymLayer({
   gyms,
   homeId,
   collected,
-  friendGyms,
   onSelect,
 }: {
   gyms: GymWithCount[];
   homeId: string | null | undefined;
   collected: Set<string>;
-  friendGyms: Set<string>;
   onSelect: (g: GymWithCount) => void;
 }) {
   const map = useMap();
@@ -151,19 +140,8 @@ function GymLayer({
     for (const gym of gyms) {
       const isHome = gym.id === homeId;
       const m = L.marker([gym.latitude!, gym.longitude!], {
-        icon: pinIcon(
-          gym.name,
-          isHome,
-          collected.has(gym.id),
-          friendGyms.has(gym.id),
-        ),
-        zIndexOffset: isHome
-          ? 1000
-          : collected.has(gym.id)
-            ? 500
-            : friendGyms.has(gym.id)
-              ? 250
-              : 0,
+        icon: pinIcon(gym.name, isHome, collected.has(gym.id)),
+        zIndexOffset: isHome ? 1000 : collected.has(gym.id) ? 500 : 0,
         riseOnHover: true,
       });
       m.on("click", () => onSelect(gym));
@@ -179,7 +157,7 @@ function GymLayer({
       map.removeLayer(group);
       homeMarker?.remove();
     };
-  }, [map, gyms, homeId, collected, friendGyms, onSelect]);
+  }, [map, gyms, homeId, collected, onSelect]);
   return null;
 }
 
@@ -201,10 +179,6 @@ export function GymMap() {
   const [projectsByGym, setProjectsByGym] = useState<Map<string, string[]>>(
     new Map(),
   );
-  // Light social: friends' collected gyms (only fetched when toggled on).
-  const [friendsOn, setFriendsOn] = useState(false);
-  const [friendGyms, setFriendGyms] = useState<Set<string>>(new Set());
-  const [friendsLoaded, setFriendsLoaded] = useState(false);
   // Passport: the at-a-glance stamp book (state → collected gyms).
   const [passportOpen, setPassportOpen] = useState(false);
 
@@ -379,71 +353,6 @@ export function GymMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id]);
 
-  // Friends' collected gyms — fetched lazily the first time the toggle is
-  // flipped on. Only friends with public logbooks (sends_public) count.
-  useEffect(() => {
-    if (!friendsOn || friendsLoaded || !profile) return;
-    let active = true;
-    (async () => {
-      const { data: fr } = await supabase
-        .from("friendships")
-        .select("requester_id, addressee_id")
-        .eq("status", "accepted")
-        .or(`requester_id.eq.${profile.id},addressee_id.eq.${profile.id}`);
-      const friendIds = [
-        ...new Set(
-          (fr ?? []).map((f) =>
-            f.requester_id === profile.id ? f.addressee_id : f.requester_id,
-          ),
-        ),
-      ];
-      if (friendIds.length === 0) {
-        if (active) {
-          setFriendGyms(new Set());
-          setFriendsLoaded(true);
-        }
-        return;
-      }
-      const { data: pubs } = await supabase
-        .from("profiles")
-        .select("id")
-        .in("id", friendIds)
-        .eq("sends_public", true);
-      const publicIds = (pubs ?? []).map((p) => p.id);
-      if (publicIds.length === 0) {
-        if (active) {
-          setFriendGyms(new Set());
-          setFriendsLoaded(true);
-        }
-        return;
-      }
-      const { data: fSends } = await supabase
-        .from("sends")
-        .select("route_id")
-        .in("user_id", publicIds)
-        .neq("send_type", "attempt");
-      const rids = [...new Set((fSends ?? []).map((s) => s.route_id))];
-      if (rids.length === 0) {
-        if (active) {
-          setFriendGyms(new Set());
-          setFriendsLoaded(true);
-        }
-        return;
-      }
-      const { data: rs } = await supabase
-        .from("routes")
-        .select("gym_id")
-        .in("id", rids);
-      if (active) {
-        setFriendGyms(new Set((rs ?? []).map((r) => r.gym_id)));
-        setFriendsLoaded(true);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [friendsOn, friendsLoaded, profile]);
-
   const home = useMemo(
     () => gyms.find((g) => g.id === profile?.home_gym_id) ?? null,
     [gyms, profile?.home_gym_id],
@@ -567,7 +476,6 @@ export function GymMap() {
             gyms={gyms}
             homeId={profile?.home_gym_id}
             collected={collected}
-            friendGyms={friendsOn ? friendGyms : new Set()}
             onSelect={(g) =>
               focusGym(g, Math.max(mapRef.current?.getZoom() ?? 12, 12))
             }
@@ -635,24 +543,13 @@ export function GymMap() {
         </div>
       ) : null}
 
-      {/* Quick actions: passport, friends overlay, home, me */}
+      {/* Quick actions: passport, home, me */}
       <div className="absolute right-4 top-20 z-10 flex flex-col items-end gap-2">
         <button
           onClick={() => setPassportOpen(true)}
           className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur transition active:scale-95"
         >
           <Stamp size={15} style={{ color: "#ffc24b" }} /> Passport
-        </button>
-        <button
-          onClick={() => setFriendsOn((v) => !v)}
-          aria-pressed={friendsOn}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur transition active:scale-95 ${
-            friendsOn
-              ? "bg-[#4cc3ff] text-bg"
-              : "bg-surface/95 text-chalk"
-          }`}
-        >
-          <Users size={15} /> Friends
         </button>
         {home ? (
           <button
@@ -812,11 +709,8 @@ export function GymMap() {
               if (!s && projs.length === 0) {
                 return (
                   <p className="mt-3 rounded-2xl bg-surface-2 px-3 py-2.5 text-xs text-muted">
-                    You haven't climbed here yet
-                    {friendsOn && friendGyms.has(selected.id)
-                      ? " — but a friend has. "
-                      : ". "}
-                    Set it as home or log a visit to stamp it gold.
+                    You haven't climbed here yet. Set it as home or log a visit
+                    to stamp it gold.
                   </p>
                 );
               }
@@ -857,11 +751,6 @@ export function GymMap() {
                         {projs.slice(0, 3).join(", ")}
                         {projs.length > 3 ? ` +${projs.length - 3} more` : ""}
                       </span>
-                    </p>
-                  ) : null}
-                  {friendsOn && friendGyms.has(selected.id) && s ? (
-                    <p className="flex items-center gap-1.5 text-xs font-semibold text-[#4cc3ff]">
-                      <Users size={13} /> You and a friend both climbed here
                     </p>
                   ) : null}
                 </div>

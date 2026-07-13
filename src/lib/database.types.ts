@@ -550,6 +550,10 @@ export interface Database {
         Args: { p_route_id: string; p_grade: number };
         Returns: undefined;
       };
+      delete_account: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
     };
     Enums: {
       route_status: RouteStatus;
