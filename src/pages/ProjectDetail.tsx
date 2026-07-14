@@ -141,8 +141,8 @@ export function ProjectDetail() {
 
   function onLogged(outcome: LogOutcome) {
     setLogOpen(false);
-    if (outcome === "flash" || outcome === "send") {
-      // Sent! The project graduates to the logbook; notes stay saved.
+    if (outcome === "flash" || outcome === "send" || outcome === "topped") {
+      // Sent (or topped)! The climb graduates to the logbook; notes stay saved.
       navigate(`/route/${routeId}`, { replace: true });
       return;
     }
@@ -300,7 +300,12 @@ export function ProjectDetail() {
       ) : null}
 
       {logOpen ? (
-        <LogSheet route={route} onClose={() => setLogOpen(false)} onSaved={onLogged} />
+        <LogSheet
+          route={route}
+          initialOutcome="send"
+          onClose={() => setLogOpen(false)}
+          onSaved={onLogged}
+        />
       ) : null}
     </div>
   );

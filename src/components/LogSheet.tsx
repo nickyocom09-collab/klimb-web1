@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Bookmark, Camera, Check, X, Zap } from "lucide-react";
+import { Bookmark, Camera, Check, Flag, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { climbTypeLabel, holdHex } from "../lib/constants";
@@ -7,25 +7,53 @@ import { toggleBookmark } from "../lib/bookmarks";
 import { formatGradeStyled } from "../lib/grades";
 import type { RouteWithStats } from "../lib/routes";
 import type { SendType } from "../lib/database.types";
+import type { ClimbingType } from "../lib/grades";
 import { Button } from "./ui";
 import { GradePicker } from "./GradePicker";
 
-export type LogOutcome = "flash" | "send" | "attempt" | "project";
+export type LogOutcome = "flash" | "send" | "topped" | "attempt" | "project";
 
-const OUTCOMES: {
+type OutcomeOption = {
   value: LogOutcome;
   label: string;
   hint: string;
   Icon: typeof Zap;
-}[] = [
-  { value: "flash", label: "Flash", hint: "First try", Icon: Zap },
-  { value: "send", label: "Sent", hint: "Topped it", Icon: Check },
-  { value: "project", label: "Project", hint: "Working on it", Icon: Bookmark },
-];
+};
+
+// Boulders top out or they don't, so there's just Sent. Rope climbs get the
+// extra "Topped" state — you reached the anchor, but hung/fell on the way.
+function outcomesFor(type: ClimbingType): OutcomeOption[] {
+  const flash: OutcomeOption = {
+    value: "flash",
+    label: "Flash",
+    hint: "First try, clean",
+    Icon: Zap,
+  };
+  const project: OutcomeOption = {
+    value: "project",
+    label: "Project",
+    hint: "Working on it",
+    Icon: Bookmark,
+  };
+  if (type === "toprope") {
+    return [
+      flash,
+      { value: "send", label: "Sent", hint: "To the top, no falls", Icon: Check },
+      { value: "topped", label: "Topped", hint: "To the top, with falls", Icon: Flag },
+      project,
+    ];
+  }
+  return [
+    flash,
+    { value: "send", label: "Sent", hint: "Topped it", Icon: Check },
+    project,
+  ];
+}
 
 const REWARD: Record<LogOutcome, { title: string; sub: string }> = {
   flash: { title: "Flashed!", sub: "First try. Filthy." },
   send: { title: "Sent!", sub: "Another one for the book." },
+  topped: { title: "Topped!", sub: "Made the anchor — go back for the clean send." },
   attempt: { title: "Logged", sub: "It's going down soon." },
   project: { title: "On the board", sub: "Saved to your projects." },
 };
@@ -38,17 +66,21 @@ export function LogSheet({
   route,
   onClose,
   onSaved,
+  initialOutcome = null,
 }: {
   route: RouteWithStats;
   onClose: () => void;
   /** Called after the reward moment with the chosen outcome. */
   onSaved: (outcome: LogOutcome) => void;
+  /** Pre-select an outcome — used when editing a log or moving its status. */
+  initialOutcome?: LogOutcome | null;
 }) {
   const { profile } = useAuth();
   const system = profile?.grade_system ?? "american";
   const photoRef = useRef<HTMLInputElement>(null);
+  const outcomeOptions = outcomesFor(route.climbing_type);
 
-  const [outcome, setOutcome] = useState<LogOutcome | null>(null);
+  const [outcome, setOutcome] = useState<LogOutcome | null>(initialOutcome);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -90,6 +122,13 @@ export function LogSheet({
     }
 
     if (outcome === "project") {
+      // Moving to a project: drop any logged send so the states stay
+      // mutually exclusive, then bookmark it.
+      await supabase
+        .from("sends")
+        .delete()
+        .eq("route_id", route.id)
+        .eq("user_id", profile.id);
       await toggleBookmark(profile.id, route.id, "project", false);
     } else {
       let photoUrl: string | null = null;
@@ -120,6 +159,13 @@ export function LogSheet({
         },
         { onConflict: "route_id,user_id" },
       );
+      // Logging it clears any "project" bookmark — you're past working on it.
+      await supabase
+        .from("bookmarks")
+        .delete()
+        .eq("user_id", profile.id)
+        .eq("route_id", route.id)
+        .eq("kind", "project");
     }
 
     setSaving(false);
@@ -159,8 +205,12 @@ export function LogSheet({
         </div>
 
         {/* Outcome */}
-        <div className="grid grid-cols-3 gap-2">
-          {OUTCOMES.map(({ value, label, hint, Icon }) => {
+        <div
+          className={`grid gap-2 ${
+            outcomeOptions.length === 4 ? "grid-cols-4" : "grid-cols-3"
+          }`}
+        >
+          {outcomeOptions.map(({ value, label, hint, Icon }) => {
             const on = outcome === value;
             return (
               <button
@@ -277,6 +327,8 @@ export function LogSheet({
                   <Zap size={30} strokeWidth={2.5} />
                 ) : reward === "project" ? (
                   <Bookmark size={28} strokeWidth={2.5} />
+                ) : reward === "topped" ? (
+                  <Flag size={28} strokeWidth={2.5} />
                 ) : (
                   <Check size={32} strokeWidth={3} />
                 )}

@@ -5,6 +5,7 @@ import {
   Bookmark,
   Check,
   ChevronLeft,
+  Flag,
   History,
   Pencil,
   Plus,
@@ -224,6 +225,11 @@ export function RouteDetail() {
                         <Zap size={16} className="shrink-0 text-accent" /> You
                         flashed this
                       </>
+                    ) : mySendType === "topped" ? (
+                      <>
+                        <Flag size={16} className="shrink-0 text-accent" /> You
+                        topped this
+                      </>
                     ) : (
                       <>
                         <Check size={16} className="shrink-0 text-accent" /> You
@@ -354,6 +360,9 @@ export function RouteDetail() {
       {logOpen && route ? (
         <LogSheet
           route={route}
+          initialOutcome={
+            hasSent ? mySendType : isProject ? "project" : null
+          }
           onClose={() => setLogOpen(false)}
           onSaved={async () => {
             setLogOpen(false);

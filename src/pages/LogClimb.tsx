@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bookmark, Camera, Check, ImagePlus, Zap } from "lucide-react";
+import { Bookmark, Camera, Check, Flag, ImagePlus, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
@@ -24,22 +24,49 @@ import { Stars } from "../components/Stars";
 const NOT_SET = "Not set";
 const OTHER = "Other…";
 
-type Outcome = "flash" | "send" | "project";
+type Outcome = "flash" | "send" | "topped" | "project";
 
-const OUTCOMES: {
+type OutcomeOption = {
   value: Outcome;
   label: string;
   hint: string;
   Icon: typeof Zap;
-}[] = [
-  { value: "flash", label: "Flash", hint: "First try", Icon: Zap },
-  { value: "send", label: "Sent", hint: "Topped it", Icon: Check },
-  { value: "project", label: "Project", hint: "Working on it", Icon: Bookmark },
-];
+};
+
+// Rope climbs get the extra "Topped" state (reached the anchor, but with
+// falls) between Sent and Project; boulders just top out or don't.
+function outcomesFor(type: ClimbType): OutcomeOption[] {
+  const flash: OutcomeOption = {
+    value: "flash",
+    label: "Flash",
+    hint: "First try, clean",
+    Icon: Zap,
+  };
+  const project: OutcomeOption = {
+    value: "project",
+    label: "Project",
+    hint: "Working on it",
+    Icon: Bookmark,
+  };
+  if (type === "toprope") {
+    return [
+      flash,
+      { value: "send", label: "Sent", hint: "To the top, no falls", Icon: Check },
+      { value: "topped", label: "Topped", hint: "To the top, with falls", Icon: Flag },
+      project,
+    ];
+  }
+  return [
+    flash,
+    { value: "send", label: "Sent", hint: "Topped it", Icon: Check },
+    project,
+  ];
+}
 
 const REWARD: Record<Outcome, { title: string; sub: string }> = {
   flash: { title: "Flashed!", sub: "First try. Filthy." },
   send: { title: "Sent!", sub: "Another one for the book." },
+  topped: { title: "Topped!", sub: "Made the anchor — go back for the clean send." },
   project: { title: "On the board", sub: "Saved to your projects." },
 };
 
@@ -91,6 +118,7 @@ export function LogClimb() {
 
   const gymGradeOpts = gymGradeOptions(climbingType, system, gradeStyle);
   const feltOpts = pickerOptions(climbingType, system);
+  const outcomeOptions = outcomesFor(climbingType);
   const gymGradeLabel =
     gymGrade === null
       ? NOT_SET
@@ -111,6 +139,8 @@ export function LogClimb() {
     setClimbingType(t);
     setFeltGrade(null);
     setGymGrade(null);
+    // "Topped" only exists for rope climbs — drop it if switching to boulder.
+    if (t !== "toprope" && outcome === "topped") setOutcome(null);
   }
 
   async function save() {
@@ -237,8 +267,12 @@ export function LogClimb() {
         {/* How'd it go? The heart of the log. */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">How'd it go?</p>
-          <div className="grid grid-cols-3 gap-2">
-            {OUTCOMES.map(({ value, label, hint, Icon }) => {
+          <div
+            className={`grid gap-2 ${
+              outcomeOptions.length === 4 ? "grid-cols-4" : "grid-cols-3"
+            }`}
+          >
+            {outcomeOptions.map(({ value, label, hint, Icon }) => {
               const on = outcome === value;
               return (
                 <button
@@ -406,6 +440,8 @@ export function LogClimb() {
                 <Zap size={30} strokeWidth={2.5} />
               ) : reward === "project" ? (
                 <Bookmark size={28} strokeWidth={2.5} />
+              ) : reward === "topped" ? (
+                <Flag size={28} strokeWidth={2.5} />
               ) : (
                 <Check size={32} strokeWidth={3} />
               )}
