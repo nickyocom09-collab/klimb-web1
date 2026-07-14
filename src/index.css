@@ -269,46 +269,10 @@
     transform: scale(1.08);
   }
 }
-/* Thin shimmer bar at the bottom — a quiet sense of loading. */
-.klimb-splash__bar {
-  position: relative;
-  width: 108px;
-  height: 3px;
-  border-radius: 9999px;
-  overflow: hidden;
-  background: rgb(255 255 255 / 0.08);
-}
-.klimb-splash__bar-fill {
-  position: absolute;
-  inset: 0;
-  width: 42%;
-  border-radius: 9999px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgb(57 255 136 / 0.95),
-    transparent
-  );
-  animation: klimb-splash-sweep 1.5s ease-in-out infinite;
-}
-@keyframes klimb-splash-sweep {
-  0% {
-    transform: translateX(-160%);
-  }
-  100% {
-    transform: translateX(360%);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .klimb-splash__glow {
     animation: none;
     opacity: 0.6;
-  }
-  .klimb-splash__bar-fill {
-    animation: none;
-    width: 100%;
-    transform: none;
-    opacity: 0.5;
   }
 }
 /* Rockfall celebration — tumbling stones instead of confetti. */

@@ -13,16 +13,23 @@ export function KMark({
   return (
     <svg
       className={className}
-      viewBox="27 16 88 88"
-      fill="currentColor"
+      viewBox="20 10 100 100"
       role="img"
       aria-label={title}
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path d="M42 26 L54 18 L54 55 L42 67 Z" />
-      <path d="M42 72 L54 60 L54 96 L42 104 Z" />
-      <path d="M88 22 L100 22 L60 66 L51 57 Z" />
-      <path d="M58 71 L67 62 L101 100 L88 100 Z" />
+      <g
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth={5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      >
+        <path d="M42 27 L54 19 L54 55 L42 66 Z" />
+        <path d="M42 73 L54 61 L54 96 L42 104 Z" />
+        <path d="M88 23 L99 23 L60 66 L51 57 Z" />
+        <path d="M59 71 L67 63 L100 99 L88 99 Z" />
+      </g>
     </svg>
   );
 }

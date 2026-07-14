@@ -41,6 +41,7 @@
     #boot-splash .mark {
       width: 140px;
       height: 140px;
+      color: #f2efe8;
       filter: drop-shadow(0 18px 44px rgba(255, 255, 255, 0.08));
       animation:
         boot-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both,
@@ -63,7 +64,14 @@
 <body>
   <div id="root">
     <div id="boot-splash">
-      <img class="mark" src="/klimb.logo-removebg-preview.png" alt="Klimb" />
+      <svg class="mark" viewBox="20 10 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Klimb">
+        <g fill="currentColor" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+          <path d="M42 27 L54 19 L54 55 L42 66 Z" />
+          <path d="M42 73 L54 61 L54 96 L42 104 Z" />
+          <path d="M88 23 L99 23 L60 66 L51 57 Z" />
+          <path d="M59 71 L67 63 L100 99 L88 99 Z" />
+        </g>
+      </svg>
     </div>
   </div>
   <script type="module" src="/src/main.tsx"></script>

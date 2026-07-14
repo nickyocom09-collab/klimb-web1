@@ -13,9 +13,6 @@ export function Splash() {
         {/* Just the K mark — no app-icon square. Cream on black. */}
         <KMark className="klimb-splash__mark" />
       </div>
-      <span className="klimb-splash__bar" aria-hidden="true">
-        <span className="klimb-splash__bar-fill" />
-      </span>
     </div>
   );
 }
