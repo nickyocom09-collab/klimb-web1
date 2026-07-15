@@ -60,6 +60,7 @@ export interface Database {
           onboarded: boolean;
           seen_intro: boolean;
           notifications_seen_at: string;
+          notifications_cleared_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -77,6 +78,7 @@ export interface Database {
           onboarded?: boolean;
           seen_intro?: boolean;
           notifications_seen_at?: string;
+          notifications_cleared_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -93,6 +95,7 @@ export interface Database {
           onboarded?: boolean;
           seen_intro?: boolean;
           notifications_seen_at?: string;
+          notifications_cleared_at?: string | null;
         };
         Relationships: [];
       };

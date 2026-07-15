@@ -268,6 +268,7 @@ export function LogClimb() {
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">How'd it go?</p>
           <div
+            key={climbingType}
             className={`grid gap-2 ${
               outcomeOptions.length === 4 ? "grid-cols-2" : "grid-cols-3"
             }`}

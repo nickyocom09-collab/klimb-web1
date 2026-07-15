@@ -244,6 +244,69 @@
       #000 100%
     );
 }
+/* Animated wordmark: the K pops in, then L-I-M-B slide out of it. */
+.klimb-wordmark {
+  display: flex;
+  align-items: center;
+  animation: klimb-word-recenter 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+}
+.klimb-wordmark__k {
+  height: clamp(58px, 16vw, 88px);
+  width: auto;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
+  animation: klimb-k-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.klimb-wordmark__rest {
+  display: flex;
+  margin-left: 3px;
+}
+.klimb-wordmark__rest > span {
+  display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", sans-serif;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: clamp(50px, 14.5vw, 76px);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  color: #f2efe8;
+  opacity: 0;
+  transform: translateX(-30px);
+  animation: klimb-letter-out 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes klimb-k-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes klimb-letter-out {
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes klimb-word-recenter {
+  from {
+    transform: translateX(72px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .klimb-wordmark,
+  .klimb-wordmark__k,
+  .klimb-wordmark__rest > span {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 /* Stage holds the mark and the soft accent glow behind it. */
 .klimb-splash__stage {
   position: relative;

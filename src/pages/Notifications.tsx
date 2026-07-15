@@ -2,16 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell,
+  Check,
   ChevronLeft,
-  MessageCircle,
-  Plus,
-  Tag,
-  Trophy,
   UserPlus,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { ListSkeleton } from "../components/ui";
 import {
+  clearNotifications,
   fetchNotifications,
   markNotificationsSeen,
   type Notification,
@@ -20,17 +18,11 @@ import { timeAgo } from "../lib/time";
 
 function iconFor(kind: Notification["kind"]) {
   switch (kind) {
-    case "reply":
-      return { Icon: MessageCircle, tint: "accent" as const };
-    case "grade":
-      return { Icon: Tag, tint: "accent" as const };
-    case "send":
-      return { Icon: Trophy, tint: "gold" as const };
-    case "friend_request":
     case "friend_accept":
-      return { Icon: UserPlus, tint: "accent" as const };
+      return { Icon: Check, tint: "accent" as const };
+    case "friend_request":
     default:
-      return { Icon: Plus, tint: "accent" as const };
+      return { Icon: UserPlus, tint: "accent" as const };
   }
 }
 
@@ -47,8 +39,8 @@ export function Notifications() {
     (async () => {
       const list = await fetchNotifications(
         profile.id,
-        profile.home_gym_id,
         profile.notifications_seen_at,
+        profile.notifications_cleared_at,
       );
       if (!active) return;
       setNotes(list);
@@ -59,6 +51,12 @@ export function Notifications() {
       active = false;
     };
   }, [profile]);
+
+  async function clearAll() {
+    if (!profile) return;
+    setNotes([]);
+    await clearNotifications(profile.id);
+  }
 
   const groups = useMemo(() => {
     const fresh = notes.filter((n) => n.unread);
@@ -80,6 +78,14 @@ export function Notifications() {
           <ChevronLeft size={24} />
         </button>
         <h1 className="text-xl font-extrabold text-chalk">Notifications</h1>
+        {notes.length > 0 ? (
+          <button
+            onClick={clearAll}
+            className="ml-auto rounded-full bg-surface-2 px-3 py-1.5 text-sm font-semibold text-muted transition hover:text-chalk"
+          >
+            Clear
+          </button>
+        ) : null}
       </header>
 
       {loading ? (
@@ -92,8 +98,7 @@ export function Notifications() {
           <div>
             <p className="font-semibold text-chalk">You're all caught up</p>
             <p className="mt-1 text-sm text-faint">
-              New routes at your gym, replies, grades on your routes, and
-              friends show up here.
+              Friend requests and new friends show up here.
             </p>
           </div>
         </div>
@@ -106,7 +111,7 @@ export function Notifications() {
               </h2>
               <ul className="flex flex-col gap-2">
                 {g.items.map((n) => {
-                  const { Icon, tint } = iconFor(n.kind);
+                  const { Icon } = iconFor(n.kind);
                   return (
                     <li key={n.id}>
                       <button
@@ -115,19 +120,7 @@ export function Notifications() {
                           n.unread ? "bg-accent/10" : "bg-surface"
                         }`}
                       >
-                        <span
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                            tint === "gold" ? "" : "bg-accent/15 text-accent"
-                          }`}
-                          style={
-                            tint === "gold"
-                              ? {
-                                  backgroundColor: "rgba(255,194,75,0.15)",
-                                  color: "#ffc24b",
-                                }
-                              : undefined
-                          }
-                        >
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent">
                           <Icon size={18} />
                         </span>
                         <div className="min-w-0 flex-1">

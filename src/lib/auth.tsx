@@ -63,6 +63,7 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     onboarded: true,
     seen_intro: true,
     notifications_seen_at: new Date().toISOString(),
+    notifications_cleared_at: null,
     created_at: new Date().toISOString(),
   };
   const value: AuthState = {

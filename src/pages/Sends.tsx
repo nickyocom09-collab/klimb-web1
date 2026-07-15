@@ -155,8 +155,8 @@ export function Sends() {
     // Unread notification badge (home carries the bell now).
     fetchNotifications(
       profile.id,
-      profile.home_gym_id,
       profile.notifications_seen_at,
+      profile.notifications_cleared_at,
     ).then((list) => {
       if (active) setUnread(list.filter((n) => n.unread).length);
     });
