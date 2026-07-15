@@ -25,6 +25,14 @@ import type { GymRow } from "../lib/database.types";
 
 type GymWithCount = GymRow & { routeCount: number };
 
+/** ISO 3166-1 alpha-2 code -> emoji flag (no image assets needed). */
+function flagEmoji(cc: string | null | undefined): string {
+  if (!cc || cc.length !== 2) return "🏳️";
+  return cc
+    .toUpperCase()
+    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+}
+
 /** Everything you've done at one gym — the "what have I done here?" answer. */
 type MyGymStats = {
   sends: number;
@@ -381,9 +389,20 @@ export function GymMap() {
   // Collection progress: gyms collected + distinct states stamped.
   const collectedStats = useMemo(() => {
     const states = new Set<string>();
-    for (const g of gyms)
-      if (collected.has(g.id) && g.state) states.add(g.state);
-    return { gyms: collected.size, states: states.size };
+    const countries = new Map<string, string>(); // cc -> country name
+    for (const g of gyms) {
+      if (!collected.has(g.id)) continue;
+      if (g.state) states.add(g.state);
+      if (g.cc) countries.set(g.cc, g.country ?? g.cc.toUpperCase());
+    }
+    return {
+      gyms: collected.size,
+      states: states.size,
+      countries: countries.size,
+      countryList: [...countries.entries()].sort((a, b) =>
+        a[1].localeCompare(b[1]),
+      ),
+    };
   }, [gyms, collected]);
 
   function focusGym(gym: GymWithCount, zoom = 13) {
@@ -658,8 +677,10 @@ export function GymMap() {
                   <span className="text-chalk">of {gyms.length} gyms</span>
                 </p>
                 <p className="text-xs text-muted">
+                  {collectedStats.countries} countr
+                  {collectedStats.countries === 1 ? "y" : "ies"} ·{" "}
                   {collectedStats.states} state
-                  {collectedStats.states === 1 ? "" : "s"} stamped
+                  {collectedStats.states === 1 ? "" : "s"}
                 </p>
               </div>
               <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-surface-2">
@@ -672,6 +693,23 @@ export function GymMap() {
                   }}
                 />
               </div>
+              {/* Flag stamps — one per country you've climbed in */}
+              {collectedStats.countryList.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {collectedStats.countryList.map(([cc, name]) => (
+                    <span
+                      key={cc}
+                      title={name}
+                      className="flex items-center gap-1 rounded-full bg-surface-2 px-2 py-1 text-xs font-semibold text-chalk"
+                    >
+                      <span className="text-base leading-none">
+                        {flagEmoji(cc)}
+                      </span>
+                      {cc.toUpperCase()}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="mx-auto w-full max-w-app flex-1 overflow-y-auto px-5 pb-28 pt-2">
@@ -688,20 +726,28 @@ export function GymMap() {
               </div>
             ) : (
               (() => {
-                const byState = new Map<string, GymWithCount[]>();
+                const byCountry = new Map<
+                  string,
+                  { name: string; cc: string; list: GymWithCount[] }
+                >();
                 for (const g of gyms) {
                   if (!collected.has(g.id)) continue;
-                  const key = g.state?.trim() || "Elsewhere";
-                  const list = byState.get(key) ?? [];
-                  list.push(g);
-                  byState.set(key, list);
+                  const cc = g.cc ?? "xx";
+                  const name = g.country ?? "Elsewhere";
+                  const entry =
+                    byCountry.get(cc) ?? { name, cc, list: [] };
+                  entry.list.push(g);
+                  byCountry.set(cc, entry);
                 }
-                return [...byState.entries()]
-                  .sort((a, b) => a[0].localeCompare(b[0]))
-                  .map(([state, list]) => (
-                    <section key={state} className="mb-5">
-                      <h3 className="mb-2 ml-1 text-sm font-semibold uppercase tracking-wide text-faint">
-                        {state} · {list.length}
+                return [...byCountry.values()]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(({ name, cc, list }) => (
+                    <section key={cc} className="mb-5">
+                      <h3 className="mb-2 ml-1 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
+                        <span className="text-base leading-none">
+                          {flagEmoji(cc)}
+                        </span>
+                        {name} · {list.length}
                       </h3>
                       <ul className="flex flex-col gap-1.5">
                         {list.map((g) => {
@@ -771,10 +817,15 @@ export function GymMap() {
                     </span>
                   ) : null}
                 </p>
-                {selected.city || selected.state ? (
+                {selected.city || selected.state || selected.country ? (
                   <p className="mt-1 flex items-center gap-1 text-sm text-muted">
                     <MapPin size={13} />
                     {[selected.city, selected.state].filter(Boolean).join(", ")}
+                    {selected.cc ? (
+                      <span className="ml-1 text-base leading-none">
+                        {flagEmoji(selected.cc)}
+                      </span>
+                    ) : null}
                   </p>
                 ) : null}
               </div>

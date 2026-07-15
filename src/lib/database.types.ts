@@ -127,6 +127,8 @@ export interface Database {
           longitude: number | null;
           status: GymStatus;
           grading_style: GradingStyle;
+          country: string | null;
+          cc: string | null;
           created_by: string | null;
           created_at: string;
         };

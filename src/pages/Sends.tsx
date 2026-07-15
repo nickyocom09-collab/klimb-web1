@@ -288,7 +288,7 @@ export function Sends() {
                   {v === "logged"
                     ? "Sends"
                     : v === "topped"
-                      ? `Topped${toppedItems.length ? ` · ${toppedItems.length}` : ""}`
+                      ? "Topped"
                       : "Projects"}
                 </button>
               ))}

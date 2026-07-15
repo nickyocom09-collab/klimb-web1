@@ -452,8 +452,9 @@
 }
 
 .klimb-splash__mark {
-  width: 140px;
-  height: 140px;
+  width: min(240px, 62vw);
+  height: min(240px, 62vw);
+  object-fit: contain;
   color: #f2efe8;
   filter: drop-shadow(0 18px 44px rgba(255, 255, 255, 0.08));
   animation:
