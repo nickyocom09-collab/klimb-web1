@@ -77,6 +77,8 @@ export function Sends() {
   const [view, setView] = useState<"logged" | "topped" | "projecting">(
     "logged",
   );
+  // Little celebration when a topped climb graduates to a clean send.
+  const [celebrate, setCelebrate] = useState(false);
 
   // Topped climbs (reached the top, but with falls) live apart from clean
   // sends — they're a to-do, not a trophy, until you go back for the send.
@@ -92,6 +94,8 @@ export function Sends() {
   // Upgrade a topped climb to a clean send — the "I sent this" button.
   async function upgradeToSend(routeId: string) {
     if (!profile) return;
+    setCelebrate(true);
+    window.setTimeout(() => setCelebrate(false), 1600);
     setLogged((prev) =>
       prev.map((l) =>
         l.route.id === routeId ? { ...l, sendType: "send" } : l,
@@ -381,6 +385,28 @@ export function Sends() {
 
       {story ? (
         <RecapStory recap={story} system={system} onClose={() => setStory(null)} />
+      ) : null}
+
+      {/* "I sent this" celebration — quick, satisfying, then it's gone. */}
+      {celebrate ? (
+        <div className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in flex-col items-center justify-center gap-3 bg-bg/90 backdrop-blur-sm">
+          <span className="relative flex h-24 w-24 items-center justify-center">
+            <span className="absolute inset-0 rounded-full bg-accent/25 animate-pulse-ring" />
+            <span
+              className="absolute inset-0 rounded-full bg-accent/20"
+              style={{ animation: "klimb-spark-ring 0.85s ease-out forwards" }}
+            />
+            <span className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-accent text-bg shadow-glow">
+              <Trophy size={38} strokeWidth={2.5} />
+            </span>
+          </span>
+          <p className="animate-fade-up text-3xl font-extrabold text-chalk [animation-delay:120ms]">
+            Sent it!
+          </p>
+          <p className="animate-fade-up text-sm text-muted [animation-delay:220ms]">
+            Clean send — off the projects, into the book.
+          </p>
+        </div>
       ) : null}
     </div>
   );
