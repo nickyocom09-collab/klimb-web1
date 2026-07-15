@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Bookmark, Camera, Check, Flag, X, Zap } from "lucide-react";
+import { useState } from "react";
+import { Bookmark, Check, Flag, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { climbTypeLabel, holdHex } from "../lib/constants";
@@ -77,24 +77,14 @@ export function LogSheet({
 }) {
   const { profile } = useAuth();
   const system = profile?.grade_system ?? "american";
-  const photoRef = useRef<HTMLInputElement>(null);
   const outcomeOptions = outcomesFor(route.climbing_type);
 
   const [outcome, setOutcome] = useState<LogOutcome | null>(initialOutcome);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
   const [note, setNote] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState<LogOutcome | null>(null);
-
-  function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setPhoto(f);
-    setPhotoPreview(URL.createObjectURL(f));
-  }
 
   async function save() {
     if (!profile || !outcome) return;
@@ -131,23 +121,6 @@ export function LogSheet({
         .eq("user_id", profile.id);
       await toggleBookmark(profile.id, route.id, "project", false);
     } else {
-      let photoUrl: string | null = null;
-      if (photo) {
-        try {
-          const ext = photo.name.split(".").pop() || "jpg";
-          const path = `${profile.id}/${Date.now()}-log.${ext}`;
-          const { error: upErr } = await supabase.storage
-            .from("route-photos")
-            .upload(path, photo, { contentType: photo.type });
-          if (!upErr) {
-            photoUrl = supabase.storage
-              .from("route-photos")
-              .getPublicUrl(path).data.publicUrl;
-          }
-        } catch {
-          // A failed photo upload shouldn't lose the log itself.
-        }
-      }
       const trimmed = note.trim();
       await supabase.from("sends").upsert(
         {
@@ -155,7 +128,6 @@ export function LogSheet({
           user_id: profile.id,
           send_type: outcome as SendType,
           note: trimmed.length ? trimmed : null,
-          ...(photoUrl ? { photo_url: photoUrl } : {}),
         },
         { onConflict: "route_id,user_id" },
       );
@@ -198,9 +170,9 @@ export function LogSheet({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-full p-1 text-faint transition hover:text-chalk"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted transition hover:text-chalk"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
 
@@ -278,41 +250,15 @@ export function LogSheet({
           )}
         </div>
 
-        {/* Note + photo */}
-        <div className="mt-4 flex items-start gap-2">
+        {/* Note */}
+        <div className="mt-4">
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Add a note (optional) — how'd it feel?"
             maxLength={280}
-            className="min-h-[56px] flex-1 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-base text-chalk placeholder:text-faint outline-none focus:border-accent"
+            className="min-h-[56px] w-full rounded-2xl border border-border bg-surface-2 px-4 py-3 text-base text-chalk placeholder:text-faint outline-none focus:border-accent"
           />
-          {outcome !== "project" ? (
-            <>
-              <input
-                ref={photoRef}
-                type="file"
-                accept="image/*"
-                onChange={onPickPhoto}
-                className="hidden"
-              />
-              <button
-                onClick={() => photoRef.current?.click()}
-                aria-label="Add a photo"
-                className="relative h-[56px] w-[56px] shrink-0 overflow-hidden rounded-2xl border border-border bg-surface-2 text-faint transition hover:text-chalk"
-              >
-                {photoPreview ? (
-                  <img
-                    src={photoPreview}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Camera size={20} className="mx-auto" />
-                )}
-              </button>
-            </>
-          ) : null}
         </div>
 
         <Button

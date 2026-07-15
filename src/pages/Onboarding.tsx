@@ -10,10 +10,18 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner, Input } from "../components/ui";
-import { US_STATES, STATE_NAME } from "../lib/states";
+import { STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 
 type Step = "name" | "gym";
+
+/** ISO alpha-2 -> emoji flag. */
+function flagEmoji(cc: string): string {
+  if (!cc || cc.length !== 2) return "🏳️";
+  return cc
+    .toUpperCase()
+    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+}
 
 export function Onboarding() {
   const { profile, updateProfile } = useAuth();
@@ -34,6 +42,7 @@ export function Onboarding() {
   const [finishing, setFinishing] = useState(false);
   // Which state's gyms are open. null = showing the list of all states.
   const [openState, setOpenState] = useState<string | null>(null);
+  const [openCountry, setOpenCountry] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -62,18 +71,45 @@ export function Onboarding() {
     );
   }, [gyms, q]);
 
-  const counts = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const g of gyms) {
-      const k = g.state?.trim();
-      if (k) m[k] = (m[k] ?? 0) + 1;
-    }
-    return m;
-  }, [gyms]);
-
   const stateGyms = useMemo(
     () => (openState ? gyms.filter((g) => g.state?.trim() === openState) : []),
     [gyms, openState],
+  );
+
+  // Country → state → gym. Group everything by country first now that gyms
+  // span the globe.
+  const countryList = useMemo(() => {
+    const m = new Map<string, { name: string; count: number }>();
+    for (const g of gyms) {
+      const cc = g.cc ?? "xx";
+      const e = m.get(cc) ?? { name: g.country ?? "Other", count: 0 };
+      e.count += 1;
+      m.set(cc, e);
+    }
+    return [...m.entries()]
+      .map(([cc, v]) => ({ cc, ...v }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [gyms]);
+
+  const statesInCountry = useMemo(() => {
+    if (!openCountry) return [];
+    const m = new Map<string, number>();
+    for (const g of gyms) {
+      if ((g.cc ?? "xx") !== openCountry) continue;
+      const s = g.state?.trim();
+      if (s) m.set(s, (m.get(s) ?? 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([code, count]) => ({ code, count }))
+      .sort((a, b) =>
+        (STATE_NAME[a.code] ?? a.code).localeCompare(STATE_NAME[b.code] ?? b.code),
+      );
+  }, [gyms, openCountry]);
+
+  const countryGyms = useMemo(
+    () =>
+      openCountry ? gyms.filter((g) => (g.cc ?? "xx") === openCountry) : [],
+    [gyms, openCountry],
   );
 
   const stepOrder: Step[] = ["name", "gym"];
@@ -259,16 +295,30 @@ export function Onboarding() {
             >
               <ChevronLeft size={18} /> All states
             </button>
+          ) : openCountry ? (
+            <button
+              onClick={() => setOpenCountry(null)}
+              className="-ml-1 mb-2 flex w-fit items-center gap-1 rounded-full py-1 pr-2 text-sm font-semibold text-muted transition hover:text-chalk"
+            >
+              <ChevronLeft size={18} /> All countries
+            </button>
           ) : null}
           <h1 className="text-2xl font-extrabold text-chalk">
             {openState
               ? STATE_NAME[openState] ?? openState
-              : "Pick your home gym"}
+              : openCountry
+                ? countryList.find((c) => c.cc === openCountry)?.name ??
+                  "Pick your gym"
+                : "Pick your home gym"}
           </h1>
           <p className="mt-1 text-muted">
             {openState
               ? "Choose your gym. You can switch anytime."
-              : "Pick your state, then your home gym."}
+              : openCountry
+                ? statesInCountry.length > 0
+                  ? "Pick your state."
+                  : "Choose your gym. You can switch anytime."
+                : "Pick your country, then your gym."}
           </p>
           <div className="relative mt-5">
             <Search
@@ -304,33 +354,58 @@ export function Onboarding() {
                   {stateGyms.map(renderGym)}
                 </ul>
               )
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {US_STATES.map((s) => {
-                  const n = counts[s.code] ?? 0;
-                  return (
+            ) : openCountry ? (
+              // A country with states (e.g. US) → list states; otherwise the
+              // gyms directly.
+              statesInCountry.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {statesInCountry.map((s) => (
                     <li key={s.code}>
                       <button
                         onClick={() => setOpenState(s.code)}
                         className="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left transition hover:border-faint"
                       >
                         <span className="font-semibold text-chalk">
-                          {s.name}
+                          {STATE_NAME[s.code] ?? s.code}
                         </span>
                         <span className="flex items-center gap-2">
-                          <span
-                            className={`text-xs font-semibold ${
-                              n > 0 ? "text-accent" : "text-faint"
-                            }`}
-                          >
-                            {n > 0 ? `${n} ${n === 1 ? "gym" : "gyms"}` : "—"}
+                          <span className="text-xs font-semibold text-accent">
+                            {s.count} {s.count === 1 ? "gym" : "gyms"}
                           </span>
                           <ChevronRight size={18} className="text-faint" />
                         </span>
                       </button>
                     </li>
-                  );
-                })}
+                  ))}
+                </ul>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {countryGyms.map(renderGym)}
+                </ul>
+              )
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {countryList.map((c) => (
+                  <li key={c.cc}>
+                    <button
+                      onClick={() => setOpenCountry(c.cc)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left transition hover:border-faint"
+                    >
+                      <span className="flex items-center gap-2.5 font-semibold text-chalk">
+                        <span className="text-xl leading-none">
+                          {flagEmoji(c.cc)}
+                        </span>
+                        {c.name}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-accent">
+                          {c.count} {c.count === 1 ? "gym" : "gyms"}
+                        </span>
+                        <ChevronRight size={18} className="text-faint" />
+                      </span>
+                    </button>
+                  </li>
+                ))}
               </ul>
             )}
           </div>

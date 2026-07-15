@@ -181,11 +181,12 @@ export function Profile() {
       {/* Door to the logbook — the routes themselves live on the Sends tab. */}
       <div className="px-5 pt-4">
         <button
-          onClick={() => navigate("/sends")}
+          onClick={() => navigate("/logbook")}
           className="flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
         >
           <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
-            <Trophy size={18} className="text-accent" /> View my logbook
+            <Trophy size={18} className="text-accent" /> My full logbook
+            <span className="text-xs font-normal text-muted">· every gym</span>
           </span>
           <ChevronRight size={18} className="text-faint" />
         </button>

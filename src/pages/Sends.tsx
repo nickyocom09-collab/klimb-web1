@@ -80,15 +80,35 @@ export function Sends() {
   // Little celebration when a topped climb graduates to a clean send.
   const [celebrate, setCelebrate] = useState(false);
 
+  // The home logbook is scoped to the gym you're currently at — your home
+  // gym, or a gym you're visiting. Your *complete* logbook (every gym) lives
+  // on the Profile tab. Switching gyms "resets" this view to that gym.
+  const activeGymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
+  const isVisiting = !!profile?.visiting_gym_id;
+  const scopedLogged = useMemo(
+    () =>
+      activeGymId
+        ? logged.filter((l) => l.route.gym_id === activeGymId)
+        : logged,
+    [logged, activeGymId],
+  );
+  const scopedProjects = useMemo(
+    () =>
+      activeGymId
+        ? projects.filter((p) => p.route.gym_id === activeGymId)
+        : projects,
+    [projects, activeGymId],
+  );
+
   // Topped climbs (reached the top, but with falls) live apart from clean
   // sends — they're a to-do, not a trophy, until you go back for the send.
   const cleanSends = useMemo(
-    () => logged.filter((l) => l.sendType !== "topped"),
-    [logged],
+    () => scopedLogged.filter((l) => l.sendType !== "topped"),
+    [scopedLogged],
   );
   const toppedItems = useMemo(
-    () => logged.filter((l) => l.sendType === "topped"),
-    [logged],
+    () => scopedLogged.filter((l) => l.sendType === "topped"),
+    [scopedLogged],
   );
 
   // Upgrade a topped climb to a clean send — the "I sent this" button.
@@ -117,11 +137,12 @@ export function Sends() {
         fetchLogbook(profile.id),
         fetchRecaps(profile.id),
       ]);
-      if (profile.home_gym_id) {
+      const gymForHeader = profile.visiting_gym_id ?? profile.home_gym_id;
+      if (gymForHeader) {
         const { data: gym } = await supabase
           .from("gyms")
           .select("name")
-          .eq("id", profile.home_gym_id)
+          .eq("id", gymForHeader)
           .maybeSingle();
         if (active) setGymName(gym?.name ?? null);
       }
@@ -145,8 +166,8 @@ export function Sends() {
   }, [profile]);
 
   const stats = useMemo(
-    () => computeLogStats(logged, system),
-    [logged, system],
+    () => computeLogStats(scopedLogged, system),
+    [scopedLogged, system],
   );
 
   const groups = useMemo(() => {
@@ -180,7 +201,11 @@ export function Sends() {
         title={
           view === "logged" ? "Sends" : view === "topped" ? "Topped" : "Projects"
         }
-        subtitle={gymName ? `Climbing out of ${gymName}` : "Your climbing history"}
+        subtitle={
+          gymName
+            ? `Climbing out of ${gymName}${isVisiting ? " (visiting)" : ""}`
+            : "Your climbing history"
+        }
         right={
           <button
             onClick={() => navigate("/notifications")}
@@ -199,7 +224,7 @@ export function Sends() {
 
       {loading ? (
         <CenterSpinner />
-      ) : logged.length === 0 && projects.length === 0 ? (
+      ) : scopedLogged.length === 0 && scopedProjects.length === 0 ? (
         /* First-run: a warm nudge straight to the first log. */
         <div className="flex flex-col items-center gap-4 px-8 py-16 text-center">
           <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-accent/10">
@@ -262,7 +287,7 @@ export function Sends() {
               />
             </div>
 
-            {logged.length > 0 ? (
+            {scopedLogged.length > 0 ? (
               <button
                 onClick={() => navigate("/stats")}
                 className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition active:scale-[0.99]"
@@ -300,8 +325,8 @@ export function Sends() {
           </div>
 
           {view === "logged" ? (
-            logged.length === 0 ? (
-              <Empty text="No logs yet. Tap Log to record your first climb — your history starts there." />
+            cleanSends.length === 0 ? (
+              <Empty text="No sends at this gym yet. Tap Log to record your first climb here." />
             ) : (
               <div className="flex flex-col gap-5 px-5 pb-6">
                 {groups.map((g) => (
@@ -358,11 +383,11 @@ export function Sends() {
                 ))}
               </ul>
             )
-          ) : projects.length === 0 ? (
-            <Empty text="Nothing on the project board. Log a climb as 'Project' to add one." />
+          ) : scopedProjects.length === 0 ? (
+            <Empty text="Nothing on the project board here. Log a climb as 'Project' to add one." />
           ) : (
             <ul className="flex flex-col gap-2 px-5 pb-6">
-              {projects.map((p, i) => (
+              {scopedProjects.map((p, i) => (
                 <RowLink
                   key={p.route.id}
                   route={p.route}
