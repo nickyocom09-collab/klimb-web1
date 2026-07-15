@@ -39,26 +39,26 @@ function outcomesFor(type: ClimbType): OutcomeOption[] {
   const flash: OutcomeOption = {
     value: "flash",
     label: "Flash",
-    hint: "First try, clean",
+    hint: "First try",
     Icon: Zap,
   };
   const project: OutcomeOption = {
     value: "project",
     label: "Project",
-    hint: "Working on it",
+    hint: "Working it",
     Icon: Bookmark,
   };
   if (type === "toprope") {
     return [
       flash,
-      { value: "send", label: "Sent", hint: "To the top, no falls", Icon: Check },
-      { value: "topped", label: "Topped", hint: "To the top, with falls", Icon: Flag },
+      { value: "send", label: "Sent", hint: "No falls", Icon: Check },
+      { value: "topped", label: "Topped", hint: "With falls", Icon: Flag },
       project,
     ];
   }
   return [
     flash,
-    { value: "send", label: "Sent", hint: "Topped it", Icon: Check },
+    { value: "send", label: "Sent", hint: "Clean top", Icon: Check },
     project,
   ];
 }
@@ -269,7 +269,7 @@ export function LogClimb() {
           <p className="mb-2 ml-1 text-sm text-muted">How'd it go?</p>
           <div
             className={`grid gap-2 ${
-              outcomeOptions.length === 4 ? "grid-cols-4" : "grid-cols-3"
+              outcomeOptions.length === 4 ? "grid-cols-2" : "grid-cols-3"
             }`}
           >
             {outcomeOptions.map(({ value, label, hint, Icon }) => {
@@ -279,15 +279,21 @@ export function LogClimb() {
                   key={value}
                   type="button"
                   onClick={() => setOutcome(value)}
-                  className={`flex flex-col items-center gap-1 rounded-2xl border py-3.5 transition ${
+                  className={`flex items-center gap-2.5 rounded-2xl border px-3 py-3.5 text-left transition ${
                     on
                       ? "border-accent bg-accent/10 text-accent"
                       : "border-border bg-surface-2 text-muted hover:text-chalk"
                   }`}
                 >
-                  <Icon size={20} />
-                  <span className="text-sm font-bold">{label}</span>
-                  <span className="text-[10px] text-faint">{hint}</span>
+                  <Icon size={20} className="shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold leading-tight">
+                      {label}
+                    </span>
+                    <span className="block text-[10px] leading-tight text-faint">
+                      {hint}
+                    </span>
+                  </span>
                 </button>
               );
             })}

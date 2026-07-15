@@ -502,10 +502,11 @@ export function GymMap() {
         <MapContainer
           center={home ? [home.latitude!, home.longitude!] : US_CENTER}
           zoom={home ? 10 : 4}
-          minZoom={4}
+          minZoom={2}
           maxZoom={19}
           ref={mapRef}
           zoomControl={false}
+          attributionControl={false}
           zoomSnap={0.5}
           zoomDelta={0.5}
           wheelPxPerZoomLevel={120}
@@ -517,7 +518,6 @@ export function GymMap() {
         >
           <MapSizeSync />
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
             url={`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`}
             subdomains="abcd"
             maxZoom={19}
@@ -632,24 +632,47 @@ export function GymMap() {
       {/* Passport — the stamp book: your footprint grouped by state */}
       {passportOpen ? (
         <div className="absolute inset-0 z-20 flex flex-col bg-bg/97 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-app items-center justify-between px-5 pb-2 pt-6">
-            <div>
+          <div className="mx-auto w-full max-w-app px-5 pb-3 pt-6">
+            <div className="flex items-start justify-between">
               <h2 className="flex items-center gap-2 text-2xl font-extrabold text-chalk">
                 <Stamp size={22} style={{ color: "#ffc24b" }} /> Passport
               </h2>
-              <p className="mt-0.5 text-sm text-muted">
-                {collectedStats.gyms} of {gyms.length} gyms ·{" "}
-                {collectedStats.states} state
-                {collectedStats.states === 1 ? "" : "s"} stamped
-              </p>
+              <button
+                onClick={() => setPassportOpen(false)}
+                aria-label="Close passport"
+                className="rounded-full bg-surface p-2 text-muted transition hover:text-chalk"
+              >
+                <X size={20} />
+              </button>
             </div>
-            <button
-              onClick={() => setPassportOpen(false)}
-              aria-label="Close passport"
-              className="rounded-full bg-surface p-2 text-muted transition hover:text-chalk"
-            >
-              <X size={20} />
-            </button>
+            {/* Progress: gyms collected, with a gold fill bar */}
+            <div className="mt-3 rounded-2xl bg-surface p-4 shadow-card">
+              <div className="flex items-end justify-between">
+                <p className="text-sm text-muted">
+                  <span
+                    className="text-2xl font-extrabold tabular-nums"
+                    style={{ color: "#ffc24b" }}
+                  >
+                    {collectedStats.gyms}
+                  </span>{" "}
+                  <span className="text-chalk">of {gyms.length} gyms</span>
+                </p>
+                <p className="text-xs text-muted">
+                  {collectedStats.states} state
+                  {collectedStats.states === 1 ? "" : "s"} stamped
+                </p>
+              </div>
+              <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-surface-2">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${gyms.length ? Math.round((collectedStats.gyms / gyms.length) * 100) : 0}%`,
+                    background:
+                      "linear-gradient(90deg, #ffb020, #ffd873)",
+                  }}
+                />
+              </div>
+            </div>
           </div>
           <div className="mx-auto w-full max-w-app flex-1 overflow-y-auto px-5 pb-28 pt-2">
             {collected.size === 0 ? (
@@ -690,9 +713,22 @@ export function GymMap() {
                                   setPassportOpen(false);
                                   focusGym(g);
                                 }}
-                                className="flex w-full items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition active:scale-[0.99]"
+                                className="flex w-full items-center gap-3 rounded-2xl bg-surface px-3 py-3 text-left shadow-card ring-1 ring-[#ffc24b]/15 transition active:scale-[0.99]"
                               >
-                                <span className="min-w-0">
+                                <span
+                                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+                                  style={{
+                                    background: "rgba(255,194,75,0.12)",
+                                    boxShadow:
+                                      "inset 0 0 0 1.5px rgba(255,194,75,0.45)",
+                                  }}
+                                >
+                                  <Stamp
+                                    size={18}
+                                    style={{ color: "#ffc24b" }}
+                                  />
+                                </span>
+                                <span className="min-w-0 flex-1">
                                   <span className="block truncate text-sm font-semibold text-chalk">
                                     {g.name}
                                   </span>

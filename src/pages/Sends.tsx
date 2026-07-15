@@ -6,10 +6,12 @@ import {
   Check,
   ChevronRight,
   Clapperboard,
+  Flag,
   Plus,
   RotateCcw,
   Sparkles,
   TrendingUp,
+  Trophy,
   Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -72,7 +74,35 @@ export function Sends() {
   const [unread, setUnread] = useState(0);
   const [gymName, setGymName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"logged" | "projecting">("logged");
+  const [view, setView] = useState<"logged" | "topped" | "projecting">(
+    "logged",
+  );
+
+  // Topped climbs (reached the top, but with falls) live apart from clean
+  // sends — they're a to-do, not a trophy, until you go back for the send.
+  const cleanSends = useMemo(
+    () => logged.filter((l) => l.sendType !== "topped"),
+    [logged],
+  );
+  const toppedItems = useMemo(
+    () => logged.filter((l) => l.sendType === "topped"),
+    [logged],
+  );
+
+  // Upgrade a topped climb to a clean send — the "I sent this" button.
+  async function upgradeToSend(routeId: string) {
+    if (!profile) return;
+    setLogged((prev) =>
+      prev.map((l) =>
+        l.route.id === routeId ? { ...l, sendType: "send" } : l,
+      ),
+    );
+    await supabase
+      .from("sends")
+      .update({ send_type: "send" })
+      .eq("user_id", profile.id)
+      .eq("route_id", routeId);
+  }
 
   useEffect(() => {
     if (!profile) return;
@@ -117,14 +147,14 @@ export function Sends() {
 
   const groups = useMemo(() => {
     const out: { label: string; items: LoggedItem[] }[] = [];
-    for (const item of logged) {
+    for (const item of cleanSends) {
       const label = groupLabel(item.date);
       const last = out[out.length - 1];
       if (last && last.label === label) last.items.push(item);
       else out.push({ label, items: [item] });
     }
     return out;
-  }, [logged]);
+  }, [cleanSends]);
 
   function openStory(r: RecapRow) {
     setStory(r);
@@ -143,7 +173,9 @@ export function Sends() {
   return (
     <div>
       <AppHeader
-        title={view === "logged" ? "Sends" : "Projects"}
+        title={
+          view === "logged" ? "Sends" : view === "topped" ? "Topped" : "Projects"
+        }
         subtitle={gymName ? `Climbing out of ${gymName}` : "Your climbing history"}
         right={
           <button
@@ -212,7 +244,7 @@ export function Sends() {
           {/* ---- Hero week stats ---- */}
           <div className="flex flex-col gap-3 px-5 pt-3">
             <div className="grid grid-cols-3 gap-2">
-              <Stat n={String(stats.total)} label="Sends" />
+              <Stat n={String(cleanSends.length)} label="Sends" />
               <Stat n={String(stats.flashes)} label="Flashes" />
               <Stat
                 n={String(stats.thisWeek)}
@@ -243,7 +275,7 @@ export function Sends() {
           {/* View toggle */}
           <div className="px-5 py-4">
             <div className="flex gap-1 rounded-full bg-surface-2 p-1">
-              {(["logged", "projecting"] as const).map((v) => (
+              {(["logged", "topped", "projecting"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -253,7 +285,11 @@ export function Sends() {
                       : "text-muted hover:text-chalk"
                   }`}
                 >
-                  {v === "logged" ? "Sends" : "Projects"}
+                  {v === "logged"
+                    ? "Sends"
+                    : v === "topped"
+                      ? `Topped${toppedItems.length ? ` · ${toppedItems.length}` : ""}`
+                      : "Projects"}
                 </button>
               ))}
             </div>
@@ -299,6 +335,24 @@ export function Sends() {
                   </section>
                 ))}
               </div>
+            )
+          ) : view === "topped" ? (
+            toppedItems.length === 0 ? (
+              <Empty text="No topped climbs. When you reach the top with falls, it lands here — go back for the clean send." />
+            ) : (
+              <ul className="flex flex-col gap-2 px-5 pb-6">
+                {toppedItems.map((item, i) => (
+                  <ToppedRow
+                    key={`${item.route.id}-${item.date}`}
+                    route={item.route}
+                    system={system}
+                    index={i}
+                    sub={fmt(item.date)}
+                    note={item.note}
+                    onSent={() => upgradeToSend(item.route.id)}
+                  />
+                ))}
+              </ul>
             )
           ) : projects.length === 0 ? (
             <Empty text="Nothing on the project board. Log a climb as 'Project' to add one." />
@@ -380,6 +434,75 @@ function Badge({
 
 function Empty({ text }: { text: string }) {
   return <p className="px-8 py-16 text-center text-faint">{text}</p>;
+}
+
+/** A topped climb: the info opens the route; the button upgrades it to a send. */
+function ToppedRow({
+  route,
+  system,
+  index,
+  sub,
+  note,
+  onSent,
+}: {
+  route: RouteWithStats;
+  system: "american" | "european";
+  index: number;
+  sub: string;
+  note?: string | null;
+  onSent: () => void;
+}) {
+  const grade = communityGrade(route.gradeValues);
+  return (
+    <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
+      <div className="animate-fade-up rounded-2xl bg-surface p-3 shadow-card">
+        <Link
+          to={`/route/${route.id}`}
+          className="flex items-center gap-3 transition active:scale-[0.99]"
+        >
+          <img
+            src={route.photo_url}
+            alt=""
+            className="h-14 w-14 shrink-0 rounded-xl object-cover"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-2 font-semibold text-chalk">
+              <span
+                className="h-3 w-3 shrink-0 rounded-full border border-white/10"
+                style={{ backgroundColor: holdHex(route.hold_color) }}
+              />
+              <span className="truncate">
+                {route.hold_color} · {route.wall_section}
+              </span>
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge tone="muted">
+                <Flag size={12} /> Topped
+              </Badge>
+              <span className="truncate text-xs text-muted">{sub}</span>
+            </div>
+            {note ? (
+              <p className="mt-1 truncate text-xs italic text-faint">"{note}"</p>
+            ) : null}
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-lg font-extrabold leading-none text-accent">
+              {formatGradeStyled(grade, route.climbing_type, system, route.gradingStyle)}
+            </p>
+            <p className="mt-0.5 text-[10px] text-faint">
+              {climbTypeLabel(route.climbing_type)}
+            </p>
+          </div>
+        </Link>
+        <button
+          onClick={onSent}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-bold text-bg transition active:scale-[0.99]"
+        >
+          <Trophy size={15} /> I sent this
+        </button>
+      </div>
+    </li>
+  );
 }
 
 function RowLink({

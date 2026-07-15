@@ -50,7 +50,7 @@ export function Stars({
             >
               <Star
                 size={size}
-                className="text-accent drop-shadow-[0_0_5px_rgb(57_255_136_/_0.45)]"
+                className="text-accent"
                 fill="currentColor"
                 strokeWidth={0}
               />

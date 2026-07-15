@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { toggleBookmark } from "../lib/bookmarks";
-import { formatGradeStyled } from "../lib/grades";
+import { formatGradeStyled, gymGradeOptions } from "../lib/grades";
 import type { RouteWithStats } from "../lib/routes";
 import type { SendType } from "../lib/database.types";
 import type { ClimbingType } from "../lib/grades";
@@ -26,26 +26,26 @@ function outcomesFor(type: ClimbingType): OutcomeOption[] {
   const flash: OutcomeOption = {
     value: "flash",
     label: "Flash",
-    hint: "First try, clean",
+    hint: "First try",
     Icon: Zap,
   };
   const project: OutcomeOption = {
     value: "project",
     label: "Project",
-    hint: "Working on it",
+    hint: "Working it",
     Icon: Bookmark,
   };
   if (type === "toprope") {
     return [
       flash,
-      { value: "send", label: "Sent", hint: "To the top, no falls", Icon: Check },
-      { value: "topped", label: "Topped", hint: "To the top, with falls", Icon: Flag },
+      { value: "send", label: "Sent", hint: "No falls", Icon: Check },
+      { value: "topped", label: "Topped", hint: "With falls", Icon: Flag },
       project,
     ];
   }
   return [
     flash,
-    { value: "send", label: "Sent", hint: "Topped it", Icon: Check },
+    { value: "send", label: "Sent", hint: "Clean top", Icon: Check },
     project,
   ];
 }
@@ -204,10 +204,10 @@ export function LogSheet({
           </button>
         </div>
 
-        {/* Outcome */}
+        {/* Outcome — 2×2 when there's a Topped option, else a tidy row of 3 */}
         <div
           className={`grid gap-2 ${
-            outcomeOptions.length === 4 ? "grid-cols-4" : "grid-cols-3"
+            outcomeOptions.length === 4 ? "grid-cols-2" : "grid-cols-3"
           }`}
         >
           {outcomeOptions.map(({ value, label, hint, Icon }) => {
@@ -216,15 +216,21 @@ export function LogSheet({
               <button
                 key={value}
                 onClick={() => setOutcome(value)}
-                className={`flex flex-col items-center gap-1 rounded-2xl border py-3 transition ${
+                className={`flex items-center gap-2.5 rounded-2xl border px-3 py-3 text-left transition ${
                   on
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border bg-surface-2 text-muted hover:text-chalk"
                 }`}
               >
-                <Icon size={18} />
-                <span className="text-xs font-bold">{label}</span>
-                <span className="text-[9px] text-faint">{hint}</span>
+                <Icon size={20} className="shrink-0" />
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold leading-tight">
+                    {label}
+                  </span>
+                  <span className="block text-[10px] leading-tight text-faint">
+                    {hint}
+                  </span>
+                </span>
               </button>
             );
           })}
@@ -267,6 +273,7 @@ export function LogSheet({
               onChange={setGymGrade}
               climbingType={route.climbing_type}
               system={system}
+              options={gymGradeOptions(route.climbing_type, system, "classic")}
             />
           )}
         </div>

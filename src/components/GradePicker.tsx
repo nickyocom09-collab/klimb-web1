@@ -11,6 +11,7 @@ export function GradePicker({
   climbingType = "boulder",
   system = "american",
   gradeStyle = "classic",
+  options: customOptions,
 }: {
   value: number | null;
   onChange: (g: number | null) => void;
@@ -18,8 +19,10 @@ export function GradePicker({
   system?: GradeSystem;
   /** The gym's house style — 'bands' renders Bentonville-style options. */
   gradeStyle?: GradeStyle;
+  /** Override the option set (e.g. top-rope gym +/- grades). */
+  options?: { value: number; label: string }[];
 }) {
-  const options = pickerOptions(climbingType, system, gradeStyle);
+  const options = customOptions ?? pickerOptions(climbingType, system, gradeStyle);
   // Bentonville boulder bands are only 4 wide — give them room to breathe.
   const cols =
     gradeStyle === "bands" && climbingType === "boulder"

@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Clapperboard, Sparkles, TrendingUp, Zap } from "lucide-react";
+import {
+  ChevronRight,
+  Clapperboard,
+  Sparkles,
+  TrendingUp,
+  Trophy,
+  Zap,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import {
   computeLogStats,
@@ -176,27 +183,27 @@ export function Stats() {
             </div>
           </div>
 
-          {/* ---- Personal bests: two clean lines, not clunky tiles ---- */}
+          {/* ---- Personal bests: clean rows, grade sits on the right ---- */}
           <div className="rounded-3xl bg-surface p-5 shadow-card">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-faint">
               Personal bests
             </h2>
-            <div className="mt-3 grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-                  Hardest send
-                </p>
-                <p className="mt-1 text-3xl font-extrabold leading-none tabular-nums text-accent">
+            <div className="flex flex-col divide-y divide-border/50">
+              <div className="flex items-center justify-between py-3">
+                <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+                  <Trophy size={16} className="text-accent" /> Hardest send
+                </span>
+                <span className="text-2xl font-extrabold tabular-nums text-accent">
                   {formatHardest(stats.hardestSend, system)}
-                </p>
+                </span>
               </div>
-              <div>
-                <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                  <Zap size={11} className="text-accent" /> Hardest flash
-                </p>
-                <p className="mt-1 text-3xl font-extrabold leading-none tabular-nums text-chalk">
+              <div className="flex items-center justify-between py-3">
+                <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+                  <Zap size={16} className="text-accent" /> Hardest flash
+                </span>
+                <span className="text-2xl font-extrabold tabular-nums text-chalk">
                   {formatHardest(stats.hardestFlash, system)}
-                </p>
+                </span>
               </div>
             </div>
           </div>

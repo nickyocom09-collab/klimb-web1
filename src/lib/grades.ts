@@ -159,19 +159,40 @@ export const GYM_GRADE_BANDS: { label: string; rep: number }[] = [
   { label: "V8-V10+", rep: 9 },
 ];
 
-/** Options for the "gym's grade" picker — bands at a bands gym, else exact. */
+// Top-rope GYM grades use a coarser plus/minus scale (no a/b/c/d letters):
+// gyms post "5.11-" / "5.11" / "5.11+", not "5.11c". Your *felt* grade still
+// uses the full lettered YDS. Each entry maps to a representative ordinal on
+// the 0..28 YDS scale so it stays comparable with felt grades.
+//   minus → a, neutral → c, plus → d
+export const TOPROPE_GYM_PM: { label: string; rep: number }[] = [
+  { label: "5.6", rep: 1 },
+  { label: "5.7", rep: 2 },
+  { label: "5.8", rep: 3 },
+  { label: "5.9", rep: 4 },
+  { label: "5.10-", rep: 5 }, { label: "5.10", rep: 7 }, { label: "5.10+", rep: 8 },
+  { label: "5.11-", rep: 9 }, { label: "5.11", rep: 11 }, { label: "5.11+", rep: 12 },
+  { label: "5.12-", rep: 13 }, { label: "5.12", rep: 15 }, { label: "5.12+", rep: 16 },
+  { label: "5.13-", rep: 17 }, { label: "5.13", rep: 19 }, { label: "5.13+", rep: 20 },
+  { label: "5.14-", rep: 21 }, { label: "5.14", rep: 23 }, { label: "5.14+", rep: 24 },
+  { label: "5.15-", rep: 25 }, { label: "5.15", rep: 27 }, { label: "5.15+", rep: 28 },
+];
+
+/** Options for the "gym's grade" picker. Top rope uses +/-; else exact. */
 export function gymGradeOptions(
   type: ClimbingType,
   system: GradeSystem,
   style: GradeStyle,
 ): { value: number; label: string }[] {
+  if (type === "toprope" && system === "american") {
+    return TOPROPE_GYM_PM.map((b) => ({ value: b.rep, label: b.label }));
+  }
   if (style === "bands" && type === "boulder") {
     return GYM_GRADE_BANDS.map((b) => ({ value: b.rep, label: b.label }));
   }
   return pickerOptions(type, system);
 }
 
-/** Display a stored gym grade — band label at a bands gym, else exact. */
+/** Display a stored gym grade — +/- for top rope, band label for bands, else exact. */
 export function formatGymGrade(
   grade: number | null | undefined,
   type: ClimbingType,
@@ -179,6 +200,15 @@ export function formatGymGrade(
   style: GradeStyle,
 ): string {
   if (grade === null || grade === undefined) return "—";
+  if (type === "toprope" && system === "american") {
+    const exact = TOPROPE_GYM_PM.find((b) => b.rep === grade);
+    if (exact) return exact.label;
+    // Any ordinal not landing exactly on a +/- rep: show the nearest one.
+    const nearest = TOPROPE_GYM_PM.reduce((a, b) =>
+      Math.abs(b.rep - grade) < Math.abs(a.rep - grade) ? b : a,
+    );
+    return nearest.label;
+  }
   if (style === "bands" && type === "boulder") {
     const exact = GYM_GRADE_BANDS.find((b) => b.rep === grade);
     if (exact) return exact.label;

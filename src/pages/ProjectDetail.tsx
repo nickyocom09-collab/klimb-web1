@@ -4,6 +4,7 @@ import {
   Bookmark,
   Check,
   ChevronLeft,
+  Flag,
   NotebookPen,
   Trash2,
   Trophy,
@@ -39,6 +40,8 @@ export function ProjectDetail() {
   const [noteUpdatedAt, setNoteUpdatedAt] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [finishOutcome, setFinishOutcome] = useState<LogOutcome>("send");
 
   const load = useCallback(async () => {
     if (!routeId || !profile) return;
@@ -292,9 +295,56 @@ export function ProjectDetail() {
       {!sent ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto max-w-app p-4 pb-6">
           <div className="pointer-events-auto">
-            <Button className="w-full" onClick={() => setLogOpen(true)}>
-              <Trophy size={16} className="mr-1.5" /> I sent it!
+            <Button className="w-full" onClick={() => setFinishOpen(true)}>
+              <Trophy size={16} className="mr-1.5" /> Complete project
             </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* How'd you finish? — Sent (clean) or Topped (with falls). No flash:
+          you've been working this one. */}
+      {finishOpen ? (
+        <div
+          className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4 backdrop-blur-[2px]"
+          onClick={() => setFinishOpen(false)}
+        >
+          <div
+            className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-lg font-extrabold text-chalk">
+              Nice — how'd you finish?
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              You can always upgrade a Topped climb to a clean Sent later.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setFinishOutcome("send");
+                  setFinishOpen(false);
+                  setLogOpen(true);
+                }}
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-4 text-chalk transition hover:border-accent"
+              >
+                <Check size={22} className="text-accent" />
+                <span className="text-sm font-bold">Sent</span>
+                <span className="text-[11px] text-faint">Clean, no falls</span>
+              </button>
+              <button
+                onClick={() => {
+                  setFinishOutcome("topped");
+                  setFinishOpen(false);
+                  setLogOpen(true);
+                }}
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-4 text-chalk transition hover:border-accent"
+              >
+                <Flag size={22} className="text-accent" />
+                <span className="text-sm font-bold">Topped</span>
+                <span className="text-[11px] text-faint">Made it, with falls</span>
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -302,7 +352,7 @@ export function ProjectDetail() {
       {logOpen ? (
         <LogSheet
           route={route}
-          initialOutcome="send"
+          initialOutcome={finishOutcome}
           onClose={() => setLogOpen(false)}
           onSaved={onLogged}
         />

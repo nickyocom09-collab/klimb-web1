@@ -143,7 +143,7 @@ export default function App() {
         path="/friends"
         element={
           <RequireAuth>
-            <Suspense fallback={<Splash />}>
+            <Suspense fallback={<div className="h-full bg-bg" />}>
               <Friends />
             </Suspense>
           </RequireAuth>
@@ -177,7 +177,7 @@ export default function App() {
         <Route
           path="/map"
           element={
-            <Suspense fallback={<Splash />}>
+            <Suspense fallback={<div className="h-full bg-bg" />}>
               <GymMap />
             </Suspense>
           }
