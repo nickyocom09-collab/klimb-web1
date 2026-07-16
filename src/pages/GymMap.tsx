@@ -57,8 +57,9 @@ function esc(s: string): string {
 
 const HOUSE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>`;
 
-/** Dot + name pill. Home = green pulse, collected = gold glow, friend = blue,
- * else dim. Your own collection always outranks the friends overlay. */
+/** Dot + name pill. Home = gold + house glyph, collected = gold glow,
+ * friend = blue, else a quiet gray dot. Your own collection always outranks
+ * the friends overlay. */
 function pinIcon(
   name: string,
   home: boolean,
