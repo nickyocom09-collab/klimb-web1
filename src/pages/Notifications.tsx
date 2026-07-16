@@ -4,6 +4,7 @@ import {
   Bell,
   Check,
   ChevronLeft,
+  Clapperboard,
   UserPlus,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -18,6 +19,8 @@ import { timeAgo } from "../lib/time";
 
 function iconFor(kind: Notification["kind"]) {
   switch (kind) {
+    case "recap":
+      return { Icon: Clapperboard, tint: "accent" as const };
     case "friend_accept":
       return { Icon: Check, tint: "accent" as const };
     case "friend_request":

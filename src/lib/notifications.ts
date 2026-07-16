@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 
-export type NotificationKind = "friend_request" | "friend_accept";
+export type NotificationKind = "friend_request" | "friend_accept" | "recap";
 
 export type Notification = {
   id: string;
@@ -30,22 +30,30 @@ export async function fetchNotifications(
   const cleared = clearedAt ? new Date(clearedAt).getTime() : 0;
   const notes: Notification[] = [];
 
-  const [{ data: requests }, { data: accepts }] = await Promise.all([
-    supabase
-      .from("friendships")
-      .select("id, requester_id, created_at")
-      .eq("addressee_id", userId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(limit),
-    supabase
-      .from("friendships")
-      .select("id, addressee_id, created_at")
-      .eq("requester_id", userId)
-      .eq("status", "accepted")
-      .order("created_at", { ascending: false })
-      .limit(limit),
-  ]);
+  const [{ data: requests }, { data: accepts }, { data: recaps }] =
+    await Promise.all([
+      supabase
+        .from("friendships")
+        .select("id, requester_id, created_at")
+        .eq("addressee_id", userId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase
+        .from("friendships")
+        .select("id, addressee_id, created_at")
+        .eq("requester_id", userId)
+        .eq("status", "accepted")
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase
+        .from("recaps")
+        .select("id, created_at, seen_at")
+        .eq("user_id", userId)
+        .eq("period", "weekly")
+        .order("created_at", { ascending: false })
+        .limit(8),
+    ]);
 
   const actorIds = new Set<string>([
     ...(requests ?? []).map((f) => f.requester_id),
@@ -79,6 +87,17 @@ export async function fetchNotifications(
       link: `/u/${f.addressee_id}`,
       createdAt: f.created_at,
       unread: new Date(f.created_at).getTime() > seen,
+    });
+  }
+  for (const r of recaps ?? []) {
+    notes.push({
+      id: `recap-${r.id}`,
+      kind: "recap",
+      text: "Your weekly recap is ready 🎬",
+      link: "/",
+      createdAt: r.created_at,
+      // Unread until you've actually watched it.
+      unread: !r.seen_at,
     });
   }
 
