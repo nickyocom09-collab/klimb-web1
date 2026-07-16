@@ -4,6 +4,7 @@ import {
   Camera,
   ChevronRight,
   Settings as SettingsIcon,
+  Stamp,
   Trophy,
   UserPlus,
 } from "lucide-react";
@@ -186,6 +187,15 @@ export function Profile() {
         >
           <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
             <Trophy size={18} className="text-accent" /> Full logbook
+          </span>
+          <ChevronRight size={18} className="text-faint" />
+        </button>
+        <button
+          onClick={() => navigate("/passport")}
+          className="mt-2 flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+            <Stamp size={18} style={{ color: "#ffc24b" }} /> My passport
           </span>
           <ChevronRight size={18} className="text-faint" />
         </button>

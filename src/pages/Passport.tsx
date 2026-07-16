@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Check, Globe, Lock, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { CenterSpinner } from "../components/ui";
+import { Button, CenterSpinner } from "../components/ui";
 
 const flag = (cc: string) =>
   cc.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
@@ -27,15 +27,36 @@ type Country = { cc: string; name: string; continent: string; gyms: number };
 
 export function Passport() {
   const { profile } = useAuth();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const targetId = id ?? profile?.id ?? null;
+  const isMe = !id || id === profile?.id;
   const [loading, setLoading] = useState(true);
   const [countries, setCountries] = useState<Country[]>([]);
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
+  const [personName, setPersonName] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false); // viewing a private profile
 
   useEffect(() => {
-    if (!profile) return;
+    if (!targetId) return;
     let active = true;
+    setLoading(true);
     (async () => {
+      // Viewing someone else? Only if their profile is public.
+      if (!isMe) {
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("display_name, sends_public")
+          .eq("id", targetId)
+          .maybeSingle();
+        if (!active) return;
+        setPersonName(p?.display_name ?? null);
+        if (!p?.sends_public) {
+          setLocked(true);
+          setLoading(false);
+          return;
+        }
+      }
       // All countries that have gyms + a total gym count each.
       const { data: gyms } = await supabase
         .from("gyms")
@@ -67,7 +88,7 @@ export function Passport() {
       const { data: sends } = await supabase
         .from("sends")
         .select("route_id")
-        .eq("user_id", profile.id)
+        .eq("user_id", targetId)
         .neq("send_type", "attempt");
       const routeIds = [...new Set((sends ?? []).map((s) => s.route_id))];
       const { data: routes } = routeIds.length
@@ -87,7 +108,7 @@ export function Passport() {
     return () => {
       active = false;
     };
-  }, [profile]);
+  }, [targetId, isMe]);
 
   const total = countries.length;
   const gotN = countries.filter((c) => unlocked.has(c.cc)).length;
@@ -110,6 +131,27 @@ export function Passport() {
     );
   }
 
+  if (locked) {
+    return (
+      <div style={{ ...S.root, minHeight: "100vh" }}>
+        <div style={S.shell}>
+          <button onClick={() => navigate(-1)} aria-label="Close" style={S.close}>
+            <X size={20} color="#7C8C84" />
+          </button>
+          <div style={{ display: "grid", placeItems: "center", gap: 12, padding: "100px 20px", textAlign: "center" }}>
+            <Lock size={26} color="#5f7069" />
+            <p style={{ color: "#7C8C84", fontSize: 14 }}>
+              {personName ?? "This climber"}'s passport is private.
+            </p>
+            <Button variant="secondary" onClick={() => navigate(-1)}>
+              Back
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ ...S.root, minHeight: "100vh" }}>
       <div style={S.shell}>
@@ -121,7 +163,9 @@ export function Passport() {
         {/* Header */}
         <div style={S.head}>
           <div>
-            <div style={S.kicker}>PASSPORT</div>
+            <div style={S.kicker}>
+              {isMe ? "PASSPORT" : `${(personName ?? "CLIMBER").toUpperCase()}`}
+            </div>
             <h1 style={S.title}>
               <span style={S.big}>{gotN}</span>
               <span style={S.slash}> / {total}</span>

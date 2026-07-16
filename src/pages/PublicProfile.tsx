@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, ChevronLeft, Lock, UserPlus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Lock, Stamp, UserPlus } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
@@ -172,6 +172,18 @@ export function PublicProfile() {
             <p className="text-xs text-muted">Grades</p>
           </div>
         </div>
+
+        {canSee ? (
+          <button
+            onClick={() => navigate(`/u/${id}/passport`)}
+            className="mt-6 flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+              <Stamp size={18} style={{ color: "#ffc24b" }} /> View passport
+            </span>
+            <ChevronRight size={18} className="text-faint" />
+          </button>
+        ) : null}
 
         <h3 className="mb-3 mt-6 text-sm font-semibold uppercase tracking-wide text-faint">
           Logbook

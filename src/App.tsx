@@ -175,6 +175,14 @@ export default function App() {
           </RequireAuth>
         }
       />
+      <Route
+        path="/u/:id/passport"
+        element={
+          <RequireAuth>
+            <Passport />
+          </RequireAuth>
+        }
+      />
 
       <Route
         element={
