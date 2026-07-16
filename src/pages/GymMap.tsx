@@ -680,7 +680,7 @@ export function GymMap() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search gym, city, or brand"
+            placeholder="Search gym or city"
             className="h-12 w-full rounded-2xl bg-surface/95 pl-11 pr-4 text-chalk shadow-lg backdrop-blur placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
           />
           {matches.length > 0 ? (

@@ -26,7 +26,6 @@ export function Profile() {
   const [sendCount, setSendCount] = useState<number | null>(null);
   const [flashCount, setFlashCount] = useState<number | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
-  const [friendCount, setFriendCount] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -59,12 +58,6 @@ export function Profile() {
         .eq("user_id", profile.id)
         .eq("kind", "project");
       if (active) setProjectCount(projects.count ?? 0);
-      const friends = await supabase
-        .from("friendships")
-        .select("id", { count: "exact", head: true })
-        .or(`requester_id.eq.${profile.id},addressee_id.eq.${profile.id}`)
-        .eq("status", "accepted");
-      if (active) setFriendCount(friends.count ?? 0);
     })();
     return () => {
       active = false;
@@ -168,7 +161,6 @@ export function Profile() {
           onClick={() => navigate("/friends")}
         >
           <UserPlus size={16} className="mr-1.5" /> Friends
-          {friendCount ? ` · ${friendCount}` : ""}
         </Button>
       </div>
 
