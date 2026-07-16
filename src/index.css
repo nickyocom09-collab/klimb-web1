@@ -39,6 +39,12 @@
   #root {
     height: 100%;
   }
+  /* Paint the theme background on <html> too, so the iOS safe areas (notch and
+     home-indicator strips) are filled with the theme colour instead of the
+     native white view behind the full-screen web view. */
+  html {
+    background-color: rgb(var(--c-bg));
+  }
   body {
     margin: 0;
     background-color: rgb(var(--c-bg));
@@ -46,6 +52,13 @@
     font-family: theme("fontFamily.sans");
     -webkit-font-smoothing: antialiased;
     overscroll-behavior-y: none;
+  }
+  /* The web view now runs full-screen (Capacitor contentInset: never), so push
+     app content below the status bar / notch. The bottom nav handles its own
+     safe-area-inset-bottom. */
+  #root {
+    padding-top: env(safe-area-inset-top);
+    box-sizing: border-box;
   }
   ::-webkit-scrollbar {
     width: 0;

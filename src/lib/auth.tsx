@@ -11,6 +11,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import type { Database, UserRow } from "./database.types";
 import { applyTheme } from "./theme";
+import { authRedirectUrl } from "./deeplink";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -191,6 +192,7 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
+          options: { emailRedirectTo: authRedirectUrl() },
         });
         if (error) return { error: error.message, needsConfirmation: false };
         const needsConfirmation = !data.session;
@@ -208,7 +210,7 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         // the session and ensureProfile creates the profile if it's new.
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
-          options: { redirectTo: window.location.origin },
+          options: { redirectTo: authRedirectUrl() },
         });
         return { error: error ? error.message : null };
       },

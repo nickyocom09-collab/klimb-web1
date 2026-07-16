@@ -177,30 +177,6 @@ export function Settings() {
           </p>
         </Section>
 
-        <Section title="Ideas & feedback">
-          <Card className="p-4">
-            <p className="text-sm leading-relaxed text-chalk/90">
-              Got an idea for a feature, a gym we should add, or a bug you want
-              fixed? I read every message — send it my way.
-            </p>
-            <a
-              href="mailto:realklimb@gmail.com?subject=Klimb%20feedback"
-              className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-accent py-3 text-sm font-bold text-bg transition active:scale-[0.99]"
-            >
-              <Mail size={16} /> realklimb@gmail.com
-            </a>
-          </Card>
-          <button
-            onClick={() => navigate("/privacy")}
-            className="flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
-              <Shield size={18} className="text-accent" /> Privacy policy
-            </span>
-            <ChevronRight size={18} className="text-faint" />
-          </button>
-        </Section>
-
         <Section title="Privacy">
           <Segmented<string>
             value={sendsPublic ? "public" : "private"}
@@ -317,6 +293,30 @@ export function Settings() {
             className="mt-1 flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold text-wide transition hover:opacity-80"
           >
             <Trash2 size={15} /> Delete account
+          </button>
+        </Section>
+
+        <Section title="Ideas & feedback">
+          <Card className="p-4">
+            <p className="text-sm leading-relaxed text-chalk/90">
+              Got an idea for a feature, a gym we should add, or a bug you want
+              fixed? I read every message — send it my way.
+            </p>
+            <a
+              href="mailto:realklimb@gmail.com?subject=Klimb%20feedback"
+              className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-accent py-3 text-sm font-bold text-bg transition active:scale-[0.99]"
+            >
+              <Mail size={16} /> realklimb@gmail.com
+            </a>
+          </Card>
+          <button
+            onClick={() => navigate("/privacy")}
+            className="flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+              <Shield size={18} className="text-accent" /> Privacy policy
+            </span>
+            <ChevronRight size={18} className="text-faint" />
           </button>
         </Section>
       </div>

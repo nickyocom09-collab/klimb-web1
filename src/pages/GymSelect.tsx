@@ -76,7 +76,12 @@ export function GymSelect() {
     }
     return [...m.entries()]
       .map(([cc, v]) => ({ cc, ...v }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => {
+        // USA always leads the list — most of Klimb's gyms are American.
+        if (a.cc === "us") return -1;
+        if (b.cc === "us") return 1;
+        return a.name.localeCompare(b.name);
+      });
   }, [gyms]);
 
   const statesInCountry = useMemo(() => {

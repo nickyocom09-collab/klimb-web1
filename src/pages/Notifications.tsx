@@ -8,7 +8,6 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
-import { ListSkeleton } from "../components/ui";
 import {
   clearNotifications,
   fetchNotifications,
@@ -71,7 +70,7 @@ export function Notifications() {
   }, [notes]);
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col animate-fade-in bg-bg">
+    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       <header className="sticky top-0 z-10 flex items-center gap-3 bg-bg/95 px-4 py-4 backdrop-blur">
         <button
           onClick={() => navigate(-1)}
@@ -92,7 +91,7 @@ export function Notifications() {
       </header>
 
       {loading ? (
-        <ListSkeleton rows={5} />
+        <div className="flex-1" />
       ) : notes.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 pb-24 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-2">

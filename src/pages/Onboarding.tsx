@@ -425,14 +425,6 @@ export function Onboarding() {
             >
               Log my first climb
             </Button>
-            <Button
-              variant="secondary"
-              className="w-full"
-              disabled={!gymId || finishing}
-              onClick={() => finish("/")}
-            >
-              Browse my gym first
-            </Button>
           </div>
         </div>
       ) : null}

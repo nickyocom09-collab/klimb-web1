@@ -1,8 +1,8 @@
 {
-  "appId": "com.klimb.app",
+  "appId": "com.nickyocom.klimb",
   "appName": "Klimb",
   "webDir": "dist",
   "ios": {
-    "contentInset": "always"
+    "contentInset": "never"
   }
 }
