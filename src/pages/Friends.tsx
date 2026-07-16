@@ -20,6 +20,7 @@ export function Friends() {
   const [username, setUsername] = useState("");
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [msgErr, setMsgErr] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
 
@@ -104,10 +105,12 @@ export function Friends() {
     const { error, name } = await addFriendByUsername(profile.id, username);
     setAdding(false);
     if (error) {
+      setMsgErr(true);
       setMsg(error);
       return;
     }
     setUsername("");
+    setMsgErr(false);
     setMsg(`Added ${name ?? "climber"}!`);
     reload();
   }
@@ -153,7 +156,11 @@ export function Friends() {
               <UserPlus size={18} />
             </Button>
           </div>
-          {msg ? <p className="mt-2 text-sm text-accent">{msg}</p> : null}
+          {msg ? (
+            <p className={`mt-2 text-sm ${msgErr ? "text-wide" : "text-accent"}`}>
+              {msg}
+            </p>
+          ) : null}
           <button
             onClick={() => setQrOpen(true)}
             className="mt-3 text-sm text-muted underline"
