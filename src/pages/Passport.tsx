@@ -81,6 +81,7 @@ export function Passport() {
         .sort(
           (a, b) =>
             CONTINENT_ORDER.indexOf(a.continent) - CONTINENT_ORDER.indexOf(b.continent) ||
+            b.gyms - a.gyms ||
             a.name.localeCompare(b.name),
         );
 
@@ -264,9 +265,11 @@ function Ring({ pct }: { pct: number }) {
 const serif = 'Cambria, Georgia, "Times New Roman", serif';
 const sans = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const S: Record<string, CSSProperties> = {
-  root: { background: "#080B0A", color: "#E8F0EB", fontFamily: sans },
-  shell: { position: "relative", maxWidth: 760, margin: "0 auto", padding: "30px 20px 44px" },
-  close: { position: "absolute", top: 22, right: 18, width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,0.05)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" },
+  // Fixed full-viewport cover (incl. the status-bar safe area) so the page is
+  // fully dark regardless of the app's light/dark theme — no white bar.
+  root: { position: "fixed", inset: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", zIndex: 40, background: "#080B0A", color: "#E8F0EB", fontFamily: sans },
+  shell: { position: "relative", maxWidth: 760, margin: "0 auto", padding: "calc(28px + env(safe-area-inset-top)) 20px calc(44px + env(safe-area-inset-bottom))" },
+  close: { position: "absolute", top: "calc(20px + env(safe-area-inset-top))", right: 18, width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,0.05)", border: "none", display: "grid", placeItems: "center", cursor: "pointer" },
   head: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, paddingRight: 44 },
   kicker: { fontSize: 11, letterSpacing: "0.28em", color: "#4ADE80", fontWeight: 600 },
   title: { margin: "8px 0 4px", fontFamily: serif, lineHeight: 1 },
