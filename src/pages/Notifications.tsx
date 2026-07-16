@@ -71,7 +71,7 @@ export function Notifications() {
   }, [notes]);
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
+    <div className="mx-auto flex h-full max-w-app flex-col animate-fade-in bg-bg">
       <header className="sticky top-0 z-10 flex items-center gap-3 bg-bg/95 px-4 py-4 backdrop-blur">
         <button
           onClick={() => navigate(-1)}

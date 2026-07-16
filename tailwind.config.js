@@ -55,8 +55,7 @@ export default {
           "100%": { opacity: "0", transform: "scale(1.6)" },
         },
         pop: {
-          "0%": { opacity: "0", transform: "scale(0.4)" },
-          "60%": { opacity: "1", transform: "scale(1.12)" },
+          "0%": { opacity: "0", transform: "scale(0.9)" },
           "100%": { opacity: "1", transform: "scale(1)" },
         },
         confetti: {
@@ -75,11 +74,11 @@ export default {
         },
       },
       animation: {
-        "fade-up": "fade-up 0.4s ease-out both",
-        "fade-in": "fade-in 0.3s ease-out both",
-        "scale-in": "scale-in 0.25s ease-out both",
+        "fade-up": "fade-up 0.5s cubic-bezier(0.33, 0, 0.15, 1) both",
+        "fade-in": "fade-in 0.45s cubic-bezier(0.33, 0, 0.15, 1) both",
+        "scale-in": "scale-in 0.42s cubic-bezier(0.33, 0, 0.15, 1) both",
         "pulse-ring": "pulse-ring 2.4s ease-out infinite",
-        pop: "pop 0.45s cubic-bezier(0.34, 1.4, 0.5, 1) both",
+        pop: "pop 0.5s cubic-bezier(0.33, 0, 0.15, 1) both",
         confetti: "confetti 2.6s ease-in both",
         "grow-bar": "grow-bar 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
         shimmer: "shimmer 1.6s linear infinite",

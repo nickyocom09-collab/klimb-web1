@@ -100,10 +100,6 @@ export function Stats() {
                   : "bg-surface"
               }`}
             >
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-accent/15 blur-2xl"
-              />
               <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-accent">
                 <Clapperboard size={13} />
                 {latest.period === "weekly" ? "Weekly recap" : "Monthly recap"}
