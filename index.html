@@ -41,19 +41,19 @@
       justify-content: center;
       overflow: hidden;
       background:
-        radial-gradient(circle at 50% 44%, #17201c 0%, #0c110f 42%, #050706 74%, #000 100%);
+        radial-gradient(circle at 50% 46%, #23262a 0%, #14171a 42%, #0a0c0e 72%, #050607 100%);
     }
     #boot-splash .mark {
       width: min(150px, 34vw);
       height: min(150px, 34vw);
       object-fit: contain;
       color: #f2efe8;
-      filter: drop-shadow(0 18px 44px rgba(255, 255, 255, 0.08));
-      animation: boot-in 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+      filter: drop-shadow(0 0 34px rgba(255, 255, 255, 0.06));
+      animation: boot-in 1.8s cubic-bezier(0.33, 0, 0.15, 1) both;
     }
     @keyframes boot-in {
-      0% { transform: translateY(10px) scale(0.97); opacity: 0; }
-      100% { transform: translateY(0) scale(1); opacity: 1; }
+      0% { transform: scale(0.985); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
     }
     @media (prefers-reduced-motion: reduce) {
       #boot-splash .mark { animation: none; }
