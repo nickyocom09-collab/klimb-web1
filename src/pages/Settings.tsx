@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ChevronRight, Trash2, X } from "lucide-react";
+import { BookOpen, ChevronRight, Mail, Shield, Trash2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
@@ -175,6 +175,30 @@ export function Settings() {
             Crimp? Beta? Sandbagged? Every term you'll hear at the gym,
             explained.
           </p>
+        </Section>
+
+        <Section title="Ideas & feedback">
+          <Card className="p-4">
+            <p className="text-sm leading-relaxed text-chalk/90">
+              Got an idea for a feature, a gym we should add, or a bug you want
+              fixed? I read every message — send it my way.
+            </p>
+            <a
+              href="mailto:realklimb@gmail.com?subject=Klimb%20feedback"
+              className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-accent py-3 text-sm font-bold text-bg transition active:scale-[0.99]"
+            >
+              <Mail size={16} /> realklimb@gmail.com
+            </a>
+          </Card>
+          <button
+            onClick={() => navigate("/privacy")}
+            className="flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+              <Shield size={18} className="text-accent" /> Privacy policy
+            </span>
+            <ChevronRight size={18} className="text-faint" />
+          </button>
         </Section>
 
         <Section title="Privacy">

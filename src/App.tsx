@@ -22,6 +22,7 @@ import { Stats } from "./pages/Stats";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { FullLogbook } from "./pages/FullLogbook";
 import { Passport } from "./pages/Passport";
+import { Privacy } from "./pages/Privacy";
 
 // The 3D globe pulls in three.js — keep it out of the main bundle so the
 // feed loads fast; the globe chunk streams in when the Map tab is opened.
@@ -65,6 +66,8 @@ function PublicOnly({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <Routes>
+      {/* Public — reachable in-app and as an App Store privacy URL. */}
+      <Route path="/privacy" element={<Privacy />} />
       <Route
         path="/login"
         element={
