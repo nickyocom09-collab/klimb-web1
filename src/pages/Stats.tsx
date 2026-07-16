@@ -11,7 +11,7 @@ import { useAuth } from "../lib/auth";
 import {
   computeLogStats,
   fetchLogbook,
-  formatHardest,
+  hardestParts,
   type LoggedItem,
 } from "../lib/logstats";
 import {
@@ -189,21 +189,23 @@ export function Stats() {
               Personal bests
             </h2>
             <div className="flex flex-col divide-y divide-border/50">
-              <div className="flex items-center justify-between py-3">
+              <div className="flex items-center justify-between gap-3 py-3">
                 <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
                   <Trophy size={16} className="text-accent" /> Hardest send
                 </span>
-                <span className="text-2xl font-extrabold tabular-nums text-accent">
-                  {formatHardest(stats.hardestSend, system)}
-                </span>
+                <HardestValue
+                  parts={hardestParts(stats.hardestSend, system)}
+                  tone="text-accent"
+                />
               </div>
-              <div className="flex items-center justify-between py-3">
+              <div className="flex items-center justify-between gap-3 py-3">
                 <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
                   <Zap size={16} className="text-accent" /> Hardest flash
                 </span>
-                <span className="text-2xl font-extrabold tabular-nums text-chalk">
-                  {formatHardest(stats.hardestFlash, system)}
-                </span>
+                <HardestValue
+                  parts={hardestParts(stats.hardestFlash, system)}
+                  tone="text-chalk"
+                />
               </div>
             </div>
           </div>
@@ -316,6 +318,37 @@ export function Stats() {
       {story ? (
         <RecapStory recap={story} system={system} onClose={() => setStory(null)} />
       ) : null}
+    </div>
+  );
+}
+
+/** Hardest grade shown as separate, labeled boulder + rope values. */
+function HardestValue({
+  parts,
+  tone,
+}: {
+  parts: { boulder: string | null; toprope: string | null };
+  tone: string;
+}) {
+  const items = [
+    parts.boulder ? { g: parts.boulder, t: "Boulder" } : null,
+    parts.toprope ? { g: parts.toprope, t: "Rope" } : null,
+  ].filter(Boolean) as { g: string; t: string }[];
+  if (items.length === 0) {
+    return <span className={`text-2xl font-extrabold ${tone}`}>—</span>;
+  }
+  return (
+    <div className="flex items-start gap-4">
+      {items.map((it) => (
+        <div key={it.t} className="text-right leading-none">
+          <p className={`text-2xl font-extrabold tabular-nums ${tone}`}>
+            {it.g}
+          </p>
+          <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-faint">
+            {it.t}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }

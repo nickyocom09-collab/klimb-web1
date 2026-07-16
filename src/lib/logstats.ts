@@ -249,29 +249,27 @@ export function computeLogStats(
   };
 }
 
-/** "V6-V8 · 5.11-" style label for the hardest-climb tiles. */
-export function formatHardest(
+/** Hardest boulder + rope grades, kept separate so the UI can label each. */
+export function hardestParts(
   h: { boulder: LoggedItem | null; toprope: LoggedItem | null },
   system: GradeSystem,
-): string {
-  const parts: string[] = [];
-  if (h.boulder)
-    parts.push(
-      formatGradeStyled(
-        h.boulder.ordinal,
-        "boulder",
-        system,
-        h.boulder.route.gradingStyle,
-      ),
-    );
-  if (h.toprope)
-    parts.push(
-      formatGradeStyled(
-        h.toprope.ordinal,
-        "toprope",
-        system,
-        h.toprope.route.gradingStyle,
-      ),
-    );
-  return parts.length ? parts.join(" · ") : "—";
+): { boulder: string | null; toprope: string | null } {
+  return {
+    boulder: h.boulder
+      ? formatGradeStyled(
+          h.boulder.ordinal,
+          "boulder",
+          system,
+          h.boulder.route.gradingStyle,
+        )
+      : null,
+    toprope: h.toprope
+      ? formatGradeStyled(
+          h.toprope.ordinal,
+          "toprope",
+          system,
+          h.toprope.route.gradingStyle,
+        )
+      : null,
+  };
 }
