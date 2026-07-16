@@ -21,6 +21,12 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { formatGradeStyled } from "../lib/grades";
+import {
+  fetchOsmGyms,
+  metersBetween,
+  tileKeysFor,
+  type OsmGym,
+} from "../lib/osmGyms";
 import { Button, CenterSpinner } from "../components/ui";
 import type { GymRow } from "../lib/database.types";
 
@@ -86,7 +92,8 @@ function esc(s: string): string {
 
 const HOUSE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>`;
 
-/** Dot + name pill. Home = green pulse, collected = gold glow, else dim. */
+/** Dot + name pill. Home = gold + house glyph, collected = gold glow,
+ * else a quiet gray dot. */
 function pinIcon(name: string, home: boolean, collected: boolean): L.DivIcon {
   const mod = home
     ? " klimb-pin--home"
@@ -188,6 +195,111 @@ function GymLayer({
       homeMarker?.remove();
     };
   }, [map, gyms, homeId, collected, onSelect]);
+  return null;
+}
+
+/**
+ * Worldwide discovery dots from OpenStreetMap. As the map moves we ask
+ * Overpass for climbing gyms in view (one query per ~1° tile, cached), and
+ * draw the ones that aren't already a Klimb gym as quiet gray dots. Only
+ * active once zoomed in enough to keep queries small and the map uncluttered.
+ */
+const OSM_MIN_ZOOM = 8;
+
+function OsmGymLayer({ dbGyms }: { dbGyms: GymWithCount[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const group = L.layerGroup().addTo(map);
+    const fetchedTiles = new Set<string>();
+    const found = new Map<string, OsmGym>();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let controller: AbortController | null = null;
+    let cancelled = false;
+
+    const near = (g: OsmGym): boolean => {
+      for (const d of dbGyms) {
+        if (d.latitude == null || d.longitude == null) continue;
+        if (Math.abs(d.latitude - g.lat) > 0.01) continue;
+        if (metersBetween(d.latitude, d.longitude, g.lat, g.lng) < 150)
+          return true;
+      }
+      return false;
+    };
+
+    const draw = () => {
+      group.clearLayers();
+      if (map.getZoom() < OSM_MIN_ZOOM) return;
+      const b = map.getBounds();
+      let drawn = 0;
+      for (const g of found.values()) {
+        if (drawn >= 800) break;
+        if (!b.contains([g.lat, g.lng])) continue;
+        if (near(g)) continue;
+        const m = L.marker([g.lat, g.lng], {
+          icon: L.divIcon({
+            className: "klimb-osm-wrap",
+            html: `<div class="klimb-osm-dot"></div>`,
+            iconSize: [0, 0],
+          }),
+          zIndexOffset: -100,
+        });
+        m.bindTooltip(esc(g.name), {
+          direction: "top",
+          offset: [0, -6],
+          className: "klimb-osm-tip",
+        });
+        m.bindPopup(
+          `<div class="klimb-osm-pop"><strong>${esc(g.name)}</strong><span>Not on Klimb yet — climb here and it'll join your map.</span></div>`,
+        );
+        group.addLayer(m);
+        drawn++;
+      }
+    };
+
+    const load = async () => {
+      if (cancelled || map.getZoom() < OSM_MIN_ZOOM) {
+        draw();
+        return;
+      }
+      const bounds = map.getBounds();
+      const box = {
+        south: bounds.getSouth(),
+        west: bounds.getWest(),
+        north: bounds.getNorth(),
+        east: bounds.getEast(),
+      };
+      const tiles = tileKeysFor(box);
+      // Skip if this whole viewport is already covered.
+      if (tiles.every((t) => fetchedTiles.has(t))) {
+        draw();
+        return;
+      }
+      tiles.forEach((t) => fetchedTiles.add(t));
+      controller?.abort();
+      controller = new AbortController();
+      const gyms = await fetchOsmGyms(box, controller.signal);
+      if (cancelled) return;
+      for (const g of gyms) found.set(g.id, g);
+      draw();
+    };
+
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(load, 400);
+    };
+
+    map.on("moveend", schedule);
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      controller?.abort();
+      map.off("moveend", schedule);
+      map.removeLayer(group);
+    };
+  }, [map, dbGyms]);
+
   return null;
 }
 
@@ -546,6 +658,7 @@ export function GymMap() {
             keepBuffer={4}
             updateWhenZooming={false}
           />
+          <OsmGymLayer dbGyms={gyms} />
           <GymLayer
             gyms={gyms}
             homeId={profile?.home_gym_id}
