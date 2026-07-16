@@ -6,6 +6,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import {
+  BookOpen,
   Bookmark,
   Check,
   Home,
@@ -51,8 +52,8 @@ function shortDate(iso: string): string {
 const US_CENTER: [number, number] = [39.5, -98.35];
 
 // You have to actually be at a gym to make it yours / log there.
-// You must physically be at a gym to make it home or log there — within 1 mile.
-const MAX_LOG_MILES = 1;
+// You need to be reasonably close to a gym to make it home or log there.
+const MAX_LOG_MILES = 30;
 
 /** Great-circle distance in miles between two lat/lng points. */
 function milesBetween(
@@ -209,7 +210,6 @@ export function GymMap() {
     new Map(),
   );
   // Passport: the at-a-glance stamp book (state → collected gyms).
-  const [passportOpen, setPassportOpen] = useState(false);
 
   // Match the tiles to the app theme.
   const dark =
@@ -471,15 +471,9 @@ export function GymMap() {
   /** Block making a gym yours unless you're within range. Returns true if OK. */
   function withinRange(gym: GymWithCount): boolean {
     const away = milesAway(gym);
-    if (away === null) {
+    if (away !== null && away > MAX_LOG_MILES) {
       window.alert(
-        "We couldn't get your location. Turn on location access and try again from the gym.",
-      );
-      return false;
-    }
-    if (away > MAX_LOG_MILES) {
-      window.alert(
-        `You're about ${away.toFixed(1)} mi from ${gym.name}. Check in from the gym — you need to be within 1 mile.`,
+        `You're about ${Math.round(away)} mi from ${gym.name}. You need to be within ${MAX_LOG_MILES} miles to make it yours.`,
       );
       return false;
     }
@@ -621,10 +615,10 @@ export function GymMap() {
         </div>
       ) : null}
 
-      {/* Quick actions: passport, home, me */}
-      <div className="absolute right-4 top-20 z-10 flex flex-col items-end gap-2">
+      {/* Quick actions: passport, home, me — uniform width */}
+      <div className="absolute right-4 top-20 z-10 flex flex-col items-end gap-2 [&>button]:w-32 [&>button]:justify-center">
         <button
-          onClick={() => setPassportOpen(true)}
+          onClick={() => navigate("/passport")}
           className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur transition active:scale-95"
         >
           <Stamp size={15} style={{ color: "#ffc24b" }} /> Passport
@@ -655,160 +649,6 @@ export function GymMap() {
         </div>
       ) : null}
 
-      {/* Passport — the stamp book: your footprint grouped by state */}
-      {passportOpen ? (
-        <div className="absolute inset-0 z-20 flex flex-col bg-bg/97 backdrop-blur">
-          <div className="mx-auto w-full max-w-app px-5 pb-3 pt-6">
-            <div className="flex items-start justify-between">
-              <h2 className="flex items-center gap-2 text-2xl font-extrabold text-chalk">
-                <Stamp size={22} style={{ color: "#ffc24b" }} /> Passport
-              </h2>
-              <button
-                onClick={() => setPassportOpen(false)}
-                aria-label="Close passport"
-                className="rounded-full bg-surface p-2 text-muted transition hover:text-chalk"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            {/* Progress: gyms collected, with a gold fill bar */}
-            <div className="mt-3 rounded-2xl bg-surface p-4 shadow-card">
-              <div className="flex items-end justify-between">
-                <p className="text-sm text-muted">
-                  <span
-                    className="text-2xl font-extrabold tabular-nums"
-                    style={{ color: "#ffc24b" }}
-                  >
-                    {collectedStats.gyms}
-                  </span>{" "}
-                  <span className="text-chalk">of {gyms.length} gyms</span>
-                </p>
-                <p className="text-xs text-muted">
-                  {collectedStats.countries} countr
-                  {collectedStats.countries === 1 ? "y" : "ies"} ·{" "}
-                  {collectedStats.states} state
-                  {collectedStats.states === 1 ? "" : "s"}
-                </p>
-              </div>
-              <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-surface-2">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${gyms.length ? Math.round((collectedStats.gyms / gyms.length) * 100) : 0}%`,
-                    background:
-                      "linear-gradient(90deg, #ffb020, #ffd873)",
-                  }}
-                />
-              </div>
-              {/* Flag stamps — one per country you've climbed in */}
-              {collectedStats.countryList.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {collectedStats.countryList.map(([cc, name]) => (
-                    <span
-                      key={cc}
-                      title={name}
-                      className="flex items-center gap-1 rounded-full bg-surface-2 px-2 py-1 text-xs font-semibold text-chalk"
-                    >
-                      <span className="text-base leading-none">
-                        {flagEmoji(cc)}
-                      </span>
-                      {cc.toUpperCase()}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-          <div className="mx-auto w-full max-w-app flex-1 overflow-y-auto px-5 pb-28 pt-2">
-            {collected.size === 0 ? (
-              <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-                <span className="flex h-16 w-16 items-center justify-center rounded-3xl bg-surface">
-                  <Stamp size={28} className="text-faint" />
-                </span>
-                <p className="font-semibold text-chalk">No stamps yet</p>
-                <p className="max-w-xs text-sm text-muted">
-                  Log a send at any gym and it turns gold on your map — your
-                  first stamp is one climb away.
-                </p>
-              </div>
-            ) : (
-              (() => {
-                const byCountry = new Map<
-                  string,
-                  { name: string; cc: string; list: GymWithCount[] }
-                >();
-                for (const g of gyms) {
-                  if (!collected.has(g.id)) continue;
-                  const cc = g.cc ?? "xx";
-                  const name = g.country ?? "Elsewhere";
-                  const entry =
-                    byCountry.get(cc) ?? { name, cc, list: [] };
-                  entry.list.push(g);
-                  byCountry.set(cc, entry);
-                }
-                return [...byCountry.values()]
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map(({ name, cc, list }) => (
-                    <section key={cc} className="mb-5">
-                      <h3 className="mb-2 ml-1 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
-                        <span className="text-base leading-none">
-                          {flagEmoji(cc)}
-                        </span>
-                        {name} · {list.length}
-                      </h3>
-                      <ul className="flex flex-col gap-1.5">
-                        {list.map((g) => {
-                          const s = myStats.get(g.id);
-                          return (
-                            <li key={g.id}>
-                              <button
-                                onClick={() => {
-                                  setPassportOpen(false);
-                                  focusGym(g);
-                                }}
-                                className="flex w-full items-center gap-3 rounded-2xl bg-surface px-3 py-3 text-left shadow-card ring-1 ring-[#ffc24b]/15 transition active:scale-[0.99]"
-                              >
-                                <span
-                                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-                                  style={{
-                                    background: "rgba(255,194,75,0.12)",
-                                    boxShadow:
-                                      "inset 0 0 0 1.5px rgba(255,194,75,0.45)",
-                                  }}
-                                >
-                                  <Stamp
-                                    size={18}
-                                    style={{ color: "#ffc24b" }}
-                                  />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-semibold text-chalk">
-                                    {g.name}
-                                  </span>
-                                  <span className="block truncate text-xs text-muted">
-                                    {[g.city, s ? shortDate(s.firstVisit) : null]
-                                      .filter(Boolean)
-                                      .join(" · ")}
-                                  </span>
-                                </span>
-                                <span
-                                  className="flex shrink-0 items-center gap-1 text-xs font-bold tabular-nums"
-                                  style={{ color: "#ffc24b" }}
-                                >
-                                  <Trophy size={12} /> {s?.sends ?? 0}
-                                </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </section>
-                  ));
-              })()
-            )}
-          </div>
-        </div>
-      ) : null}
 
       {/* Selected-gym card */}
       {selected ? (
@@ -901,8 +741,8 @@ export function GymMap() {
 
             {tooFar && !isHome ? (
               <p className="mt-3 rounded-2xl bg-wide/10 px-3 py-2.5 text-xs font-semibold text-wide">
-                You're {selectedAway!.toFixed(1)} mi away — check in from the gym
-                (within 1 mile) to make it home or log here.
+                You're about {Math.round(selectedAway!)} mi away — get within{" "}
+                {MAX_LOG_MILES} miles to make it yours.
               </p>
             ) : null}
             <div className="mt-4 flex gap-2">
@@ -925,10 +765,18 @@ export function GymMap() {
                   variant="secondary"
                   className="flex-1"
                   loading={saving === "visit"}
-                  disabled={tooFar}
+                  disabled={tooFar && !collected.has(selected.id)}
                   onClick={() => visitGym(selected)}
                 >
-                  <Plane size={16} className="mr-1.5" /> I'm visiting
+                  {collected.has(selected.id) ? (
+                    <>
+                      <BookOpen size={16} className="mr-1.5" /> View log
+                    </>
+                  ) : (
+                    <>
+                      <Plane size={16} className="mr-1.5" /> I'm visiting
+                    </>
+                  )}
                 </Button>
               ) : null}
             </div>

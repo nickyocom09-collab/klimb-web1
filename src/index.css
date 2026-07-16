@@ -244,6 +244,66 @@
       #000 100%
     );
 }
+/* ---- Climbing Passport ---- */
+.klimb-pp {
+  background:
+    radial-gradient(circle at 50% 26%, #11221b 0%, #080b0a 68%);
+  color: #eef2ef;
+}
+.klimb-pp-cover {
+  background:
+    repeating-linear-gradient(
+      52deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    linear-gradient(160deg, #0e1512 0%, #080b0a 100%);
+  border: 1px solid rgba(255, 194, 75, 0.22);
+  box-shadow:
+    inset 0 0 0 4px rgba(255, 194, 75, 0.07),
+    inset 0 0 70px rgba(0, 0, 0, 0.55);
+}
+.klimb-pp-page {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.01) 0px,
+      rgba(255, 255, 255, 0.01) 1px,
+      transparent 1px,
+      transparent 5px
+    ),
+    linear-gradient(160deg, #0e1512 0%, #0a0f0d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 44px rgba(0, 0, 0, 0.5);
+}
+/* Foil crest — slow animated sheen. */
+.klimb-foil {
+  background: linear-gradient(
+    120deg,
+    rgba(255, 194, 75, 0.18),
+    rgba(74, 222, 128, 0.18),
+    rgba(255, 194, 75, 0.18)
+  );
+  background-size: 220% 220%;
+  border: 1px solid rgba(255, 194, 75, 0.3);
+  animation: klimb-foil 4.5s linear infinite;
+}
+@keyframes klimb-foil {
+  to {
+    background-position: 220% 0;
+  }
+}
+.klimb-stamp {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+@media (prefers-reduced-motion: reduce) {
+  .klimb-foil {
+    animation: none;
+  }
+}
+
 /* Animated wordmark: the K pops in, then L-I-M-B slide out of it. */
 .klimb-wordmark {
   display: flex;
@@ -522,26 +582,51 @@
   }
 }
 
+.klimb-splash__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
 .klimb-splash__mark {
   width: min(150px, 34vw);
   height: min(150px, 34vw);
   object-fit: contain;
   color: #f2efe8;
   filter: drop-shadow(0 18px 44px rgba(255, 255, 255, 0.08));
-  animation:
-    klimb-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both,
-    klimb-breathe 4.5s ease-in-out 0.9s infinite;
+  /* Clean, smooth entrance — a gentle rise + fade, then it holds. */
+  animation: klimb-rise 1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-@keyframes klimb-in {
-  0% { transform: scale(0.86); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+.klimb-splash__tag {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.42em;
+  /* offset so the letter-spacing stays visually centered */
+  text-indent: 0.42em;
+  color: rgba(238, 242, 239, 0.42);
+  opacity: 0;
+  animation: klimb-fade-in 0.9s ease-out 0.45s both;
 }
-@keyframes klimb-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.035); }
+@keyframes klimb-rise {
+  0% {
+    transform: translateY(10px) scale(0.97);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+@keyframes klimb-fade-in {
+  to {
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .klimb-splash__mark {
+  .klimb-splash__mark,
+  .klimb-splash__tag {
     animation: none;
+    opacity: 1;
   }
 }

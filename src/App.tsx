@@ -21,6 +21,7 @@ import { Glossary } from "./pages/Glossary";
 import { Stats } from "./pages/Stats";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { FullLogbook } from "./pages/FullLogbook";
+import { Passport } from "./pages/Passport";
 
 // The 3D globe pulls in three.js — keep it out of the main bundle so the
 // feed loads fast; the globe chunk streams in when the Map tab is opened.
@@ -163,6 +164,14 @@ export default function App() {
         element={
           <RequireAuth>
             <FullLogbook />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/passport"
+        element={
+          <RequireAuth>
+            <Passport />
           </RequireAuth>
         }
       />
