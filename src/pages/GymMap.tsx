@@ -497,9 +497,11 @@ export function GymMap() {
     navigate("/");
   }
 
-  async function visitGym(gym: GymWithCount) {
+  // skipRange: viewing your existing log at a gym doesn't need proximity;
+  // only starting a fresh visit does.
+  async function visitGym(gym: GymWithCount, skipRange = false) {
     if (!profile) return;
-    if (!withinRange(gym)) return;
+    if (!skipRange && !withinRange(gym)) return;
     setSaving("visit");
     await supabase
       .from("profiles")
@@ -766,7 +768,9 @@ export function GymMap() {
                   className="flex-1"
                   loading={saving === "visit"}
                   disabled={tooFar && !collected.has(selected.id)}
-                  onClick={() => visitGym(selected)}
+                  onClick={() =>
+                    visitGym(selected, collected.has(selected.id))
+                  }
                 >
                   {collected.has(selected.id) ? (
                     <>

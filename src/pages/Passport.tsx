@@ -501,7 +501,12 @@ function Stamp({ stamp }: { stamp: CountryStamp }) {
       <circle cx="59" cy="59" r="52" fill="none" stroke={GOLD} strokeWidth="2.5" opacity="0.85" />
       <circle cx="59" cy="59" r="45" fill="none" stroke={GOLD} strokeWidth="1" strokeDasharray="3 3" opacity="0.6" />
       <text fill={GOLD} fontSize="10" fontWeight="700" letterSpacing="1.5" opacity="0.9">
-        <textPath href={`#${id}`} startOffset="50%" textAnchor="middle">
+        <textPath
+          href={`#${id}`}
+          xlinkHref={`#${id}`}
+          startOffset="50%"
+          textAnchor="middle"
+        >
           {stamp.country.toUpperCase().slice(0, 18)}
         </textPath>
       </text>
