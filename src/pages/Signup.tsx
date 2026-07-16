@@ -46,11 +46,25 @@ export function Signup() {
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col justify-center bg-bg px-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-chalk">Create account</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-extrabold text-chalk">Create your account</h1>
         <p className="mt-2 text-muted">
-          Start logging sends and grading routes.
+          Free to join. It takes about a minute:
         </p>
+        <ol className="mt-3 flex flex-col gap-1.5 text-sm text-muted">
+          <li className="flex gap-2">
+            <span className="font-bold text-accent">1.</span> Fill in your name,
+            email &amp; a password below
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold text-accent">2.</span> Pick your home gym
+            on the map
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold text-accent">3.</span> Log your first
+            climb 🧗
+          </li>
+        </ol>
       </div>
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -58,7 +72,7 @@ export function Signup() {
           label="Display name"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Chalk Hands"
+          placeholder="The name other climbers see"
         />
         <Input
           label="Email"
@@ -77,10 +91,15 @@ export function Signup() {
           placeholder="At least 6 characters"
         />
         <ErrorText>{error}</ErrorText>
-        {notice ? <p className="ml-1 text-sm text-accent">{notice}</p> : null}
+        {notice ? (
+          <p className="ml-1 text-sm text-accent">{notice}</p>
+        ) : null}
         <Button type="submit" loading={busy}>
-          Sign up
+          Create my account
         </Button>
+        <p className="text-center text-xs text-faint">
+          By continuing you agree to climb responsibly and log honestly.
+        </p>
       </form>
 
       <div className="relative mt-5">

@@ -22,12 +22,8 @@ export function Login() {
 
   return (
     <div className="relative mx-auto flex h-full max-w-app flex-col justify-center overflow-hidden bg-bg px-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-accent/15 blur-3xl"
-      />
       <div className="relative mb-8 animate-fade-up">
-        <h1 className="text-6xl font-extrabold tracking-tight text-accent drop-shadow-[0_2px_24px_rgb(var(--c-accent)/0.4)]">
+        <h1 className="text-6xl font-extrabold tracking-tight text-accent">
           Klimb
         </h1>
         <p className="mt-2 text-muted">
