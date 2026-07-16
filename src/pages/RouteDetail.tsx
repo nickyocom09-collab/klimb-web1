@@ -46,6 +46,8 @@ export function RouteDetail() {
   const [myNote, setMyNote] = useState<string | null>(null);
   const [isProject, setIsProject] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id || !profile) return;
@@ -88,7 +90,7 @@ export function RouteDetail() {
 
   async function deleteLog() {
     if (!id || !profile) return;
-    if (!window.confirm("Delete this climb from your logbook?")) return;
+    setDeleting(true);
     await supabase
       .from("sends")
       .delete()
@@ -237,7 +239,7 @@ export function RouteDetail() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
-                    onClick={deleteLog}
+                    onClick={() => setConfirmDelete(true)}
                     aria-label="Delete this log"
                     className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-2 text-faint transition hover:text-wide"
                   >
@@ -289,6 +291,49 @@ export function RouteDetail() {
             await load();
           }}
         />
+      ) : null}
+
+      {/* Delete confirmation — spell out the consequences. */}
+      {confirmDelete ? (
+        <div
+          className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in items-center justify-center bg-black/70 p-6 backdrop-blur-[2px]"
+          onClick={() => !deleting && setConfirmDelete(false)}
+        >
+          <div
+            className="w-full animate-pop rounded-3xl border border-border bg-surface p-5 shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-wide/15">
+              <Trash2 size={22} className="text-wide" />
+            </div>
+            <h2 className="text-lg font-extrabold text-chalk">
+              Delete this climb?
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              This removes it from your logbook, your stats, and your grade
+              pyramid. If it's your only climb at this gym or country, that
+              passport stamp goes away too. This can't be undone.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                disabled={deleting}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Keep it
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                loading={deleting}
+                onClick={deleteLog}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
