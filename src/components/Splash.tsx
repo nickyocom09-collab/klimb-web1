@@ -1,7 +1,7 @@
 /**
- * Branded loading splash — the white Klimb "K" on a soft neutral-dark radial
- * glow. A single, very smooth fade-in (no bounce, no motion). Mirrors the
- * pre-JS splash in index.html for a seamless handoff.
+ * Branded loading splash — a small white Klimb "K" centered on a flat dark
+ * background, with a single very smooth fade-in. Mirrors the pre-JS splash in
+ * index.html for a seamless handoff.
  */
 export function Splash() {
   return (

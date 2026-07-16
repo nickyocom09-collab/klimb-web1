@@ -273,15 +273,8 @@
   justify-content: center;
   gap: 34px;
   overflow: hidden;
-  /* Soft neutral glow behind the mark, fading to near-black at the edges. */
-  background:
-    radial-gradient(
-      circle at 50% 46%,
-      #23262a 0%,
-      #14171a 42%,
-      #0a0c0e 72%,
-      #050607 100%
-    );
+  /* Flat dark background (match reference). */
+  background: #111111;
 }
 /* ---- Climbing Passport ---- */
 .klimb-pp {
@@ -628,11 +621,10 @@
   gap: 20px;
 }
 .klimb-splash__mark {
-  width: min(150px, 34vw);
-  height: min(150px, 34vw);
+  width: min(104px, 26vw);
+  height: min(104px, 26vw);
   object-fit: contain;
   color: #f2efe8;
-  filter: drop-shadow(0 0 34px rgba(255, 255, 255, 0.06));
   /* Very soft, very smooth — pure fade with a whisper of scale, then holds. */
   animation: klimb-soft 1.8s cubic-bezier(0.33, 0, 0.15, 1) both;
 }
