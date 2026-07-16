@@ -14,7 +14,7 @@ import {
   type RecapRow,
 } from "../lib/recaps";
 import { AppHeader } from "../components/Layout";
-import { RecapStory } from "../components/RecapStory";
+import { WeeklyRecap } from "../components/WeeklyRecap";
 import { ListSkeleton } from "../components/ui";
 
 function periodLabel(r: RecapRow): string {
@@ -295,7 +295,7 @@ export function Stats() {
       )}
 
       {story ? (
-        <RecapStory recap={story} system={system} onClose={() => setStory(null)} />
+        <WeeklyRecap recap={story} system={system} onClose={() => setStory(null)} />
       ) : null}
     </div>
   );

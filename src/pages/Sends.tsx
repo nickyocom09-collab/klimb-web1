@@ -31,7 +31,7 @@ import { communityGrade, formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { fetchNotifications } from "../lib/notifications";
 import { AppHeader } from "../components/Layout";
-import { RecapStory } from "../components/RecapStory";
+import { WeeklyRecap } from "../components/WeeklyRecap";
 import { Button, ListSkeleton } from "../components/ui";
 import type { RouteWithStats } from "../lib/routes";
 
@@ -334,7 +334,7 @@ export function Sends() {
       )}
 
       {story ? (
-        <RecapStory recap={story} system={system} onClose={() => setStory(null)} />
+        <WeeklyRecap recap={story} system={system} onClose={() => setStory(null)} />
       ) : null}
     </div>
   );
