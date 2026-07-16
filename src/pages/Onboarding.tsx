@@ -233,23 +233,29 @@ export function Onboarding() {
       {step === "name" ? (
         <div className="flex flex-1 flex-col px-6 pt-10">
           <h1 className="text-2xl font-extrabold text-chalk">
-            What should we call you?
+            Set up your profile
           </h1>
           <p className="mt-1 text-muted">
-            This is the name other climbers will see.
+            Two things — the name people see, and a unique @handle.
           </p>
-          <div className="mt-6 flex flex-col gap-4">
-            <Input
-              autoFocus
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                // Keep the username suggestion in sync until they edit it.
-                if (!unameTouched) setUname(suggestUsername(e.target.value));
-              }}
-              placeholder="Your name or handle"
-              maxLength={30}
-            />
+          <div className="mt-6 flex flex-col gap-5">
+            <div>
+              <Input
+                label="Display name"
+                autoFocus
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  // Keep the username suggestion in sync until they edit it.
+                  if (!unameTouched) setUname(suggestUsername(e.target.value));
+                }}
+                placeholder="e.g. Nick Yocom"
+                maxLength={30}
+              />
+              <p className="ml-1 mt-2 text-xs text-faint">
+                Shown on your profile and logs. Can be anything, spaces are fine.
+              </p>
+            </div>
             <div>
               <Input
                 label="Username"
@@ -259,14 +265,14 @@ export function Onboarding() {
                   setUnameTouched(true);
                   setUnameErr(null);
                 }}
-                placeholder="username"
+                placeholder="nickyocom"
                 autoCapitalize="none"
                 autoCorrect="off"
                 maxLength={20}
               />
               <p className="ml-1 mt-2 text-xs text-faint">
-                Friends find you by @username — you can change it later in
-                Settings.
+                Your unique @handle — how friends find and add you. Letters,
+                numbers &amp; underscores only.
               </p>
               {unameErr ? (
                 <p className="ml-1 mt-1 text-xs text-wide">{unameErr}</p>

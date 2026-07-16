@@ -199,8 +199,11 @@ export function Settings() {
                 label="Display name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
+                placeholder="e.g. Nick Yocom"
               />
+              <p className="ml-1 mt-1.5 text-xs text-faint">
+                The name shown on your profile and logs.
+              </p>
               <Button
                 variant="secondary"
                 className="mt-3 w-full"
@@ -216,16 +219,19 @@ export function Settings() {
             </div>
             <div>
               <Input
-                label="Username"
+                label="Username (@handle)"
                 value={uname}
                 onChange={(e) => {
                   setUname(e.target.value);
                   setUMsg(null);
                 }}
-                placeholder="username"
+                placeholder="nickyocom"
                 autoCapitalize="none"
                 autoCorrect="off"
               />
+              <p className="ml-1 mt-1.5 text-xs text-faint">
+                Your unique handle — how friends find and add you.
+              </p>
               <Button
                 variant="secondary"
                 className="mt-3 w-full"
