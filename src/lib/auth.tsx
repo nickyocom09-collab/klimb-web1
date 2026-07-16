@@ -195,6 +195,15 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
           options: { emailRedirectTo: authRedirectUrl() },
         });
         if (error) return { error: error.message, needsConfirmation: false };
+        // Supabase doesn't return an error for a duplicate, already-confirmed
+        // email (it avoids leaking which emails exist) — instead it returns a
+        // user with no new identity attached. That's the signal to catch it.
+        if (data.user && data.user.identities?.length === 0) {
+          return {
+            error: "An account with this email already exists. Try logging in instead.",
+            needsConfirmation: false,
+          };
+        }
         const needsConfirmation = !data.session;
         return { error: null, needsConfirmation };
       },
