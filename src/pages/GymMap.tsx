@@ -51,7 +51,8 @@ function shortDate(iso: string): string {
 const US_CENTER: [number, number] = [39.5, -98.35];
 
 // You have to actually be at a gym to make it yours / log there.
-const MAX_LOG_MILES = 30;
+// You must physically be at a gym to make it home or log there — within 1 mile.
+const MAX_LOG_MILES = 1;
 
 /** Great-circle distance in miles between two lat/lng points. */
 function milesBetween(
@@ -470,9 +471,15 @@ export function GymMap() {
   /** Block making a gym yours unless you're within range. Returns true if OK. */
   function withinRange(gym: GymWithCount): boolean {
     const away = milesAway(gym);
-    if (away !== null && away > MAX_LOG_MILES) {
+    if (away === null) {
       window.alert(
-        `You're about ${Math.round(away)} mi from ${gym.name}. You need to be within ${MAX_LOG_MILES} miles to log there.`,
+        "We couldn't get your location. Turn on location access and try again from the gym.",
+      );
+      return false;
+    }
+    if (away > MAX_LOG_MILES) {
+      window.alert(
+        `You're about ${away.toFixed(1)} mi from ${gym.name}. Check in from the gym — you need to be within 1 mile.`,
       );
       return false;
     }
@@ -894,8 +901,8 @@ export function GymMap() {
 
             {tooFar && !isHome ? (
               <p className="mt-3 rounded-2xl bg-wide/10 px-3 py-2.5 text-xs font-semibold text-wide">
-                You're about {Math.round(selectedAway!)} mi away — get within{" "}
-                {MAX_LOG_MILES} miles to log here.
+                You're {selectedAway!.toFixed(1)} mi away — check in from the gym
+                (within 1 mile) to make it home or log here.
               </p>
             ) : null}
             <div className="mt-4 flex gap-2">

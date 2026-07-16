@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  Archive,
   Bookmark,
   Check,
   ChevronLeft,
   Flag,
-  History,
   Pencil,
-  Plus,
   Trash2,
-  TrendingUp,
   Trophy,
   Zap,
 } from "lucide-react";
@@ -21,7 +17,7 @@ import { formatGrade, formatGymGrade } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
-import type { RouteEventRow, SendType } from "../lib/database.types";
+import type { SendType } from "../lib/database.types";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -49,13 +45,12 @@ export function RouteDetail() {
   const [mySendType, setMySendType] = useState<SendType | null>(null);
   const [myNote, setMyNote] = useState<string | null>(null);
   const [isProject, setIsProject] = useState(false);
-  const [events, setEvents] = useState<RouteEventRow[]>([]);
   const [logOpen, setLogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id || !profile) return;
     setLoading(true);
-    const [r, { data: mine }, { data: mySend }, { data: bm }, { data: eventRows }] =
+    const [r, { data: mine }, { data: mySend }, { data: bm }] =
       await Promise.all([
         fetchRoute(id),
         supabase
@@ -77,11 +72,6 @@ export function RouteDetail() {
           .eq("user_id", profile.id)
           .eq("kind", "project")
           .maybeSingle(),
-        supabase
-          .from("route_events")
-          .select("*")
-          .eq("route_id", id)
-          .order("created_at", { ascending: false }),
       ]);
     setRoute(r);
     setMyGrade(mine?.grade ?? null);
@@ -89,7 +79,6 @@ export function RouteDetail() {
     setMySendType(mySend?.send_type ?? null);
     setMyNote(mySend?.note ?? null);
     setIsProject(!!bm);
-    setEvents(eventRows ?? []);
     setLoading(false);
   }, [id, profile]);
 
@@ -284,75 +273,6 @@ export function RouteDetail() {
             </Button>
           )}
 
-          {/* Route history — the permanent timeline of this climb. */}
-          {events.length > 0 ? (
-            <section className="rounded-2xl bg-surface p-4 shadow-card">
-              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
-                <History size={14} className="text-accent" /> History
-              </h2>
-              <ul className="relative flex flex-col gap-4 pl-1">
-                {events.map((e, i) => {
-                  let Icon = Plus;
-                  let text: React.ReactNode = "Route posted";
-                  if (e.kind === "created") {
-                    Icon = Plus;
-                    text =
-                      e.detail.gym_grade !== null &&
-                      e.detail.gym_grade !== undefined ? (
-                        <>
-                          Route posted — gym graded it{" "}
-                          <span className="font-semibold text-chalk">
-                            {formatGymGrade(
-                              e.detail.gym_grade,
-                              route.climbing_type,
-                              system,
-                              route.gradingStyle,
-                            )}
-                          </span>
-                        </>
-                      ) : (
-                        "Route posted"
-                      );
-                  } else if (e.kind === "grade_shift") {
-                    Icon = TrendingUp;
-                    text = (
-                      <>
-                        Grade moved{" "}
-                        <span className="font-semibold text-chalk">
-                          {fmt(e.detail.from)}
-                        </span>{" "}
-                        →{" "}
-                        <span className="font-semibold text-accent">
-                          {fmt(e.detail.to)}
-                        </span>
-                      </>
-                    );
-                  } else if (e.kind === "archived") {
-                    Icon = Archive;
-                    text = "Route retired from the wall";
-                  }
-                  return (
-                    <li key={e.id} className="flex items-start gap-3">
-                      <span className="relative flex flex-col items-center">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-2 text-accent">
-                          <Icon size={14} />
-                        </span>
-                        {i < events.length - 1 ? (
-                          <span className="absolute top-7 h-[calc(100%+0.35rem)] w-px bg-border" />
-                        ) : null}
-                      </span>
-                      <span className="min-w-0 flex-1 pt-1">
-                        <span className="block text-sm text-chalk/90">{text}</span>
-                        <span className="mt-0.5 block text-xs text-faint">
-                          {formatDate(e.created_at)}
-                        </span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
         </div>
       </div>
 

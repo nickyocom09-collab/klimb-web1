@@ -16,7 +16,6 @@ import { communityGrade, formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { DAY_MS } from "../lib/logstats";
 import { Button, CenterSpinner } from "../components/ui";
-import { LogSheet, type LogOutcome } from "../components/LogSheet";
 import { Stars } from "../components/Stars";
 
 // A project's home: the route, your history with it, and — the heart of it —
@@ -39,9 +38,10 @@ export function ProjectDetail() {
   const [savedNote, setSavedNote] = useState("");
   const [noteUpdatedAt, setNoteUpdatedAt] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
-  const [logOpen, setLogOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
-  const [finishOutcome, setFinishOutcome] = useState<LogOutcome>("send");
+  const [celebrating, setCelebrating] = useState<null | "send" | "topped">(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!routeId || !profile) return;
@@ -142,14 +142,30 @@ export function ProjectDetail() {
     navigate("/");
   }
 
-  function onLogged(outcome: LogOutcome) {
-    setLogOpen(false);
-    if (outcome === "flash" || outcome === "send" || outcome === "topped") {
-      // Sent (or topped)! The climb graduates to the logbook; notes stay saved.
-      navigate(`/route/${routeId}`, { replace: true });
-      return;
-    }
-    load();
+  // Complete the project right here — log it, drop the project bookmark, then
+  // celebrate. No extra page: the chooser IS the finish.
+  async function completeProject(outcome: "send" | "topped") {
+    if (!routeId || !profile) return;
+    setFinishOpen(false);
+    setCelebrating(outcome);
+    await supabase.from("sends").upsert(
+      {
+        route_id: routeId,
+        user_id: profile.id,
+        send_type: outcome,
+      },
+      { onConflict: "route_id,user_id" },
+    );
+    await supabase
+      .from("bookmarks")
+      .delete()
+      .eq("user_id", profile.id)
+      .eq("route_id", routeId)
+      .eq("kind", "project");
+    window.setTimeout(
+      () => navigate(`/route/${routeId}`, { replace: true }),
+      1600,
+    );
   }
 
   if (loading) {
@@ -302,8 +318,8 @@ export function ProjectDetail() {
         </div>
       ) : null}
 
-      {/* How'd you finish? — Sent (clean) or Topped (with falls). No flash:
-          you've been working this one. */}
+      {/* How'd you finish? — Sent (clean) or Topped (with falls). Completes
+          right here, no extra page. No flash — you've been working this one. */}
       {finishOpen ? (
         <div
           className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4 backdrop-blur-[2px]"
@@ -321,26 +337,18 @@ export function ProjectDetail() {
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
-                onClick={() => {
-                  setFinishOutcome("send");
-                  setFinishOpen(false);
-                  setLogOpen(true);
-                }}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-4 text-chalk transition hover:border-accent"
+                onClick={() => completeProject("send")}
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-5 text-chalk transition active:scale-[0.98] hover:border-accent"
               >
-                <Check size={22} className="text-accent" />
+                <Check size={24} className="text-accent" />
                 <span className="text-sm font-bold">Sent</span>
                 <span className="text-[11px] text-faint">Clean, no falls</span>
               </button>
               <button
-                onClick={() => {
-                  setFinishOutcome("topped");
-                  setFinishOpen(false);
-                  setLogOpen(true);
-                }}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-4 text-chalk transition hover:border-accent"
+                onClick={() => completeProject("topped")}
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-5 text-chalk transition active:scale-[0.98] hover:border-accent"
               >
-                <Flag size={22} className="text-accent" />
+                <Flag size={24} className="text-accent" />
                 <span className="text-sm font-bold">Topped</span>
                 <span className="text-[11px] text-faint">Made it, with falls</span>
               </button>
@@ -349,13 +357,32 @@ export function ProjectDetail() {
         </div>
       ) : null}
 
-      {logOpen ? (
-        <LogSheet
-          route={route}
-          initialOutcome={finishOutcome}
-          onClose={() => setLogOpen(false)}
-          onSaved={onLogged}
-        />
+      {/* Satisfying finish moment */}
+      {celebrating ? (
+        <div className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in flex-col items-center justify-center gap-3 bg-bg/92 backdrop-blur-sm">
+          <span className="relative flex h-24 w-24 items-center justify-center">
+            <span className="absolute inset-0 rounded-full bg-accent/25 animate-pulse-ring" />
+            <span
+              className="absolute inset-0 rounded-full bg-accent/20"
+              style={{ animation: "klimb-spark-ring 0.85s ease-out forwards" }}
+            />
+            <span className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-accent text-bg shadow-glow">
+              {celebrating === "topped" ? (
+                <Flag size={34} strokeWidth={2.5} />
+              ) : (
+                <Trophy size={36} strokeWidth={2.5} />
+              )}
+            </span>
+          </span>
+          <p className="animate-fade-up text-3xl font-extrabold text-chalk [animation-delay:120ms]">
+            {celebrating === "topped" ? "Topped!" : "Sent it!"}
+          </p>
+          <p className="animate-fade-up text-sm text-muted [animation-delay:220ms]">
+            {celebrating === "topped"
+              ? "Made the anchor — go back for the clean send."
+              : "Project crushed. Straight into the book."}
+          </p>
+        </div>
       ) : null}
     </div>
   );
