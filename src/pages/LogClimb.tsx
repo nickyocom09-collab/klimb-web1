@@ -264,6 +264,16 @@ export function LogClimb() {
     <div className="relative">
       <AppHeader title="Log a climb" subtitle={gymName ?? undefined} />
       <div className="flex flex-col gap-5 p-5">
+        {/* Boulder or rope? First choice — it drives the outcomes and grades. */}
+        <div>
+          <p className="mb-2 ml-1 text-sm text-muted">Type of climb</p>
+          <SlideTabs
+            value={climbingType}
+            onChange={changeType}
+            options={CLIMB_TYPES}
+          />
+        </div>
+
         {/* How'd it go? The heart of the log. */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">How'd it go?</p>
@@ -345,7 +355,6 @@ export function LogClimb() {
 
         {/* The climb */}
         <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
-          <SlideTabs value={climbingType} onChange={changeType} options={CLIMB_TYPES} />
           <Row label="Hold color">
             <Dropdown
               value={holdColor ?? "Choose"}
