@@ -45,7 +45,7 @@ function outcomesFor(type: ClimbingType): OutcomeOption[] {
   }
   return [
     flash,
-    { value: "send", label: "Sent", hint: "Clean top", Icon: Check },
+    { value: "send", label: "Sent", hint: "Clean", Icon: Check },
     project,
   ];
 }
@@ -188,20 +188,16 @@ export function LogSheet({
               <button
                 key={value}
                 onClick={() => setOutcome(value)}
-                className={`flex items-center gap-2.5 rounded-2xl border px-3 py-3 text-left transition ${
+                className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-3.5 text-center transition ${
                   on
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border bg-surface-2 text-muted hover:text-chalk"
                 }`}
               >
-                <Icon size={20} className="shrink-0" />
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold leading-tight">
-                    {label}
-                  </span>
-                  <span className="block text-[10px] leading-tight text-faint">
-                    {hint}
-                  </span>
+                <Icon size={22} />
+                <span className="text-sm font-bold leading-none">{label}</span>
+                <span className="whitespace-nowrap text-[10px] leading-none text-faint">
+                  {hint}
                 </span>
               </button>
             );
