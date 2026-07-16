@@ -48,10 +48,10 @@ export async function fetchNotifications(
         .limit(limit),
       supabase
         .from("recaps")
-        .select("id, created_at, seen_at")
+        .select("id, generated_at, seen_at")
         .eq("user_id", userId)
         .eq("period", "weekly")
-        .order("created_at", { ascending: false })
+        .order("generated_at", { ascending: false })
         .limit(8),
     ]);
 
@@ -95,7 +95,7 @@ export async function fetchNotifications(
       kind: "recap",
       text: "Your weekly recap is ready 🎬",
       link: "/",
-      createdAt: r.created_at,
+      createdAt: r.generated_at,
       // Unread until you've actually watched it.
       unread: !r.seen_at,
     });

@@ -101,7 +101,7 @@ export function Notifications() {
           <div>
             <p className="font-semibold text-chalk">You're all caught up</p>
             <p className="mt-1 text-sm text-faint">
-              Friend requests and new friends show up here.
+              Weekly recaps, friend requests, and new friends show up here.
             </p>
           </div>
         </div>
