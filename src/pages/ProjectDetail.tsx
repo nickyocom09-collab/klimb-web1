@@ -311,15 +311,26 @@ export function ProjectDetail() {
       {!sent ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto max-w-app p-4 pb-6">
           <div className="pointer-events-auto">
-            <Button className="w-full" onClick={() => setFinishOpen(true)}>
+            <Button
+              className="w-full"
+              onClick={() =>
+                // Bouldering has no "topped with falls" — you either stick the
+                // whole problem or you don't, so there's nothing to choose.
+                // Top rope keeps the Sent/Topped chooser.
+                route.climbing_type === "boulder"
+                  ? completeProject("send")
+                  : setFinishOpen(true)
+              }
+            >
               <Trophy size={16} className="mr-1.5" /> Complete project
             </Button>
           </div>
         </div>
       ) : null}
 
-      {/* How'd you finish? — Sent (clean) or Topped (with falls). Completes
-          right here, no extra page. No flash — you've been working this one. */}
+      {/* How'd you finish? — Sent (clean) or Topped (with falls). Top rope
+          only; bouldering skips straight to Sent. Completes right here, no
+          extra page. No flash — you've been working this one. */}
       {finishOpen ? (
         <div
           className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4 backdrop-blur-[2px]"
