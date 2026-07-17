@@ -282,18 +282,6 @@ export function Settings() {
               Switch home gym
             </Button>
           </Card>
-          <Button variant="danger" className="w-full" onClick={signOut}>
-            Sign out
-          </Button>
-          <button
-            onClick={() => {
-              setConfirmText("");
-              setDeleteOpen(true);
-            }}
-            className="mt-1 flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold text-wide transition hover:opacity-80"
-          >
-            <Trash2 size={15} /> Delete account
-          </button>
         </Section>
 
         <Section title="Ideas & feedback">
@@ -317,6 +305,21 @@ export function Settings() {
               <Shield size={18} className="text-accent" /> Privacy policy
             </span>
             <ChevronRight size={18} className="text-faint" />
+          </button>
+        </Section>
+
+        <Section title="Account actions">
+          <Button variant="danger" className="w-full" onClick={signOut}>
+            Sign out
+          </Button>
+          <button
+            onClick={() => {
+              setConfirmText("");
+              setDeleteOpen(true);
+            }}
+            className="mt-1 flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold text-wide transition hover:opacity-80"
+          >
+            <Trash2 size={15} /> Delete account
           </button>
         </Section>
       </div>
