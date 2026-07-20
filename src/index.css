@@ -59,6 +59,9 @@
   #root {
     padding-top: env(safe-area-inset-top);
     box-sizing: border-box;
+    /* Paint the safe-area strip in the current theme directly, so switching
+       light/dark can never leave a bar of the previous colour at the top. */
+    background-color: rgb(var(--c-bg));
   }
   ::-webkit-scrollbar {
     width: 0;
