@@ -619,14 +619,15 @@ export function WeeklyRecap({
         )}
 
         {card === "streak" && (
-          <div style={{ ...S.card, background: "radial-gradient(circle at 50% 88%, #1a0f08, #080B0A)" }}>
-            <div style={{ ...S.cardInner, justifyContent: "flex-start", paddingTop: 60 }}>
+          <div style={{ ...S.card, background: "radial-gradient(circle at 50% 60%, #1c1008, #080B0A)" }}>
+            <div style={S.cardInner}>
               <div style={S.kicker}>STREAK</div>
+              <StreakFire streak={p.streak} size={190} />
               <div style={S.streakNum}>
                 {p.streak}
                 <span style={S.streakDays}> {periodWord}s</span>
               </div>
-              <StreakFire streak={p.streak} size={150} />
+              <div style={S.streakDivider} />
               <p style={S.streakNote}>
                 {p.streak >= 8
                   ? "Roaring. Keep feeding it."
@@ -712,9 +713,10 @@ const S: Record<string, React.CSSProperties> = {
   numV: { fontFamily: serif, fontSize: 30, fontWeight: 700, color: "#E8F0EB", fontVariantNumeric: "lining-nums tabular-nums" },
   numL: { fontSize: 11.5, color: "#7C8C84", letterSpacing: "0.04em" },
   grade: { fontFamily: serif, fontSize: 92, fontWeight: 700, color: "#E4B363", textShadow: "0 0 44px rgba(228,179,99,0.4)", lineHeight: 1, fontVariantNumeric: "lining-nums tabular-nums" },
-  streakNum: { fontFamily: serif, fontSize: 74, fontWeight: 700, color: "#FB923C", lineHeight: 1, textShadow: "0 0 40px rgba(251,146,60,0.5)", fontVariantNumeric: "lining-nums tabular-nums" },
-  streakDays: { fontSize: 22, color: "#B8C4BD" },
-  streakNote: { fontSize: 14, color: "#B8C4BD", marginTop: 4 },
+  streakNum: { fontFamily: serif, fontSize: 82, fontWeight: 700, color: "#FB923C", lineHeight: 1, textShadow: "0 0 44px rgba(251,146,60,0.55)", fontVariantNumeric: "lining-nums tabular-nums", marginTop: 18 },
+  streakDays: { fontFamily: serif, fontSize: 26, color: "#B8C4BD", fontWeight: 600 },
+  streakDivider: { width: 44, height: 3, borderRadius: 3, background: "rgba(251,146,60,0.45)", margin: "22px 0 16px" },
+  streakNote: { fontSize: 14.5, color: "#B8C4BD", lineHeight: 1.5, maxWidth: 240, margin: 0 },
   wrapTitle: { fontFamily: serif, fontSize: 38, fontWeight: 700, color: "#E8F0EB", margin: "6px 0 26px" },
   shareBtn: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#080B0A", background: "#4ADE80", border: "none", padding: "13px 22px", borderRadius: 12, cursor: "pointer" },
   shareHelp: { fontSize: 12, color: "#7C8C84", marginTop: 16, maxWidth: 250, lineHeight: 1.45 },
