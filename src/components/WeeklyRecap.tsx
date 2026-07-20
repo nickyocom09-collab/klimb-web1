@@ -11,9 +11,13 @@ import {
   X,
   Camera,
 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { Share } from "@capacitor/share";
+import { Directory, Filesystem } from "@capacitor/filesystem";
 import type { RecapRow } from "../lib/recaps";
 import type { RecapPayload } from "../lib/database.types";
 import { formatGradeStyled, type GradeSystem } from "../lib/grades";
+import { StreakFire } from "./StreakFire";
 
 /* ---------------- 15 archetypes ---------------- */
 type Archetype = { key: string; label: string; sub: string; hue: string };
@@ -36,27 +40,75 @@ const ARCHETYPES: Archetype[] = [
   { key: "ember", label: "Ember Keeper", sub: "You kept the streak alive.", hue: "#FB923C" },
 ];
 
-function archetypeFor(p: RecapPayload): Archetype {
+/** Stable FNV-1a hash — used as a deterministic tie-breaker so near-tied
+ *  weeks rotate between archetypes instead of always landing on the same one. */
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Score every archetype whose condition the week actually meets, pick the
+ * strongest, and break near-ties (within 8 points) with a hash of the
+ * period start + the week's stats so similar weeks rotate labels.
+ */
+function archetypeFor(p: RecapPayload, seedKey: string): Archetype {
   const byKey = (k: string) =>
     ARCHETYPES.find((a) => a.key === k) ?? ARCHETYPES[1];
   const wall = (p.top_wall ?? "").toLowerCase();
   const ratio = p.climbs > 0 ? p.attempts / p.climbs : 0;
   const firstEver = p.prev.climbs === 0 && p.prev.sends === 0;
+  const flashRate = p.flash_rate ?? 0;
+  const gradeBreadth = new Set(p.pyramid.map((r) => `${r.type}:${r.ordinal}`))
+    .size;
+  const bothDisciplines =
+    p.hardest_send.boulder !== null && p.hardest_send.toprope !== null;
 
-  if (p.new_grades.length > 0) return byKey("breakthrough");
-  if (firstEver && p.sessions <= 1 && p.climbs > 0) return byKey("fresh");
-  if (p.prev.climbs === 0 && p.climbs > 0) return byKey("comeback");
-  if ((p.flash_rate ?? 0) >= 60 && p.flashes >= 3) return byKey("flash");
-  if (ratio >= 3 && p.attempts >= 8) return byKey("project");
+  const scores: [string, number][] = [];
+
+  // Milestone weeks dominate: a new grade is the story of the week. If it
+  // came after a long-standing project, that's breaking a plateau instead.
+  if (p.new_grades.length > 0)
+    scores.push([
+      p.oldest_project_days !== null && p.oldest_project_days >= 21
+        ? "plateau"
+        : "breakthrough",
+      90 + p.new_grades.length * 4,
+    ]);
+  if (firstEver && p.climbs > 0) scores.push(["fresh", 85]);
+  else if (p.prev.climbs === 0 && p.climbs > 0) scores.push(["comeback", 70]);
+
+  // Style of the week — each keyed off a real field, scored by strength.
+  if (flashRate >= 50 && p.flashes >= 3)
+    scores.push(["flash", 40 + flashRate / 2]);
+  if (ratio >= 2.5 && p.attempts >= 10)
+    scores.push(["project", 40 + Math.min(ratio * 6, 30)]);
   if (wall.includes("overhang") || wall.includes("cave") || wall.includes("roof"))
-    return byKey("power");
-  if (wall.includes("slab")) return byKey("technician");
-  if (p.attempts >= 30) return byKey("endurance");
-  if (p.streak >= 3) return byKey("ember");
-  if (p.sessions >= 4) return byKey("metronome");
-  if (p.prev.climbs > 0 && p.climbs >= p.prev.climbs * 1.5)
-    return byKey("grind");
-  return byKey("grind");
+    scores.push(["power", 55]);
+  if (wall.includes("slab") || (flashRate >= 40 && ratio <= 1.5 && p.sends >= 4))
+    scores.push(["technician", 52]);
+  if (p.attempts >= 25 || p.climbs >= 20)
+    scores.push(["endurance", 40 + Math.min(p.attempts / 2, 25)]);
+  if (p.sessions >= 4) scores.push(["metronome", 42 + p.sessions * 3]);
+  if (p.streak >= 3) scores.push(["ember", 38 + Math.min(p.streak * 3, 24)]);
+  if (bothDisciplines || gradeBreadth >= 6) scores.push(["frontier", 46]);
+  if (p.sessions >= 2 && p.climbs >= p.sessions * 5) scores.push(["crew", 44]);
+  if (p.sessions >= 2 && p.climbs > 0 && p.climbs <= p.sessions * 3)
+    scores.push(["dawn", 43]);
+  if (p.prev.climbs > 0 && p.climbs >= p.prev.climbs * 1.4)
+    scores.push(["grind", 50]);
+  if (scores.length === 0) scores.push(["grind", 10]);
+
+  scores.sort((a, b) => b[1] - a[1]);
+  const pool = scores.filter(([, s]) => scores[0][1] - s <= 8);
+  const seed = hashStr(
+    `${seedKey}|${p.climbs}|${p.sends}|${p.attempts}|${p.sessions}|${p.streak}`,
+  );
+  return byKey(pool[seed % pool.length][0]);
 }
 
 /* The numbers a recap card / story image needs, pulled from the payload. */
@@ -70,7 +122,26 @@ type WeekData = {
   periodWord: string;
 };
 
-/* ---------------- Falling rocks (sharp, big, parallax) ---------------- */
+/* ------- Falling rocks: 3 parallax layers, natural boulders, dust ------- */
+type Rock = {
+  x: number;
+  y: number;
+  size: number;
+  pts: { x: number; y: number; round: boolean }[];
+  layer: number; // 0 far, 1 mid, 2 near
+  speed: number;
+  rot: number;
+  rotSpeed: number;
+  light: number;
+};
+type Speck = { x: number; y: number; r: number; speed: number; phase: number; alpha: number };
+
+const ROCK_LAYERS = [
+  { min: 6, max: 14, speed: 0.45, speedVar: 0.5, blur: 1.2, alpha: 0.45 },
+  { min: 14, max: 26, speed: 1.1, speedVar: 0.8, blur: 0.5, alpha: 0.8 },
+  { min: 28, max: 52, speed: 2.3, speedVar: 1.8, blur: 0, alpha: 1 },
+];
+
 function RocksCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -78,113 +149,166 @@ function RocksCanvas() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    let raf: number,
-      W: number,
-      H: number,
-      dpr: number,
-      rocks: {
-        x: number;
-        y: number;
-        size: number;
-        verts: number[][];
-        layer: number;
-        speed: number;
-        rot: number;
-        rotSpeed: number;
-        light: number;
-      }[] = [];
-    const makeRock = (layer: number) => {
-      const near = layer === 1;
-      const size = near ? 26 + Math.random() * 34 : 10 + Math.random() * 16;
-      const n = 6 + ((Math.random() * 3) | 0);
-      const verts: number[][] = [];
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let raf = 0,
+      W = 0,
+      H = 0,
+      t = 0,
+      rocks: Rock[] = [],
+      specks: Speck[] = [];
+
+    const makeRock = (layer: number, anywhere: boolean): Rock => {
+      const L = ROCK_LAYERS[layer];
+      const size = L.min + Math.random() * (L.max - L.min);
+      // Mix of silhouettes: ~40% angular boulders, the rest rounded — round
+      // vertices get midpoint-smoothed when traced, angular ones stay sharp.
+      const angular = Math.random() < 0.4;
+      const n = 7 + ((Math.random() * 4) | 0);
+      const pts: Rock["pts"] = [];
       for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2;
-        const r = size * (0.62 + Math.random() * 0.46);
-        verts.push([Math.cos(a) * r, Math.sin(a) * r]);
+        const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
+        const r = size * (0.72 + Math.random() * 0.28);
+        pts.push({
+          x: Math.cos(a) * r,
+          y: Math.sin(a) * r,
+          round: angular ? Math.random() < 0.3 : Math.random() < 0.85,
+        });
       }
       return {
         x: Math.random() * W,
-        y: Math.random() * -H,
+        y: anywhere ? Math.random() * (H + size * 2) - size : -size * 2,
         size,
-        verts,
+        pts,
         layer,
-        speed: near ? 2.6 + Math.random() * 2.2 : 1.0 + Math.random() * 1.1,
-        rot: Math.random() * Math.PI,
-        rotSpeed: (Math.random() - 0.5) * 0.03,
-        light: 148 + Math.random() * 40,
+        speed: L.speed + Math.random() * L.speedVar,
+        rot: Math.random() * Math.PI * 2,
+        rotSpeed: (Math.random() - 0.5) * 0.02,
+        light: 128 + Math.random() * 44,
       };
     };
+
     const resize = () => {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       W = canvas.clientWidth;
       H = canvas.clientHeight;
       canvas.width = W * dpr;
       canvas.height = H * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const far = Math.round((W * H) / 26000);
-      const near = Math.round((W * H) / 44000);
-      rocks = [...Array(far)]
-        .map(() => makeRock(0))
-        .concat([...Array(near)].map(() => makeRock(1)));
+      const counts = [
+        Math.round((W * H) / 30000),
+        Math.round((W * H) / 46000),
+        Math.round((W * H) / 78000),
+      ];
+      rocks = counts.flatMap((c, layer) =>
+        [...Array(c)].map(() => makeRock(layer, true)),
+      );
+      specks = [...Array(Math.round((W * H) / 16000))].map(() => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 0.6 + Math.random() * 1.2,
+        speed: 0.15 + Math.random() * 0.35,
+        phase: Math.random() * Math.PI * 2,
+        alpha: 0.1 + Math.random() * 0.22,
+      }));
     };
-    const drawRock = (r: (typeof rocks)[number]) => {
+
+    const trace = (pts: Rock["pts"]) => {
+      const n = pts.length;
+      const mid = (a: (typeof pts)[number], b: (typeof pts)[number]) => ({
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2,
+      });
+      const start = mid(pts[n - 1], pts[0]);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 0; i < n; i++) {
+        const curr = pts[i];
+        const m = mid(curr, pts[(i + 1) % n]);
+        if (curr.round) ctx.quadraticCurveTo(curr.x, curr.y, m.x, m.y);
+        else {
+          ctx.lineTo(curr.x, curr.y);
+          ctx.lineTo(m.x, m.y);
+        }
+      }
+      ctx.closePath();
+    };
+
+    const drawRock = (r: Rock) => {
+      const L = ROCK_LAYERS[r.layer];
+      // Fade in over roughly the top sixth of the card — no pop-in.
+      const fade = Math.min(1, Math.max(0, (r.y + r.size) / (H * 0.16)));
       ctx.save();
+      ctx.globalAlpha = L.alpha * fade;
+      if (L.blur) ctx.filter = `blur(${L.blur}px)`;
       ctx.translate(r.x, r.y);
       ctx.rotate(r.rot);
-      ctx.beginPath();
-      r.verts.forEach((v, i) =>
-        i ? ctx.lineTo(v[0], v[1]) : ctx.moveTo(v[0], v[1]),
-      );
-      ctx.closePath();
-      const g = ctx.createLinearGradient(-r.size, -r.size, r.size, r.size);
-      const l = r.layer ? r.light : r.light - 46;
-      g.addColorStop(0, `rgb(${l},${l + 6},${l - 2})`);
-      g.addColorStop(0.5, `rgb(${l * 0.5},${l * 0.55},${l * 0.5})`);
-      g.addColorStop(1, `rgb(${l * 0.22},${l * 0.26},${l * 0.24})`);
+      trace(r.pts);
+      // Directional shading: light from the top-left, dark bottom-right.
+      const l = r.layer === 0 ? r.light - 56 : r.layer === 1 ? r.light - 22 : r.light;
+      const g = ctx.createLinearGradient(-r.size * 0.8, -r.size * 0.8, r.size * 0.8, r.size * 0.8);
+      g.addColorStop(0, `rgb(${l},${l + 6},${l + 1})`);
+      g.addColorStop(0.55, `rgb(${(l * 0.52) | 0},${(l * 0.57) | 0},${(l * 0.53) | 0})`);
+      g.addColorStop(1, `rgb(${(l * 0.2) | 0},${(l * 0.24) | 0},${(l * 0.22) | 0})`);
       ctx.fillStyle = g;
-      if (r.layer) {
-        ctx.shadowColor = "rgba(0,0,0,0.5)";
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetY = 6;
+      if (r.layer === 2) {
+        ctx.shadowColor = "rgba(0,0,0,0.45)";
+        ctx.shadowBlur = 16;
+        ctx.shadowOffsetY = 8;
       }
       ctx.fill();
       ctx.shadowColor = "transparent";
-      ctx.lineWidth = r.layer ? 1.4 : 0.8;
-      ctx.strokeStyle = `rgba(210,220,214,${r.layer ? 0.5 : 0.28})`;
+      // Subtle rim light, brighter toward the lit corner.
+      const rim = ctx.createLinearGradient(-r.size, -r.size, r.size, r.size);
+      rim.addColorStop(0, `rgba(226,236,230,${r.layer === 2 ? 0.5 : 0.26})`);
+      rim.addColorStop(0.6, "rgba(226,236,230,0.06)");
+      rim.addColorStop(1, "rgba(226,236,230,0)");
+      ctx.strokeStyle = rim;
+      ctx.lineWidth = r.layer === 2 ? 1.5 : 0.9;
       ctx.stroke();
       ctx.restore();
     };
-    const tick = () => {
+
+    const drawFrame = (dt: number) => {
       ctx.clearRect(0, 0, W, H);
-      for (const r of rocks)
-        if (r.layer === 0) {
-          r.y += r.speed;
-          r.rot += r.rotSpeed;
-          if (r.y - r.size > H) {
-            r.y = -r.size;
-            r.x = Math.random() * W;
-          }
-          drawRock(r);
+      t += dt;
+      for (const s of specks) {
+        s.y += s.speed * dt;
+        s.x += Math.sin(t * 0.01 + s.phase) * 0.12 * dt;
+        if (s.y > H) {
+          s.y = -2;
+          s.x = Math.random() * W;
         }
-      ctx.save();
-      ctx.filter = "blur(0.6px)";
-      for (const r of rocks)
-        if (r.layer === 1) {
-          r.y += r.speed;
-          r.rot += r.rotSpeed;
-          if (r.y - r.size > H) {
-            r.y = -r.size;
-            r.x = Math.random() * W;
-          }
-          drawRock(r);
+        ctx.globalAlpha = s.alpha * (0.7 + 0.3 * Math.sin(t * 0.02 + s.phase));
+        ctx.fillStyle = "#cfd8d2";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      for (const r of rocks) {
+        r.y += r.speed * dt;
+        r.rot += r.rotSpeed * dt;
+        if (r.y - r.size * 2 > H) {
+          const fresh = makeRock(r.layer, false);
+          Object.assign(r, fresh);
         }
-      ctx.restore();
+        drawRock(r);
+      }
+    };
+
+    const tick = () => {
+      drawFrame(1);
       raf = requestAnimationFrame(tick);
     };
+
     resize();
     window.addEventListener("resize", resize);
-    tick();
+    if (reduced) {
+      // Static frame: settle rocks into view once, then freeze.
+      drawFrame(0);
+    } else {
+      tick();
+    }
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
@@ -193,65 +317,14 @@ function RocksCanvas() {
   return (
     <canvas
       ref={ref}
-      style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+      }}
     />
-  );
-}
-
-/* ---------------- Streak flame (GeoGuessr-style: rounded, hot core) -------- */
-function SimpleFlame({ streak }: { streak: number }) {
-  const t = Math.min(1, streak / 12); // grows across a season of periods
-  const scale = 0.92 + t * 0.5;
-  return (
-    <div style={{ position: "relative", width: 175, height: 210, display: "grid", placeItems: "center" }}>
-      <div
-        className="klimb-flame"
-        style={{
-          transform: `scale(${scale})`,
-          transformOrigin: "bottom center",
-          filter: "drop-shadow(0 6px 11px rgba(0,0,0,0.5))",
-        }}
-      >
-        <svg width="150" height="182" viewBox="-20 -12 104 116">
-          <defs>
-            <linearGradient id="rfOuter" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#FFD23F" />
-              <stop offset="0.35" stopColor="#FF8A1E" />
-              <stop offset="0.72" stopColor="#F5480D" />
-              <stop offset="1" stopColor="#D81E0A" />
-            </linearGradient>
-            <linearGradient id="rfInner" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#FFF6CF" />
-              <stop offset="0.55" stopColor="#FFD23F" />
-              <stop offset="1" stopColor="#FF8A1E" />
-            </linearGradient>
-            <radialGradient id="rfCore" cx="50%" cy="72%" r="42%">
-              <stop offset="0" stopColor="#FFFEF5" />
-              <stop offset="1" stopColor="#FFD23F" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-          {/* Soft cast shadow on the ground */}
-          <ellipse cx="32" cy="99" rx="20" ry="5" fill="#000" opacity="0.3" />
-          {/* Outer flame */}
-          <path
-            fill="url(#rfOuter)"
-            d="M32 2 C 30 20 18 26 18 44 C 18 40 22 37 25 36 C 20 48 20 54 20 60 C 20 78 30 96 44 96 C 58 96 62 80 62 66 C 62 54 56 42 48 34 C 49 39 48 43 46 46 C 48 30 40 14 32 2 Z"
-          />
-          {/* Inner tongue */}
-          <path
-            className="klimb-flame-inner"
-            fill="url(#rfInner)"
-            d="M34 40 C 32 52 26 58 26 68 C 26 82 33 90 40 90 C 49 90 52 78 52 68 C 52 58 46 50 40 46 C 41 50 40 53 39 55 C 40 48 37 43 34 40 Z"
-          />
-          {/* Hot core */}
-          <path
-            className="klimb-flame-inner"
-            fill="url(#rfCore)"
-            d="M38 60 C 33 66 33 74 38 82 C 43 82 46 76 46 70 C 46 65 42 62 38 60 Z"
-          />
-        </svg>
-      </div>
-    </div>
   );
 }
 
@@ -389,7 +462,10 @@ export function WeeklyRecap({
   const hardestBoth =
     [hardestBoulder, hardestTop].filter(Boolean).join(" · ") || "—";
 
-  const arch = useMemo(() => archetypeFor(p), [p]);
+  const arch = useMemo(
+    () => archetypeFor(p, `${recap.period}:${recap.period_start}`),
+    [p, recap.period, recap.period_start],
+  );
   const week: WeekData = {
     climbs: p.climbs,
     sends: p.sends,
@@ -432,6 +508,36 @@ export function WeeklyRecap({
 
   const shareStory = async () => {
     const canvas = buildStoryCanvas(arch, week);
+    const shareText = "This week I was " + arch.label + " 🧗";
+
+    if (Capacitor.isNativePlatform()) {
+      // navigator.share with files is unreliable in the iOS WKWebView — write
+      // the PNG to the cache dir and hand its URI to the native share sheet.
+      try {
+        const base64 = canvas.toDataURL("image/png").split(",")[1];
+        await Filesystem.writeFile({
+          path: "klimb-week.png",
+          data: base64,
+          directory: Directory.Cache,
+        });
+        const { uri } = await Filesystem.getUri({
+          path: "klimb-week.png",
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: "My Klimb week",
+          text: shareText,
+          files: [uri],
+        });
+      } catch (err) {
+        // User cancelled the share sheet — nothing to do. Anything else,
+        // fall back to the in-app preview so they can still save the image.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/cancel/i.test(msg)) setPreview(canvas.toDataURL("image/png"));
+      }
+      return;
+    }
+
     canvas.toBlob(async (blob) => {
       if (!blob) return;
       const file = new File([blob], "klimb-week.png", { type: "image/png" });
@@ -440,12 +546,15 @@ export function WeeklyRecap({
           await navigator.share({
             files: [file],
             title: "My Klimb week",
-            text: "This week I was " + arch.label + " 🧗",
+            text: shareText,
           });
           return;
         }
-      } catch {
-        /* fall through to preview */
+      } catch (err) {
+        const msg =
+          err instanceof Error ? `${err.name} ${err.message}` : String(err);
+        if (/abort|cancel/i.test(msg)) return; // user closed the share sheet
+        /* otherwise fall through to preview */
       }
       setPreview(canvas.toDataURL("image/png"));
     }, "image/png");
@@ -517,7 +626,7 @@ export function WeeklyRecap({
                 {p.streak}
                 <span style={S.streakDays}> {periodWord}s</span>
               </div>
-              <SimpleFlame streak={p.streak} />
+              <StreakFire streak={p.streak} size={150} />
               <p style={S.streakNote}>
                 {p.streak >= 8
                   ? "Roaring. Keep feeding it."
@@ -623,8 +732,4 @@ const S: Record<string, React.CSSProperties> = {
 
 const CSS = `
 button:hover{filter:brightness(1.08);}
-@keyframes klimb-flick { 0%,100%{transform:scaleY(1) scaleX(1) skewX(0deg)} 25%{transform:scaleY(1.05) scaleX(0.98) skewX(1.2deg)} 50%{transform:scaleY(0.97) scaleX(1.02) skewX(-1deg)} 75%{transform:scaleY(1.03) scaleX(0.99) skewX(0.6deg)} }
-.klimb-flame > svg { animation: klimb-flick 1.5s ease-in-out infinite; transform-origin: bottom center; }
-@keyframes klimb-inner { 0%,100%{opacity:0.85; transform:translateY(0)} 50%{opacity:1; transform:translateY(-3px)} }
-.klimb-flame-inner { animation: klimb-inner 1.1s ease-in-out infinite; transform-origin: bottom center; }
 `;

@@ -22,7 +22,7 @@ import {
 } from "../lib/recaps";
 import { AppHeader } from "../components/Layout";
 import { WeeklyRecap } from "../components/WeeklyRecap";
-import { StreakFlame } from "../components/StreakFlame";
+import { StreakFire } from "../components/StreakFire";
 import { CenterSpinner } from "../components/ui";
 
 function periodLabel(r: RecapRow): string {
@@ -164,7 +164,7 @@ export function Stats() {
 
           {/* ---- Streak: an animated flame, counted in days ---- */}
           <div className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-card">
-            <StreakFlame weeks={stats.streakWeeks} size={68} />
+            <StreakFire streak={stats.streakWeeks} size={68} />
             <div className="min-w-0">
               <p className="text-3xl font-extrabold leading-none tabular-nums text-chalk">
                 {stats.streakWeeks > 0
