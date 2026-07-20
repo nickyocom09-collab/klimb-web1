@@ -198,38 +198,57 @@ function RocksCanvas() {
   );
 }
 
-/* ---------------- Simple flame (clean, not busy) ---------------- */
+/* ---------------- Streak flame (GeoGuessr-style: rounded, hot core) -------- */
 function SimpleFlame({ streak }: { streak: number }) {
   const t = Math.min(1, streak / 12); // grows across a season of periods
-  const scale = 0.85 + t * 0.7;
-  const glow = 0.25 + t * 0.4;
+  const scale = 0.92 + t * 0.5;
   return (
-    <div style={{ position: "relative", width: 160, height: 200, display: "grid", placeItems: "center" }}>
+    <div style={{ position: "relative", width: 175, height: 210, display: "grid", placeItems: "center" }}>
       <div
+        className="klimb-flame"
         style={{
-          position: "absolute",
-          width: 150,
-          height: 150,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, rgba(251,146,60,${glow}), transparent 70%)`,
-          filter: "blur(4px)",
+          transform: `scale(${scale})`,
+          transformOrigin: "bottom center",
+          filter: "drop-shadow(0 6px 11px rgba(0,0,0,0.5))",
         }}
-      />
-      <div className="klimb-flame" style={{ transform: `scale(${scale})`, transformOrigin: "bottom center" }}>
-        <svg width="110" height="150" viewBox="0 0 110 150">
+      >
+        <svg width="150" height="182" viewBox="-20 -12 104 116">
           <defs>
-            <linearGradient id="fOuter" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FFB454" />
-              <stop offset="55%" stopColor="#FB7A28" />
-              <stop offset="100%" stopColor="#E4572E" />
+            <linearGradient id="rfOuter" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#FFD23F" />
+              <stop offset="0.35" stopColor="#FF8A1E" />
+              <stop offset="0.72" stopColor="#F5480D" />
+              <stop offset="1" stopColor="#D81E0A" />
             </linearGradient>
-            <linearGradient id="fInner" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FFF1C2" />
-              <stop offset="100%" stopColor="#FFC24B" />
+            <linearGradient id="rfInner" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#FFF6CF" />
+              <stop offset="0.55" stopColor="#FFD23F" />
+              <stop offset="1" stopColor="#FF8A1E" />
             </linearGradient>
+            <radialGradient id="rfCore" cx="50%" cy="72%" r="42%">
+              <stop offset="0" stopColor="#FFFEF5" />
+              <stop offset="1" stopColor="#FFD23F" stopOpacity="0" />
+            </radialGradient>
           </defs>
-          <path d="M55 6 C 82 46, 96 66, 90 98 C 84 128, 62 144, 55 144 C 48 144, 26 128, 20 98 C 14 66, 28 46, 55 6 Z" fill="url(#fOuter)" />
-          <path className="klimb-flame-inner" d="M55 52 C 68 74, 74 86, 70 104 C 66 124, 58 134, 55 134 C 52 134, 44 124, 40 104 C 36 86, 42 74, 55 52 Z" fill="url(#fInner)" />
+          {/* Soft cast shadow on the ground */}
+          <ellipse cx="32" cy="99" rx="20" ry="5" fill="#000" opacity="0.3" />
+          {/* Outer flame */}
+          <path
+            fill="url(#rfOuter)"
+            d="M32 2 C 30 20 18 26 18 44 C 18 40 22 37 25 36 C 20 48 20 54 20 60 C 20 78 30 96 44 96 C 58 96 62 80 62 66 C 62 54 56 42 48 34 C 49 39 48 43 46 46 C 48 30 40 14 32 2 Z"
+          />
+          {/* Inner tongue */}
+          <path
+            className="klimb-flame-inner"
+            fill="url(#rfInner)"
+            d="M34 40 C 32 52 26 58 26 68 C 26 82 33 90 40 90 C 49 90 52 78 52 68 C 52 58 46 50 40 46 C 41 50 40 53 39 55 C 40 48 37 43 34 40 Z"
+          />
+          {/* Hot core */}
+          <path
+            className="klimb-flame-inner"
+            fill="url(#rfCore)"
+            d="M38 60 C 33 66 33 74 38 82 C 43 82 46 76 46 70 C 46 65 42 62 38 60 Z"
+          />
         </svg>
       </div>
     </div>
@@ -569,10 +588,10 @@ const sans = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const S: Record<string, React.CSSProperties> = {
   root: { position: "fixed", inset: 0, zIndex: 50, background: "#050706", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: sans },
   phone: { position: "relative", width: "100%", maxWidth: 480, height: "100%", overflow: "hidden", background: "#080B0A", cursor: "pointer", userSelect: "none", margin: "0 auto" },
-  segs: { position: "absolute", top: 12, left: 12, right: 12, zIndex: 20, display: "flex", gap: 5 },
+  segs: { position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 12px)", left: 12, right: 12, zIndex: 20, display: "flex", gap: 5 },
   seg: { flex: 1, height: 3, borderRadius: 3, background: "rgba(255,255,255,0.16)", overflow: "hidden" },
   segFill: { height: "100%", background: "#4ADE80", transition: "width .3s ease" },
-  close: { position: "absolute", top: 26, right: 14, zIndex: 25, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, width: 34, height: 34, display: "grid", placeItems: "center", cursor: "pointer" },
+  close: { position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 24px)", right: 14, zIndex: 25, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, width: 34, height: 34, display: "grid", placeItems: "center", cursor: "pointer" },
   card: { position: "absolute", inset: 0, overflow: "hidden" },
   scrim: { position: "absolute", inset: 0, background: "radial-gradient(circle at 50% 45%, rgba(8,11,10,0.35), rgba(8,11,10,0.86))" },
   cardInner: { position: "relative", zIndex: 5, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 30px" },
@@ -581,10 +600,10 @@ const S: Record<string, React.CSSProperties> = {
   archSub: { fontSize: 15, color: "#B8C4BD", marginTop: 16, maxWidth: 280, lineHeight: 1.45 },
   numGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, width: "100%", maxWidth: 320, marginTop: 10 },
   num: { background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.16)", borderRadius: 16, padding: "20px 14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 },
-  numV: { fontFamily: serif, fontSize: 30, fontWeight: 700, color: "#E8F0EB" },
+  numV: { fontFamily: serif, fontSize: 30, fontWeight: 700, color: "#E8F0EB", fontVariantNumeric: "lining-nums tabular-nums" },
   numL: { fontSize: 11.5, color: "#7C8C84", letterSpacing: "0.04em" },
-  grade: { fontFamily: serif, fontSize: 96, fontWeight: 700, color: "#E4B363", textShadow: "0 0 44px rgba(228,179,99,0.4)", lineHeight: 1 },
-  streakNum: { fontFamily: serif, fontSize: 74, fontWeight: 700, color: "#FB923C", lineHeight: 1, textShadow: "0 0 40px rgba(251,146,60,0.5)" },
+  grade: { fontFamily: serif, fontSize: 92, fontWeight: 700, color: "#E4B363", textShadow: "0 0 44px rgba(228,179,99,0.4)", lineHeight: 1, fontVariantNumeric: "lining-nums tabular-nums" },
+  streakNum: { fontFamily: serif, fontSize: 74, fontWeight: 700, color: "#FB923C", lineHeight: 1, textShadow: "0 0 40px rgba(251,146,60,0.5)", fontVariantNumeric: "lining-nums tabular-nums" },
   streakDays: { fontSize: 22, color: "#B8C4BD" },
   streakNote: { fontSize: 14, color: "#B8C4BD", marginTop: 4 },
   wrapTitle: { fontFamily: serif, fontSize: 38, fontWeight: 700, color: "#E8F0EB", margin: "6px 0 26px" },
