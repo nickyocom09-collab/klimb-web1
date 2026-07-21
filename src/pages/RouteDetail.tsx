@@ -88,6 +88,17 @@ export function RouteDetail() {
     load();
   }, [load]);
 
+  // Topped (anchor with falls) → Sent (clean). One tap, no sheet.
+  async function upgradeToSend() {
+    if (!id || !profile) return;
+    await supabase
+      .from("sends")
+      .update({ send_type: "send" })
+      .eq("route_id", id)
+      .eq("user_id", profile.id);
+    load();
+  }
+
   async function deleteLog() {
     if (!id || !profile) return;
     setDeleting(true);
@@ -258,6 +269,14 @@ export function RouteDetail() {
                 <p className="mt-3 border-t border-border/60 pt-3 text-sm italic text-muted">
                   "{myNote}"
                 </p>
+              ) : null}
+              {mySendType === "topped" ? (
+                <button
+                  onClick={upgradeToSend}
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent/10 py-2.5 text-sm font-bold text-accent transition hover:bg-accent/15 active:scale-[0.98]"
+                >
+                  <Check size={15} /> Sent it clean — upgrade to Sent
+                </button>
               ) : null}
             </div>
           ) : isProject ? (

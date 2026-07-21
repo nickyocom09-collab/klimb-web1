@@ -32,6 +32,7 @@ export function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [since, setSince] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [sendType, setSendType] = useState<string | null>(null);
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [myStars, setMyStars] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -84,6 +85,7 @@ export function ProjectDetail() {
     setRoute(r);
     setSince(bm?.created_at ?? null);
     setSent(!!send && send.send_type !== "attempt");
+    setSendType(send?.send_type ?? null);
     setMyGrade(grade?.grade ?? null);
     setMyStars(rating?.stars ?? null);
     setNote(pn?.body ?? "");
@@ -298,32 +300,47 @@ export function ProjectDetail() {
           </section>
 
           {sent ? (
-            <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-semibold text-accent">
-              <Check size={15} className="mr-1.5 inline" />
-              You sent this one — it lives in your logbook now. Notes stay
-              right here.
-            </p>
+            sendType === "topped" ? (
+              <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-semibold text-accent">
+                <Flag size={15} className="mr-1.5 inline" />
+                You topped this one — made the anchor, with falls. Get the
+                clean run and upgrade it to Sent below.
+              </p>
+            ) : (
+              <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-semibold text-accent">
+                <Check size={15} className="mr-1.5 inline" />
+                You sent this one — it lives in your logbook now. Notes stay
+                right here.
+              </p>
+            )
           ) : null}
         </div>
       </div>
 
-      {/* Sticky actions */}
-      {!sent ? (
+      {/* Sticky actions — completing the project, or upgrading a topped
+          climb to the clean send. */}
+      {!sent || sendType === "topped" ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto max-w-app p-4 pb-6">
           <div className="pointer-events-auto">
-            <Button
-              className="w-full"
-              onClick={() =>
-                // Bouldering has no "topped with falls" — you either stick the
-                // whole problem or you don't, so there's nothing to choose.
-                // Top rope keeps the Sent/Topped chooser.
-                route.climbing_type === "boulder"
-                  ? completeProject("send")
-                  : setFinishOpen(true)
-              }
-            >
-              <Trophy size={16} className="mr-1.5" /> Complete project
-            </Button>
+            {sendType === "topped" ? (
+              <Button className="w-full" onClick={() => completeProject("send")}>
+                <Check size={16} className="mr-1.5" /> Sent it clean
+              </Button>
+            ) : (
+              <Button
+                className="w-full"
+                onClick={() =>
+                  // Bouldering has no "topped with falls" — you either stick the
+                  // whole problem or you don't, so there's nothing to choose.
+                  // Top rope keeps the Sent/Topped chooser.
+                  route.climbing_type === "boulder"
+                    ? completeProject("send")
+                    : setFinishOpen(true)
+                }
+              >
+                <Trophy size={16} className="mr-1.5" /> Complete project
+              </Button>
+            )}
           </div>
         </div>
       ) : null}
