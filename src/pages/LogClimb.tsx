@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bookmark, Camera, Check, Flag, ImagePlus, Zap } from "lucide-react";
+import {
+  Bookmark,
+  Camera,
+  Check,
+  ChevronLeft,
+  Flag,
+  ImagePlus,
+  Zap,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
@@ -23,6 +31,20 @@ import { Stars } from "../components/Stars";
 
 const NOT_SET = "Not set";
 const OTHER = "Other…";
+const STEP_COUNT = 7;
+
+/* Step slide-in. Forward enters from the right, back from the left, with the
+   app's standard ease. Reduced motion swaps both for a plain cross-fade. */
+const STEP_CSS = `
+@keyframes klimb-step-fwd { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes klimb-step-back { from { opacity: 0; transform: translateX(-32px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes klimb-step-fade { from { opacity: 0; } to { opacity: 1; } }
+.klimb-step-fwd { animation: klimb-step-fwd 0.28s cubic-bezier(0.33, 0, 0.15, 1) both; }
+.klimb-step-back { animation: klimb-step-back 0.28s cubic-bezier(0.33, 0, 0.15, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .klimb-step-fwd, .klimb-step-back { animation: klimb-step-fade 0.2s ease both; }
+}
+`;
 
 type Outcome = "flash" | "send" | "topped" | "project";
 
@@ -102,6 +124,19 @@ export function LogClimb() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reward, setReward] = useState<Outcome | null>(null);
+
+  // Wizard position — pure presentation; every answer lives in the state above
+  // so going back never loses anything.
+  const [step, setStep] = useState(0);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const advance = () => {
+    setDir(1);
+    setStep((s) => Math.min(s + 1, STEP_COUNT - 1));
+  };
+  const goBack = () => {
+    setDir(-1);
+    setStep((s) => Math.max(s - 1, 0));
+  };
 
   useEffect(() => {
     if (!gymId) return;
@@ -260,23 +295,99 @@ export function LogClimb() {
     );
   }
 
+  const stepTitles = [
+    "Boulder or Top Rope?",
+    "How'd it go?",
+    "Add a photo",
+    "The details",
+    "Your take",
+    outcome === "project" ? "Project notes" : "Add a note",
+    "Review & log",
+  ];
+  const optionalStep = step >= 2 && step <= 5;
+  const feltLabel =
+    feltGrade === null
+      ? null
+      : feltOpts.find((o) => o.value === feltGrade)?.label ?? null;
+  const skipNext = (
+    <div className="mt-1 flex gap-3">
+      <Button variant="ghost" onClick={advance} className="flex-1">
+        {step === 2 ? "Skip for now" : "Skip"}
+      </Button>
+      <Button onClick={advance} className="flex-1">
+        Next
+      </Button>
+    </div>
+  );
+
   return (
     <div className="relative">
+      <style>{STEP_CSS}</style>
       <AppHeader title="Log a climb" subtitle={gymName ?? undefined} />
-      <div className="flex flex-col gap-5 p-5">
-        {/* Boulder or rope? First choice — it drives the outcomes and grades. */}
+
+      {/* Progress + back — the wizard chrome. */}
+      <div className="flex items-center gap-3 px-5 pt-1">
+        {step > 0 ? (
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label="Previous step"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition hover:text-chalk"
+          >
+            <ChevronLeft size={19} />
+          </button>
+        ) : (
+          <div className="h-9 w-9 shrink-0" />
+        )}
+        <div className="flex flex-1 gap-1.5">
+          {[...Array(STEP_COUNT)].map((_, k) => (
+            <div
+              key={k}
+              className="h-1 flex-1 overflow-hidden rounded-full bg-border"
+            >
+              <div
+                className={`h-full rounded-full bg-accent transition-all duration-300 ${
+                  k <= step ? "w-full" : "w-0"
+                }`}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="h-9 w-9 shrink-0" />
+      </div>
+
+      {/* One step at a time; key remounts the block so it slides in fresh. */}
+      <div
+        key={step}
+        className={`flex flex-col gap-5 p-5 ${
+          dir === 1 ? "klimb-step-fwd" : "klimb-step-back"
+        }`}
+      >
         <div>
-          <p className="mb-2 ml-1 text-sm text-muted">Type of climb</p>
-          <SlideTabs
-            value={climbingType}
-            onChange={changeType}
-            options={CLIMB_TYPES}
-          />
+          <h2 className="text-xl font-extrabold text-chalk">
+            {stepTitles[step]}
+            {optionalStep ? (
+              <span className="ml-2 text-sm font-normal text-faint">
+                (optional)
+              </span>
+            ) : null}
+          </h2>
         </div>
 
-        {/* How'd it go? The heart of the log. */}
-        <div>
-          <p className="mb-2 ml-1 text-sm text-muted">How'd it go?</p>
+        {step === 0 ? (
+          // Boulder or rope? It drives the outcomes and grades. Tap = advance.
+          <SlideTabs
+            value={climbingType}
+            onChange={(t) => {
+              changeType(t);
+              setTimeout(advance, 180);
+            }}
+            options={CLIMB_TYPES}
+          />
+        ) : null}
+
+        {step === 1 ? (
+          // The heart of the log. Tap = advance.
           <div
             key={climbingType}
             className={`grid gap-2 ${
@@ -289,7 +400,10 @@ export function LogClimb() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setOutcome(value)}
+                  onClick={() => {
+                    setOutcome(value);
+                    setTimeout(advance, 180);
+                  }}
                   className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-3.5 text-center transition ${
                     on
                       ? "border-accent bg-accent/10 text-accent"
@@ -305,141 +419,211 @@ export function LogClimb() {
               );
             })}
           </div>
-        </div>
+        ) : null}
 
-        {/* Photo */}
-        <div>
-          <p className="mb-2 ml-1 text-sm text-muted">
-            Photo <span className="text-faint">(optional)</span>
-          </p>
-          <input
-            ref={photoRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={onPickPhoto}
-            className="hidden"
-          />
-          <button
-            type="button"
-            onClick={() => photoRef.current?.click()}
-            className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-3xl bg-surface-2 text-faint"
-          >
-            {photoPreview ? (
-              <img
-                src={photoPreview}
-                alt="Selected climb"
-                className="h-full w-full object-cover"
+        {step === 2 ? (
+          <>
+            <div>
+              <input
+                ref={photoRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={onPickPhoto}
+                className="hidden"
               />
-            ) : (
-              <span className="flex flex-col items-center gap-2">
-                <ImagePlus size={32} />
-                <span className="text-sm">Tap to add a photo</span>
-              </span>
-            )}
-          </button>
-          {photoPreview ? (
-            <button
-              type="button"
-              onClick={() => photoRef.current?.click()}
-              className="mt-2 flex items-center gap-1 text-sm text-accent"
-            >
-              <Camera size={15} /> Change photo
-            </button>
-          ) : null}
-        </div>
-
-        {/* The climb */}
-        <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
-          <Row label="Hold color">
-            <Dropdown
-              value={holdColor ?? "Choose"}
-              options={HOLD_COLORS.map((c) => c.name)}
-              onChange={setHoldColor}
-              align="right"
-            />
-          </Row>
-          {holdColor ? (
-            <div className="flex items-center gap-2 text-xs text-faint">
-              <span
-                className="h-3 w-3 rounded-full border border-white/10"
-                style={{ backgroundColor: holdHex(holdColor) }}
-              />
-              {holdColor} holds
+              <button
+                type="button"
+                onClick={() => photoRef.current?.click()}
+                className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-3xl bg-surface-2 text-faint"
+              >
+                {photoPreview ? (
+                  <img
+                    src={photoPreview}
+                    alt="Selected climb"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="flex flex-col items-center gap-2">
+                    <ImagePlus size={32} />
+                    <span className="text-sm">Tap to add a photo</span>
+                  </span>
+                )}
+              </button>
+              {photoPreview ? (
+                <button
+                  type="button"
+                  onClick={() => photoRef.current?.click()}
+                  className="mt-2 flex items-center gap-1 text-sm text-accent"
+                >
+                  <Camera size={15} /> Change photo
+                </button>
+              ) : null}
             </div>
-          ) : null}
-          <Row label="Wall section">
-            <Dropdown
-              value={section || "Choose"}
-              options={[...WALL_SECTIONS, OTHER]}
-              onChange={setSection}
-              align="right"
-            />
-          </Row>
-          {section === OTHER ? (
-            <Input
-              value={customSection}
-              onChange={(e) => setCustomSection(e.target.value)}
-              placeholder="Name the section"
-            />
-          ) : null}
-          <Row label="Gym's grade">
-            <Dropdown
-              value={gymGradeLabel}
-              options={[NOT_SET, ...gymGradeOpts.map((o) => o.label)]}
-              onChange={(l) =>
-                setGymGrade(
-                  l === NOT_SET
-                    ? null
-                    : gymGradeOpts.find((o) => o.label === l)?.value ?? null,
-                )
+            {skipNext}
+          </>
+        ) : null}
+
+        {step === 3 ? (
+          <>
+            <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
+              <Row label="Hold color">
+                <Dropdown
+                  value={holdColor ?? "Choose"}
+                  options={HOLD_COLORS.map((c) => c.name)}
+                  onChange={setHoldColor}
+                  align="right"
+                />
+              </Row>
+              {holdColor ? (
+                <div className="flex items-center gap-2 text-xs text-faint">
+                  <span
+                    className="h-3 w-3 rounded-full border border-white/10"
+                    style={{ backgroundColor: holdHex(holdColor) }}
+                  />
+                  {holdColor} holds
+                </div>
+              ) : null}
+              <Row label="Wall section">
+                <Dropdown
+                  value={section || "Choose"}
+                  options={[...WALL_SECTIONS, OTHER]}
+                  onChange={setSection}
+                  align="right"
+                />
+              </Row>
+              {section === OTHER ? (
+                <Input
+                  value={customSection}
+                  onChange={(e) => setCustomSection(e.target.value)}
+                  placeholder="Name the section"
+                />
+              ) : null}
+              <Row label="Gym's grade">
+                <Dropdown
+                  value={gymGradeLabel}
+                  options={[NOT_SET, ...gymGradeOpts.map((o) => o.label)]}
+                  onChange={(l) =>
+                    setGymGrade(
+                      l === NOT_SET
+                        ? null
+                        : gymGradeOpts.find((o) => o.label === l)?.value ?? null,
+                    )
+                  }
+                  align="right"
+                />
+              </Row>
+            </div>
+            {skipNext}
+          </>
+        ) : null}
+
+        {step === 4 ? (
+          <>
+            <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
+              <div>
+                <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
+                  Felt grade
+                </p>
+                <GradePicker
+                  value={feltGrade}
+                  onChange={setFeltGrade}
+                  climbingType={climbingType}
+                  system={system}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold uppercase tracking-wide text-faint">
+                  Quality
+                </p>
+                <Stars value={stars} onChange={setStars} size={22} />
+              </div>
+            </div>
+            {skipNext}
+          </>
+        ) : null}
+
+        {step === 5 ? (
+          <>
+            {/* Note — becomes the project's first journal entry for projects */}
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={
+                outcome === "project"
+                  ? "Beta, what's not working, what to try next…"
+                  : "How'd it feel?"
               }
-              align="right"
+              maxLength={500}
             />
-          </Row>
-        </div>
+            {skipNext}
+          </>
+        ) : null}
 
-        {/* Your take */}
-        <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
-          <div>
-            <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
-              Felt grade
-              <span className="ml-1 font-normal normal-case text-faint">
-                (optional)
-              </span>
-            </p>
-            <GradePicker
-              value={feltGrade}
-              onChange={setFeltGrade}
-              climbingType={climbingType}
-              system={system}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold uppercase tracking-wide text-faint">
-              Quality
-            </p>
-            <Stars value={stars} onChange={setStars} size={22} />
-          </div>
-        </div>
-
-        {/* Note — becomes the project's first journal entry for projects */}
-        <Textarea
-          label={outcome === "project" ? "Project notes (optional)" : "Note (optional)"}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder={
-            outcome === "project"
-              ? "Beta, what's not working, what to try next…"
-              : "How'd it feel?"
-          }
-          maxLength={500}
-        />
-
-        <ErrorText>{error}</ErrorText>
-        <Button loading={busy} onClick={save} className="w-full">
-          {outcome === "project" ? "Save project" : "Log it"}
-        </Button>
+        {step === 6 ? (
+          <>
+            <div className="flex flex-col gap-3 rounded-3xl bg-surface p-4 shadow-card">
+              <Row label="Type">
+                <span className="text-sm text-muted">
+                  {CLIMB_TYPES.find((t) => t.value === climbingType)?.label}
+                </span>
+              </Row>
+              <Row label="Outcome">
+                <span className="text-sm text-muted">
+                  {outcome
+                    ? outcomeOptions.find((o) => o.value === outcome)?.label
+                    : "—"}
+                </span>
+              </Row>
+              {holdColor || resolvedSection || gymGrade !== null ? (
+                <Row label="The climb">
+                  <span className="flex items-center gap-2 text-sm text-muted">
+                    {holdColor ? (
+                      <span
+                        className="h-3 w-3 rounded-full border border-white/10"
+                        style={{ backgroundColor: holdHex(holdColor) }}
+                      />
+                    ) : null}
+                    {[holdColor, resolvedSection, gymGrade !== null ? gymGradeLabel : null]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </span>
+                </Row>
+              ) : null}
+              {feltLabel || stars !== null ? (
+                <Row label="Your take">
+                  <span className="flex items-center gap-2 text-sm text-muted">
+                    {feltLabel ?? ""}
+                    {stars !== null ? (
+                      <Stars value={stars} size={15} />
+                    ) : null}
+                  </span>
+                </Row>
+              ) : null}
+              {photoPreview ? (
+                <Row label="Photo">
+                  <img
+                    src={photoPreview}
+                    alt="Selected climb"
+                    className="h-12 w-16 rounded-xl object-cover"
+                  />
+                </Row>
+              ) : null}
+              {note.trim() ? (
+                <div>
+                  <p className="mb-1 text-sm font-semibold text-chalk">
+                    {outcome === "project" ? "Project notes" : "Note"}
+                  </p>
+                  <p className="line-clamp-2 text-sm text-muted">{note.trim()}</p>
+                </div>
+              ) : null}
+            </div>
+            <ErrorText>{error}</ErrorText>
+            <Button loading={busy} onClick={save} className="w-full">
+              {outcome === "project" ? "Save project" : "Log it"}
+            </Button>
+          </>
+        ) : null}
       </div>
 
       {/* Reward moment — fires on the initial log, right here. */}
