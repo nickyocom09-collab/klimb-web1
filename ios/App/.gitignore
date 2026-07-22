@@ -1,0 +1,11 @@
+# Fastlane secrets & artifacts — never commit these
+fastlane/.env
+fastlane/*.p8
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+build/
+*.ipa
+*.dSYM.zip
+*.mobileprovision

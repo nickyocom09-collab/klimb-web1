@@ -63,6 +63,13 @@ export const THEMES: { value: ThemePref; label: string }[] = [
   { value: "light", label: "Light" },
 ];
 
+// Instagram Stories direct-share --------------------------------------------
+// Facebook App ID used for the "source_application" param when handing an
+// image straight to Instagram's Stories composer (see instagramStories.ts).
+// Free to create at developers.facebook.com — no app review needed for this
+// feature. Leave blank to fall back to the generic OS share sheet.
+export const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
+
 // Media uploads ------------------------------------------------------------
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
 export const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime"];

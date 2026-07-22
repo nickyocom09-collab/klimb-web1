@@ -1,0 +1,60 @@
+# Klimb — build the web app, sync it into iOS, and ship to TestFlight in one
+# command:  bundle exec fastlane beta
+#
+# Requires an App Store Connect API key. Copy fastlane/.env.example to
+# fastlane/.env (gitignored) and fill in your key details before running.
+
+default_platform(:ios)
+
+APP_IDENTIFIER = "com.nickyocom.klimb"
+XCODEPROJ = "Klimb.xcodeproj"
+SCHEME = "App" # Capacitor's iOS scheme
+# Repo root (klimb-web) — four levels up from this Fastfile.
+REPO_ROOT = File.expand_path("../../../..", __FILE__)
+
+platform :ios do
+  desc "Build the web app, sync Capacitor, and upload a new build to TestFlight"
+  lane :beta do
+    # App Store Connect API key — read from fastlane/.env (see .env.example).
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: ENV.fetch("ASC_KEY_FILEPATH"),
+      in_house: false,
+    )
+
+    # 1) Build the web bundle and copy it into the native iOS project.
+    sh("cd '#{REPO_ROOT}' && npm run build && npx cap sync ios")
+
+    # 2) Bump the build number to one past whatever TestFlight already has,
+    #    so every upload is unique without you tracking numbers by hand.
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      initial_build_number: 0,
+    )
+    increment_build_number(
+      xcodeproj: XCODEPROJ,
+      build_number: latest + 1,
+    )
+
+    # 3) Archive and sign the app for the App Store.
+    build_app(
+      project: XCODEPROJ,
+      scheme: SCHEME,
+      export_method: "app-store",
+      output_directory: "build",
+      clean: true,
+    )
+
+    # 4) Upload to TestFlight. Doesn't wait for Apple's processing — the build
+    #    shows up in the TestFlight tab a few minutes later.
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      skip_waiting_for_build_processing: true,
+    )
+
+    UI.success("Uploaded build #{latest + 1} to TestFlight 🚀")
+  end
+end

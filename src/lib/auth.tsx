@@ -12,6 +12,7 @@ import { supabase } from "./supabase";
 import type { Database, UserRow } from "./database.types";
 import { applyTheme } from "./theme";
 import { authRedirectUrl } from "./deeplink";
+import { AppleSignIn, canUseNativeAppleSignIn } from "./appleSignIn";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -215,8 +216,26 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         return { error: error ? error.message : null };
       },
       async signInWithProvider(provider) {
-        // OAuth is a full-page redirect; on return, onAuthStateChange picks up
-        // the session and ensureProfile creates the profile if it's new.
+        // Apple on iOS: run the whole flow in the native system sheet (no
+        // browser bounce) and hand the identity token straight to Supabase.
+        if (provider === "apple" && canUseNativeAppleSignIn()) {
+          try {
+            const { identityToken, nonce } = await AppleSignIn.signIn();
+            const { error } = await supabase.auth.signInWithIdToken({
+              provider: "apple",
+              token: identityToken,
+              nonce,
+            });
+            return { error: error ? error.message : null };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (message === "CANCELED") return { error: null };
+            return { error: message };
+          }
+        }
+        // Everyone else (Google, and Apple on web): OAuth is a full-page
+        // redirect; on return, onAuthStateChange picks up the session and
+        // ensureProfile creates the profile if it's new.
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
           options: { redirectTo: authRedirectUrl() },

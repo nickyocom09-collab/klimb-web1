@@ -17,6 +17,8 @@ import { Directory, Filesystem } from "@capacitor/filesystem";
 import type { RecapRow } from "../lib/recaps";
 import type { RecapPayload } from "../lib/database.types";
 import { formatGradeStyled, type GradeSystem } from "../lib/grades";
+import { FACEBOOK_APP_ID } from "../lib/constants";
+import { InstagramStories, toRawBase64 } from "../lib/instagramStories";
 import { StreakFire } from "./StreakFire";
 
 /* ---------------- 15 archetypes ---------------- */
@@ -509,6 +511,24 @@ export function WeeklyRecap({
   const shareStory = async () => {
     const canvas = buildStoryCanvas(arch, week);
     const shareText = "This week I was " + arch.label + " 🧗";
+
+    // iOS + Instagram installed + we have a Facebook App ID configured:
+    // hand the image straight to Instagram's Stories composer (Strava-style
+    // one-tap share) instead of the generic OS share sheet.
+    if (Capacitor.getPlatform() === "ios" && FACEBOOK_APP_ID) {
+      try {
+        const { available } = await InstagramStories.isAvailable();
+        if (available) {
+          await InstagramStories.shareToStory({
+            appId: FACEBOOK_APP_ID,
+            backgroundImageBase64: toRawBase64(canvas.toDataURL("image/png")),
+          });
+          return;
+        }
+      } catch {
+        // Fall through to the generic share sheet below.
+      }
+    }
 
     if (Capacitor.isNativePlatform()) {
       // navigator.share with files is unreliable in the iOS WKWebView — write
