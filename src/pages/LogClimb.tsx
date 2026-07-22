@@ -1,31 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Anchor, Bookmark, Camera, Check, Flag, ImagePlus, Mountain, Zap } from "lucide-react";
+import { Bookmark, Camera, Check, Flag, ImagePlus, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { HOLD_COLORS, holdHex, type ClimbType } from "../lib/constants";
+import {
+  CLIMB_TYPES,
+  HOLD_COLORS,
+  holdHex,
+  WALL_SECTIONS,
+  type ClimbType,
+} from "../lib/constants";
 import {
   gymGradeOptions,
   pickerOptions,
   type GradeStyle,
 } from "../lib/grades";
 import { AppHeader } from "../components/Layout";
-import { Button, ErrorText, Textarea } from "../components/ui";
+import { Button, ErrorText, Input, SlideTabs, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
 import { GradePicker } from "../components/GradePicker";
 import { Stars } from "../components/Stars";
 
 const NOT_SET = "Not set";
-
-const CLIMB_TYPE_OPTIONS: {
-  value: ClimbType;
-  label: string;
-  hint: string;
-  Icon: typeof Mountain;
-}[] = [
-  { value: "boulder", label: "Boulder", hint: "V0–V17", Icon: Mountain },
-  { value: "toprope", label: "Top Rope", hint: "5.5–5.15d", Icon: Anchor },
-];
+const OTHER = "Other…";
 
 type Outcome = "flash" | "send" | "topped" | "project";
 
@@ -36,6 +33,8 @@ type OutcomeOption = {
   Icon: typeof Zap;
 };
 
+// Rope climbs get the extra "Topped" state (reached the anchor, but with
+// falls) between Sent and Project; boulders just top out or don't.
 function outcomesFor(type: ClimbType): OutcomeOption[] {
   const flash: OutcomeOption = {
     value: "flash",
@@ -71,11 +70,19 @@ const REWARD: Record<Outcome, { title: string; sub: string }> = {
   project: { title: "On the board", sub: "Saved to your projects." },
 };
 
+/**
+ * THE log flow — one screen, one save. You describe the climb (photo, color,
+ * wall, type), say how it went (Flash / Sent / Project), and everything is
+ * created together: the route, your grade, your rating, and either a send in
+ * your logbook or a project with your first journal note. No confirm popups,
+ * no separate add-route step, and the reward moment fires right here.
+ */
 export function LogClimb() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const photoRef = useRef<HTMLInputElement>(null);
   const system = profile?.grade_system ?? "american";
+  // Log at the gym you're actually at — a "visiting" gym wins over home.
   const gymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
 
   const [gymName, setGymName] = useState<string | null>(null);
@@ -85,6 +92,8 @@ export function LogClimb() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
+  const [section, setSection] = useState("");
+  const [customSection, setCustomSection] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
@@ -116,6 +125,7 @@ export function LogClimb() {
       : gymGradeOpts.find((o) => o.value === gymGrade)?.label ??
         feltOpts.find((o) => o.value === gymGrade)?.label ??
         NOT_SET;
+  const resolvedSection = section === OTHER ? customSection.trim() : section;
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -129,16 +139,21 @@ export function LogClimb() {
     setClimbingType(t);
     setFeltGrade(null);
     setGymGrade(null);
+    // "Topped" only exists for rope climbs — drop it if switching to boulder.
     if (t !== "toprope" && outcome === "topped") setOutcome(null);
   }
 
   async function save() {
+    // Validate quietly and inline — no popups mid-form. Photo is optional.
     if (!holdColor) return setError("Pick the hold color.");
+    if (!resolvedSection) return setError("Choose or enter a wall section.");
     if (!outcome) return setError("How'd it go? Flash, Sent, or Project.");
     if (!gymId || !profile) return setError("Pick a home gym first.");
     setError(null);
     setBusy(true);
     try {
+      // 1) The route itself — yours, on your gym. Photo optional; without one
+      // we store a quiet dark placeholder.
       let photoUrl =
         "data:image/svg+xml;utf8," +
         encodeURIComponent(
@@ -162,7 +177,7 @@ export function LogClimb() {
           gym_id: gymId,
           photo_url: photoUrl,
           hold_color: holdColor,
-          wall_section: "Unspecified",
+          wall_section: resolvedSection,
           climbing_type: climbingType,
           gym_grade: gymGrade,
           created_by: profile.id,
@@ -171,6 +186,7 @@ export function LogClimb() {
         .single();
       if (insErr || !route) throw insErr ?? new Error("Couldn't save the climb.");
 
+      // 2) Your take: felt grade + quality.
       const writes: PromiseLike<unknown>[] = [];
       if (feltGrade !== null) {
         writes.push(
@@ -191,6 +207,7 @@ export function LogClimb() {
         );
       }
 
+      // 3) The log: a send in the book, or a project with its first note.
       const trimmed = note.trim();
       if (outcome === "project") {
         writes.push(
@@ -220,6 +237,7 @@ export function LogClimb() {
       }
       await Promise.all(writes);
 
+      // The reward moment lives HERE, on the initial log.
       setBusy(false);
       setReward(outcome);
       const dest = outcome === "project" ? `/project/${route.id}` : "/";
@@ -246,33 +264,17 @@ export function LogClimb() {
     <div className="relative">
       <AppHeader title="Log a climb" subtitle={gymName ?? undefined} />
       <div className="flex flex-col gap-5 p-5">
+        {/* Boulder or rope? First choice — it drives the outcomes and grades. */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">Type of climb</p>
-          <div className="grid grid-cols-2 gap-2">
-            {CLIMB_TYPE_OPTIONS.map(({ value, label, hint, Icon }) => {
-              const on = climbingType === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => changeType(value)}
-                  className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-3.5 text-center transition ${
-                    on
-                      ? "border-accent bg-accent/10 text-accent"
-                      : "border-border bg-surface-2 text-muted hover:text-chalk"
-                  }`}
-                >
-                  <Icon size={22} />
-                  <span className="text-sm font-bold leading-none">{label}</span>
-                  <span className="whitespace-nowrap text-[10px] leading-none text-faint">
-                    {hint}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <SlideTabs
+            value={climbingType}
+            onChange={changeType}
+            options={CLIMB_TYPES}
+          />
         </div>
 
+        {/* How'd it go? The heart of the log. */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">How'd it go?</p>
           <div
@@ -305,6 +307,7 @@ export function LogClimb() {
           </div>
         </div>
 
+        {/* Photo */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">
             Photo <span className="text-faint">(optional)</span>
@@ -346,8 +349,8 @@ export function LogClimb() {
           ) : null}
         </div>
 
+        {/* The climb */}
         <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
-          <p className="text-sm text-muted">The details</p>
           <Row label="Hold color">
             <Dropdown
               value={holdColor ?? "Choose"}
@@ -365,6 +368,21 @@ export function LogClimb() {
               {holdColor} holds
             </div>
           ) : null}
+          <Row label="Wall section">
+            <Dropdown
+              value={section || "Choose"}
+              options={[...WALL_SECTIONS, OTHER]}
+              onChange={setSection}
+              align="right"
+            />
+          </Row>
+          {section === OTHER ? (
+            <Input
+              value={customSection}
+              onChange={(e) => setCustomSection(e.target.value)}
+              placeholder="Name the section"
+            />
+          ) : null}
           <Row label="Gym's grade">
             <Dropdown
               value={gymGradeLabel}
@@ -381,6 +399,7 @@ export function LogClimb() {
           </Row>
         </div>
 
+        {/* Your take */}
         <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
           <div>
             <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
@@ -404,6 +423,7 @@ export function LogClimb() {
           </div>
         </div>
 
+        {/* Note — becomes the project's first journal entry for projects */}
         <Textarea
           label={outcome === "project" ? "Project notes (optional)" : "Note (optional)"}
           value={note}
@@ -422,6 +442,7 @@ export function LogClimb() {
         </Button>
       </div>
 
+      {/* Reward moment — fires on the initial log, right here. */}
       {reward ? (
         <div className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in flex-col items-center justify-center gap-3 bg-bg/95 backdrop-blur-sm">
           <span className="relative flex h-20 w-20 items-center justify-center">
