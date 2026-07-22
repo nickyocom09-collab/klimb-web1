@@ -6,7 +6,10 @@
 insert into public.gyms (name, city, state, country, cc, brand, latitude, longitude, status, grading_style)
 select v.name, v.city, v.state, 'United States', 'us', v.brand, v.lat, v.lng, 'approved', v.gs
 from (values
-  ('Climb Fayetteville', 'Fayetteville', 'AR', null::text, 36.1063, -94.1802, 'classic')
+  ('Climb Fayetteville',              'Fayetteville',   'AR', null::text, 36.1063, -94.1802, 'classic'),
+  ('Climb Conway',                    'Conway',         'AR', null::text, 35.0887, -92.4421, 'classic'),
+  ('Vertical Horizons Climbing Gym',  'Fort Smith',     'AR', null::text, 35.3437, -94.3186, 'classic'),
+  ('Upward Ninja and Bouldering',     'Siloam Springs', 'AR', null::text, 36.1490, -94.5040, 'classic')
 ) as v(name, city, state, brand, lat, lng, gs)
 where not exists (
   select 1 from public.gyms g
