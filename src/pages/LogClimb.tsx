@@ -1,28 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bookmark, Camera, Check, Flag, ImagePlus, Zap } from "lucide-react";
+import { Anchor, Bookmark, Camera, Check, Flag, ImagePlus, Mountain, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import {
-  CLIMB_TYPES,
-  HOLD_COLORS,
-  holdHex,
-  WALL_SECTIONS,
-  type ClimbType,
-} from "../lib/constants";
+import { HOLD_COLORS, holdHex, type ClimbType } from "../lib/constants";
 import {
   gymGradeOptions,
   pickerOptions,
   type GradeStyle,
 } from "../lib/grades";
 import { AppHeader } from "../components/Layout";
-import { Button, ErrorText, Input, SlideTabs, Textarea } from "../components/ui";
+import { Button, ErrorText, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
 import { GradePicker } from "../components/GradePicker";
 import { Stars } from "../components/Stars";
 
 const NOT_SET = "Not set";
-const OTHER = "Other…";
+
+const CLIMB_TYPE_OPTIONS: {
+  value: ClimbType;
+  label: string;
+  hint: string;
+  Icon: typeof Mountain;
+}[] = [
+  { value: "boulder", label: "Boulder", hint: "V0–V17", Icon: Mountain },
+  { value: "toprope", label: "Top Rope", hint: "5.5–5.15d", Icon: Anchor },
+];
 
 type Outcome = "flash" | "send" | "topped" | "project";
 
@@ -82,8 +85,6 @@ export function LogClimb() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
-  const [section, setSection] = useState("");
-  const [customSection, setCustomSection] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
@@ -115,7 +116,6 @@ export function LogClimb() {
       : gymGradeOpts.find((o) => o.value === gymGrade)?.label ??
         feltOpts.find((o) => o.value === gymGrade)?.label ??
         NOT_SET;
-  const resolvedSection = section === OTHER ? customSection.trim() : section;
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -134,7 +134,6 @@ export function LogClimb() {
 
   async function save() {
     if (!holdColor) return setError("Pick the hold color.");
-    if (!resolvedSection) return setError("Choose or enter a wall section.");
     if (!outcome) return setError("How'd it go? Flash, Sent, or Project.");
     if (!gymId || !profile) return setError("Pick a home gym first.");
     setError(null);
@@ -163,7 +162,7 @@ export function LogClimb() {
           gym_id: gymId,
           photo_url: photoUrl,
           hold_color: holdColor,
-          wall_section: resolvedSection,
+          wall_section: "Unspecified",
           climbing_type: climbingType,
           gym_grade: gymGrade,
           created_by: profile.id,
@@ -249,11 +248,29 @@ export function LogClimb() {
       <div className="flex flex-col gap-5 p-5">
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">Type of climb</p>
-          <SlideTabs
-            value={climbingType}
-            onChange={changeType}
-            options={CLIMB_TYPES}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            {CLIMB_TYPE_OPTIONS.map(({ value, label, hint, Icon }) => {
+              const on = climbingType === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => changeType(value)}
+                  className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-3.5 text-center transition ${
+                    on
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-border bg-surface-2 text-muted hover:text-chalk"
+                  }`}
+                >
+                  <Icon size={22} />
+                  <span className="text-sm font-bold leading-none">{label}</span>
+                  <span className="whitespace-nowrap text-[10px] leading-none text-faint">
+                    {hint}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>
@@ -330,6 +347,7 @@ export function LogClimb() {
         </div>
 
         <div className="flex flex-col gap-4 rounded-3xl bg-surface p-4 shadow-card">
+          <p className="text-sm text-muted">The details</p>
           <Row label="Hold color">
             <Dropdown
               value={holdColor ?? "Choose"}
@@ -346,21 +364,6 @@ export function LogClimb() {
               />
               {holdColor} holds
             </div>
-          ) : null}
-          <Row label="Wall section">
-            <Dropdown
-              value={section || "Choose"}
-              options={[...WALL_SECTIONS, OTHER]}
-              onChange={setSection}
-              align="right"
-            />
-          </Row>
-          {section === OTHER ? (
-            <Input
-              value={customSection}
-              onChange={(e) => setCustomSection(e.target.value)}
-              placeholder="Name the section"
-            />
           ) : null}
           <Row label="Gym's grade">
             <Dropdown
