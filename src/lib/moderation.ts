@@ -11,6 +11,30 @@ export async function fetchBlockedIds(userId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((b) => b.blocked_id));
 }
 
+export type BlockedProfile = {
+  id: string;
+  display_name: string;
+  username: string | null;
+  avatar_url: string | null;
+};
+
+/** The people the user has blocked, with profile info — for the manage list. */
+export async function fetchBlockedProfiles(
+  userId: string,
+): Promise<BlockedProfile[]> {
+  const { data } = await supabase
+    .from("blocks")
+    .select("blocked_id")
+    .eq("blocker_id", userId);
+  const ids = (data ?? []).map((b) => b.blocked_id);
+  if (ids.length === 0) return [];
+  const { data: people } = await supabase
+    .from("profiles")
+    .select("id, display_name, username, avatar_url")
+    .in("id", ids);
+  return people ?? [];
+}
+
 export async function blockUser(
   blockerId: string,
   blockedId: string,

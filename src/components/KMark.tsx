@@ -24,6 +24,10 @@ export function KMark({
         strokeWidth={5}
         strokeLinejoin="round"
         strokeLinecap="round"
+        // Optical centering: the outline's bounding box is centered, but the
+        // solid left leg outweighs the right side's tapering diagonal strokes,
+        // so the ink itself reads left-heavy. Nudge right to balance the two.
+        transform="translate(7.21, 0)"
       >
         <path d="M42 27 L54 19 L54 55 L42 66 Z" />
         <path d="M42 73 L54 61 L54 96 L42 104 Z" />

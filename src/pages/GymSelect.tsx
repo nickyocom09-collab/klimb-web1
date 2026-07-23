@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, MapPin, Search } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, MapPin, Plus, Search, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { CenterSpinner, Spinner } from "../components/ui";
+import { Button, CenterSpinner, Input, Spinner } from "../components/ui";
 import { STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 
@@ -24,6 +24,20 @@ export function GymSelect() {
   const [saving, setSaving] = useState<string | null>(null);
   const [openCountry, setOpenCountry] = useState<string | null>(null);
   const [openState, setOpenState] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Suggest-a-gym sheet.
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [sgName, setSgName] = useState("");
+  const [sgCity, setSgCity] = useState("");
+  const [sgSaving, setSgSaving] = useState(false);
+  const [sgDone, setSgDone] = useState(false);
+
+  // Drilling into a country or state should start you at the top, not wherever
+  // you'd scrolled the previous list to.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [openCountry, openState, query]);
 
   useEffect(() => {
     let active = true;
@@ -164,6 +178,38 @@ export function GymSelect() {
     else navigate(-1);
   }
 
+  // Submit a gym we don't have yet. It lands as a `pending` row Nick reviews in
+  // Supabase (Table editor → gyms → status = 'pending') before it goes live.
+  async function submitSuggestion() {
+    if (!profile || !sgName.trim()) return;
+    setSgSaving(true);
+    const country =
+      countryList.find((c) => c.cc === openCountry)?.name ?? null;
+    await supabase.from("gyms").insert({
+      name: sgName.trim(),
+      city: sgCity.trim() || null,
+      state: openState ?? null,
+      country,
+      cc: openCountry ? openCountry.toUpperCase() : null,
+      status: "pending",
+      created_by: profile.id,
+    });
+    setSgSaving(false);
+    setSgDone(true);
+  }
+
+  function openSuggest() {
+    setSgName("");
+    setSgCity("");
+    setSgDone(false);
+    setSuggestOpen(true);
+  }
+
+  // Show the "Don't see your gym?" prompt once you're deep enough to be looking
+  // at an actual gym list (a state, or a country with no state breakdown).
+  const showSuggestPrompt =
+    !q && (openState !== null || (openCountry !== null && statesInCountry.length === 0));
+
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       <header className="px-5 py-4">
@@ -197,7 +243,7 @@ export function GymSelect() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5">
         {loading ? (
           <CenterSpinner />
         ) : q ? (
@@ -269,7 +315,81 @@ export function GymSelect() {
             ))}
           </ul>
         )}
+
+        {showSuggestPrompt ? (
+          <button
+            onClick={openSuggest}
+            className="mb-6 mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface/40 p-4 text-sm font-semibold text-muted transition hover:border-accent hover:text-accent"
+          >
+            <Plus size={16} /> Don't see your gym? Add it
+          </button>
+        ) : null}
       </div>
+
+      {/* Suggest-a-gym sheet */}
+      {suggestOpen ? (
+        <div
+          className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 p-4"
+          onClick={() => setSuggestOpen(false)}
+        >
+          <div
+            className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-chalk">
+                {sgDone ? "Thanks!" : "Suggest a gym"}
+              </h3>
+              <button
+                onClick={() => setSuggestOpen(false)}
+                aria-label="Close"
+                className="rounded-full p-1 text-faint hover:text-chalk"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {sgDone ? (
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-muted">
+                  Got it — <span className="font-semibold text-chalk">{sgName.trim()}</span>{" "}
+                  was submitted for review. We'll add it soon so you and others
+                  can log climbs there.
+                </p>
+                <Button className="w-full" onClick={() => setSuggestOpen(false)}>
+                  Done
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted">
+                  Tell us the gym and we'll add it{openState ? ` in ${STATE_NAME[openState] ?? openState}` : ""}.
+                </p>
+                <Input
+                  label="Gym name"
+                  value={sgName}
+                  onChange={(e) => setSgName(e.target.value)}
+                  placeholder="e.g. Movement Englewood"
+                />
+                <Input
+                  label="City (optional)"
+                  value={sgCity}
+                  onChange={(e) => setSgCity(e.target.value)}
+                  placeholder="e.g. Denver"
+                />
+                <Button
+                  className="mt-1 w-full"
+                  loading={sgSaving}
+                  disabled={sgName.trim().length < 2}
+                  onClick={submitSuggestion}
+                >
+                  Submit gym
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

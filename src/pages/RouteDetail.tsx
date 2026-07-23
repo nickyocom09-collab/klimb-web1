@@ -40,6 +40,7 @@ export function RouteDetail() {
 
   const [route, setRoute] = useState<RouteWithStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authorName, setAuthorName] = useState<string | null>(null);
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [hasSent, setHasSent] = useState(false);
   const [mySendType, setMySendType] = useState<SendType | null>(null);
@@ -81,6 +82,18 @@ export function RouteDetail() {
     setMySendType(mySend?.send_type ?? null);
     setMyNote(mySend?.note ?? null);
     setIsProject(!!bm);
+    // If this climb was logged by someone else, we show it read-only with
+    // their name — you can't log onto another climber's route.
+    if (r && r.created_by && r.created_by !== profile.id) {
+      const { data: author } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", r.created_by)
+        .maybeSingle();
+      setAuthorName(author?.display_name ?? "This climber");
+    } else {
+      setAuthorName(null);
+    }
     setLoading(false);
   }, [id, profile]);
 
@@ -129,6 +142,13 @@ export function RouteDetail() {
 
   const fmt = (g: number | null | undefined) =>
     formatGrade(g, route.climbing_type, system);
+
+  // Someone else's logged climb → read-only. You can only log/edit your own.
+  const isMine = !authorName;
+  const theirGrade =
+    route.gradeValues.length > 0
+      ? route.gradeValues[Math.floor(route.gradeValues.length / 2)]
+      : null;
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
@@ -186,16 +206,20 @@ export function RouteDetail() {
           <div className="flex gap-3">
             <div className="flex-1 rounded-2xl bg-surface px-4 py-3 shadow-card">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Your grade
+                {isMine ? "Your grade" : `${authorName} says`}
               </p>
               <p
-                key={myGrade ?? -1}
+                key={(isMine ? myGrade : theirGrade) ?? -1}
                 className="mt-0.5 animate-pop text-4xl font-extrabold leading-none tabular-nums text-accent"
               >
-                {fmt(myGrade)}
+                {fmt(isMine ? myGrade : theirGrade)}
               </p>
               <p className="mt-1.5 text-xs text-faint">
-                {myGrade !== null ? "what it felt like" : "not graded yet"}
+                {isMine
+                  ? myGrade !== null
+                    ? "what it felt like"
+                    : "not graded yet"
+                  : "what they felt"}
               </p>
             </div>
             {route.gym_grade !== null && route.gym_grade !== undefined ? (
@@ -216,8 +240,13 @@ export function RouteDetail() {
             ) : null}
           </div>
 
-          {/* Your log — read-only until you hit Edit */}
-          {hasSent ? (
+          {/* Someone else's climb — read-only, no logging onto their route. */}
+          {!isMine ? (
+            <div className="rounded-2xl bg-surface p-4 text-sm text-muted shadow-card">
+              This climb is from {authorName}'s logbook. Log your own climbs from
+              the Log tab.
+            </div>
+          ) : hasSent ? (
             <div className="rounded-2xl bg-surface p-4 shadow-card">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

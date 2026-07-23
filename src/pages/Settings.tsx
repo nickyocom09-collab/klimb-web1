@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, ChevronRight, Mail, Shield, Trash2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
+  fetchBlockedProfiles,
+  unblockUser,
+  type BlockedProfile,
+} from "../lib/moderation";
+import { Avatar } from "../components/Avatar";
+import {
   GRADE_SYSTEMS,
+  LOG_STYLES,
   THEMES,
   type GradeSystemPref,
+  type LogStylePref,
   type ThemePref,
 } from "../lib/constants";
 import { AppHeader } from "../components/Layout";
@@ -77,6 +85,22 @@ export function Settings() {
   const [savingBio, setSavingBio] = useState(false);
   const [bioSaved, setBioSaved] = useState(false);
 
+  const [blockedList, setBlockedList] = useState<BlockedProfile[]>([]);
+  const [unblocking, setUnblocking] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!profile) return;
+    fetchBlockedProfiles(profile.id).then(setBlockedList);
+  }, [profile]);
+
+  async function onUnblock(otherId: string) {
+    if (!profile) return;
+    setUnblocking(otherId);
+    await unblockUser(profile.id, otherId);
+    setUnblocking(null);
+    setBlockedList((list) => list.filter((b) => b.id !== otherId));
+  }
+
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
@@ -106,6 +130,7 @@ export function Settings() {
 
   const theme = (profile?.theme ?? "dark") as ThemePref;
   const sendsPublic = profile?.sends_public ?? true;
+  const projectsPublic = profile?.projects_public ?? true;
 
   async function saveUsername() {
     const h = uname.trim().replace(/^@/, "").toLowerCase();
@@ -125,6 +150,7 @@ export function Settings() {
     if (!error) setUname(h);
   }
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
+  const logStyle = (profile?.log_style ?? "steps") as LogStylePref;
 
   async function saveName() {
     const trimmed = name.trim();
@@ -159,6 +185,18 @@ export function Settings() {
           </p>
         </Section>
 
+        <Section title="Log style">
+          <Segmented<LogStylePref>
+            value={logStyle}
+            options={LOG_STYLES}
+            onChange={(v) => updateProfile({ log_style: v })}
+          />
+          <p className="ml-1 text-xs text-faint">
+            Log a climb on one scrollable screen, or step through it one
+            question at a time.
+          </p>
+        </Section>
+
         <Section title="Learn the lingo">
           <button
             onClick={() => navigate("/terms")}
@@ -179,18 +217,36 @@ export function Settings() {
         </Section>
 
         <Section title="Privacy">
-          <Segmented<string>
-            value={sendsPublic ? "public" : "private"}
-            options={[
-              { value: "public", label: "Public" },
-              { value: "private", label: "Private" },
-            ]}
-            onChange={(v) => updateProfile({ sends_public: v === "public" })}
-          />
-          <p className="ml-1 text-xs text-faint">
-            When private, your sends and projects are hidden from other
-            climbers' view of your profile.
-          </p>
+          <div className="flex flex-col gap-1.5">
+            <p className="ml-1 text-sm font-semibold text-chalk">Sends &amp; logbook</p>
+            <Segmented<string>
+              value={sendsPublic ? "public" : "private"}
+              options={[
+                { value: "public", label: "Public" },
+                { value: "private", label: "Private" },
+              ]}
+              onChange={(v) => updateProfile({ sends_public: v === "public" })}
+            />
+            <p className="ml-1 text-xs text-faint">
+              When private, your sends and logbook are hidden from other
+              climbers' view of your profile.
+            </p>
+          </div>
+          <div className="mt-3 flex flex-col gap-1.5">
+            <p className="ml-1 text-sm font-semibold text-chalk">Projects</p>
+            <Segmented<string>
+              value={projectsPublic ? "public" : "private"}
+              options={[
+                { value: "public", label: "Public" },
+                { value: "private", label: "Private" },
+              ]}
+              onChange={(v) => updateProfile({ projects_public: v === "public" })}
+            />
+            <p className="ml-1 text-xs text-faint">
+              Controls whether the routes you're projecting show on your
+              profile — separate from your sends.
+            </p>
+          </div>
         </Section>
 
         <Section title="Account">
@@ -308,6 +364,37 @@ export function Settings() {
             <ChevronRight size={18} className="text-faint" />
           </button>
         </Section>
+
+        {blockedList.length > 0 ? (
+          <Section title="Blocked climbers">
+            <ul className="flex flex-col gap-2">
+              {blockedList.map((b) => (
+                <li
+                  key={b.id}
+                  className="flex items-center gap-3 rounded-2xl bg-surface p-3 shadow-card"
+                >
+                  <Avatar name={b.display_name} url={b.avatar_url} size={40} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-chalk">
+                      {b.display_name}
+                    </p>
+                    {b.username ? (
+                      <p className="truncate text-sm text-muted">@{b.username}</p>
+                    ) : null}
+                  </div>
+                  <Button
+                    variant="secondary"
+                    className="shrink-0 px-4"
+                    loading={unblocking === b.id}
+                    onClick={() => onUnblock(b.id)}
+                  >
+                    Unblock
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        ) : null}
 
         <Section title="Account actions">
           <Button

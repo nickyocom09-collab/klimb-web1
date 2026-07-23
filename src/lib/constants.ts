@@ -63,6 +63,14 @@ export const THEMES: { value: ThemePref; label: string }[] = [
   { value: "light", label: "Light" },
 ];
 
+// Log flow style — one long scrollable form, or a stepped one-at-a-time flow.
+export type LogStylePref = "scroll" | "steps";
+
+export const LOG_STYLES: { value: LogStylePref; label: string }[] = [
+  { value: "steps", label: "Step by step" },
+  { value: "scroll", label: "Single screen" },
+];
+
 // Instagram Stories direct-share --------------------------------------------
 // Facebook App ID used for the "source_application" param when handing an
 // image straight to Instagram's Stories composer (see instagramStories.ts).

@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Share2,
+  MessageCircle,
   Mountain,
   Zap,
   TrendingUp,
@@ -19,6 +20,7 @@ import type { RecapPayload } from "../lib/database.types";
 import { formatGradeStyled, type GradeSystem } from "../lib/grades";
 import { FACEBOOK_APP_ID } from "../lib/constants";
 import { InstagramStories, toRawBase64 } from "../lib/instagramStories";
+import { MessageCompose, canUseNativeMessageCompose } from "../lib/messageCompose";
 import { StreakFire } from "./StreakFire";
 
 /* ---------------- 15 archetypes ---------------- */
@@ -508,28 +510,10 @@ export function WeeklyRecap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cards.length]);
 
-  const shareStory = async () => {
-    const canvas = buildStoryCanvas(arch, week);
-    const shareText = "This week I was " + arch.label + " 🧗";
-
-    // iOS + Instagram installed + we have a Facebook App ID configured:
-    // hand the image straight to Instagram's Stories composer (Strava-style
-    // one-tap share) instead of the generic OS share sheet.
-    if (Capacitor.getPlatform() === "ios" && FACEBOOK_APP_ID) {
-      try {
-        const { available } = await InstagramStories.isAvailable();
-        if (available) {
-          await InstagramStories.shareToStory({
-            appId: FACEBOOK_APP_ID,
-            backgroundImageBase64: toRawBase64(canvas.toDataURL("image/png")),
-          });
-          return;
-        }
-      } catch {
-        // Fall through to the generic share sheet below.
-      }
-    }
-
+  const shareViaSheet = async (
+    canvas: HTMLCanvasElement,
+    shareText: string,
+  ) => {
     if (Capacitor.isNativePlatform()) {
       // navigator.share with files is unreliable in the iOS WKWebView — write
       // the PNG to the cache dir and hand its URI to the native share sheet.
@@ -578,6 +562,55 @@ export function WeeklyRecap({
       }
       setPreview(canvas.toDataURL("image/png"));
     }, "image/png");
+  };
+
+  const shareStory = async () => {
+    const canvas = buildStoryCanvas(arch, week);
+    const shareText = "This week I was " + arch.label + " 🧗";
+
+    // iOS + Instagram installed + we have a Facebook App ID configured:
+    // hand the image straight to Instagram's Stories composer (Strava-style
+    // one-tap share) instead of the generic OS share sheet.
+    if (Capacitor.getPlatform() === "ios" && FACEBOOK_APP_ID) {
+      try {
+        const { available } = await InstagramStories.isAvailable();
+        if (available) {
+          await InstagramStories.shareToStory({
+            appId: FACEBOOK_APP_ID,
+            backgroundImageBase64: toRawBase64(canvas.toDataURL("image/png")),
+          });
+          return;
+        }
+      } catch {
+        // Fall through to the generic share sheet below.
+      }
+    }
+
+    await shareViaSheet(canvas, shareText);
+  };
+
+  const shareViaMessage = async () => {
+    const canvas = buildStoryCanvas(arch, week);
+    const shareText = "This week I was " + arch.label + " 🧗 — check out Klimb";
+
+    // iOS: open the native Messages composer directly (Strava-style
+    // dedicated "Message" share target) instead of the full OS share sheet.
+    if (canUseNativeMessageCompose()) {
+      try {
+        const { available } = await MessageCompose.isAvailable();
+        if (available) {
+          await MessageCompose.send({
+            text: shareText,
+            imageBase64: toRawBase64(canvas.toDataURL("image/png")),
+          });
+          return;
+        }
+      } catch {
+        // Fall through to the generic share sheet below.
+      }
+    }
+
+    await shareViaSheet(canvas, shareText);
   };
 
   const card = cards[i];
@@ -664,10 +697,15 @@ export function WeeklyRecap({
             <div style={S.cardInner}>
               <div style={S.kicker}>THAT'S A WRAP</div>
               <h2 style={S.wrapTitle}>Your {periodWord}, sent.</h2>
-              <button style={S.shareBtn} onClick={(e) => { e.stopPropagation(); shareStory(); }}>
-                <Share2 size={16} /> Share recap
-              </button>
-              <p style={S.shareHelp}>Generates a story image and opens your share sheet — pick Instagram Stories.</p>
+              <div style={S.shareRow}>
+                <button style={S.shareBtn} onClick={(e) => { e.stopPropagation(); shareStory(); }}>
+                  <Share2 size={16} /> Share recap
+                </button>
+                <button style={S.shareBtnSecondary} onClick={(e) => { e.stopPropagation(); shareViaMessage(); }}>
+                  <MessageCircle size={16} /> Message
+                </button>
+              </div>
+              <p style={S.shareHelp}>Generates a story image — share to Instagram or send it as a text.</p>
             </div>
           </div>
         )}
@@ -738,7 +776,9 @@ const S: Record<string, React.CSSProperties> = {
   streakDivider: { width: 44, height: 3, borderRadius: 3, background: "rgba(251,146,60,0.45)", margin: "22px 0 16px" },
   streakNote: { fontSize: 14.5, color: "#B8C4BD", lineHeight: 1.5, maxWidth: 240, margin: 0 },
   wrapTitle: { fontFamily: serif, fontSize: 38, fontWeight: 700, color: "#E8F0EB", margin: "6px 0 26px" },
+  shareRow: { display: "flex", gap: 10 },
   shareBtn: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#080B0A", background: "#4ADE80", border: "none", padding: "13px 22px", borderRadius: 12, cursor: "pointer" },
+  shareBtnSecondary: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#E8F0EB", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", padding: "13px 20px", borderRadius: 12, cursor: "pointer" },
   shareHelp: { fontSize: 12, color: "#7C8C84", marginTop: 16, maxWidth: 250, lineHeight: 1.45 },
   navHint: { position: "absolute", top: "50%", transform: "translateY(-50%)", zIndex: 15, pointerEvents: "none" },
   overlay: { position: "fixed", inset: 0, background: "rgba(4,6,5,0.85)", backdropFilter: "blur(4px)", display: "grid", placeItems: "center", zIndex: 60, padding: 20 },

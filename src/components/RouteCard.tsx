@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Plus, Star, Trophy, Video } from "lucide-react";
+import { Check, Plus, Video } from "lucide-react";
 import {
   communityGrade,
   formatGradeStyled,
   formatGymGrade,
-  gradeConsensus,
   type GradeSystem,
 } from "../lib/grades";
 import { holdHex } from "../lib/constants";
@@ -26,22 +25,12 @@ export function RouteCard({
   authorName?: string | null;
   onGrade?: (route: RouteWithStats) => void;
 }) {
-  const values = route.gradeValues;
-  const n = values.length;
-  const community = communityGrade(values);
-  const { tone } = gradeConsensus(values);
+  // The climber's own grade for this route (their logbook entry). No community
+  // aggregation — Klimb shows what this person said, next to the gym's grade.
+  const theirGrade = myGrade ?? communityGrade(route.gradeValues);
   const fmt = (g: number | null) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
-
-  let verdict = "No grades yet";
-  if (n === 1) verdict = "1 grade so far";
-  else if (n > 1) verdict = tone === "green" ? "Consensus" : "Contested";
-  const toneClass =
-    tone === "green"
-      ? "text-accent"
-      : tone === "orange"
-        ? "text-wide"
-        : "text-faint";
+  const saysLabel = authorName ? `${authorName} says` : "Grade";
 
   return (
     <div
@@ -81,17 +70,14 @@ export function RouteCard({
         </div>
 
         <div className="p-4">
-          {/* Community says (+ gym says, only when the gym set one) */}
+          {/* Their grade (+ the gym's grade, when the gym set one) */}
           <div className="flex gap-3">
             <div className="flex-1 rounded-2xl bg-surface-2 px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Climbers say
+                {saysLabel}
               </p>
               <p className="mt-0.5 text-3xl font-extrabold leading-none text-accent">
-                {fmt(community)}
-              </p>
-              <p className="mt-1 text-[11px] text-faint">
-                {n} vote{n === 1 ? "" : "s"}
+                {fmt(theirGrade)}
               </p>
             </div>
             {route.gym_grade !== null && route.gym_grade !== undefined ? (
@@ -107,31 +93,8 @@ export function RouteCard({
                     route.gradingStyle,
                   )}
                 </p>
-                <p className="mt-1 text-[11px] text-faint">official</p>
               </div>
             ) : null}
-          </div>
-
-          {/* Verdict + quick stats — one quiet line */}
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <span className={`text-xs font-semibold ${toneClass}`}>{verdict}</span>
-            <div className="flex items-center gap-3">
-              {route.funCount > 0 && route.funAvg !== null ? (
-                <span className="flex items-center gap-1 text-sm text-muted">
-                  <Star
-                    size={15}
-                    className="text-accent"
-                    fill="currentColor"
-                    strokeWidth={0}
-                  />
-                  {route.funAvg.toFixed(1)}
-                </span>
-              ) : null}
-              <span className="flex items-center gap-1 text-sm text-muted">
-                <Trophy size={15} />
-                {route.sendCount}
-              </span>
-            </div>
           </div>
         </div>
       </Link>

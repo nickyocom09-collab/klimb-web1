@@ -218,3 +218,71 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
         return hashed.compactMap { String(format: "%02x", $0) }.joined()
     }
 }
+
+// MARK: - Native Message (SMS/iMessage) compose
+//
+// Opens the system Messages composer directly with the recap image attached
+// — a dedicated "Message" share target (like Strava's), instead of routing
+// through the full OS share sheet.
+import MessageUI
+
+@objc(MessageComposePlugin)
+public class MessageComposePlugin: CAPPlugin, CAPBridgedPlugin, MFMessageComposeViewControllerDelegate {
+    public let identifier = "MessageComposePlugin"
+    public let jsName = "MessageCompose"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "send", returnType: CAPPluginReturnPromise),
+    ]
+
+    private var pendingCall: CAPPluginCall?
+
+    @objc func isAvailable(_ call: CAPPluginCall) {
+        call.resolve(["available": MFMessageComposeViewController.canSendText()])
+    }
+
+    @objc func send(_ call: CAPPluginCall) {
+        guard MFMessageComposeViewController.canSendText() else {
+            call.reject("MESSAGES_NOT_AVAILABLE")
+            return
+        }
+        pendingCall = call
+
+        DispatchQueue.main.async {
+            let composer = MFMessageComposeViewController()
+            composer.messageComposeDelegate = self
+            if let body = call.getString("text") {
+                composer.body = body
+            }
+            if let imageBase64 = call.getString("imageBase64"),
+               let imageData = Data(base64Encoded: imageBase64),
+               MFMessageComposeViewController.canSendAttachments() {
+                composer.addAttachmentData(imageData, typeIdentifier: "public.png", filename: "klimb-week.png")
+            }
+
+            guard var top = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+                call.reject("No root view controller")
+                self.pendingCall = nil
+                return
+            }
+            while let presented = top.presentedViewController { top = presented }
+            top.present(composer, animated: true)
+        }
+    }
+
+    public func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
+        controller.dismiss(animated: true) {
+            switch result {
+            case .sent:
+                self.pendingCall?.resolve(["sent": true])
+            case .cancelled:
+                self.pendingCall?.resolve(["sent": false])
+            case .failed:
+                self.pendingCall?.reject("SEND_FAILED")
+            @unknown default:
+                self.pendingCall?.resolve(["sent": false])
+            }
+            self.pendingCall = nil
+        }
+    }
+}

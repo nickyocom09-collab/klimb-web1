@@ -6,6 +6,7 @@ import { Splash } from "./components/Splash";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
+import { GuestHome } from "./pages/GuestHome";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
 import { GymSelect } from "./pages/GymSelect";
@@ -39,7 +40,9 @@ const Friends = lazy(() =>
 function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
   if (loading) return <Splash />;
-  if (!session) return <Navigate to="/login" replace />;
+  // Signed-out users land on the friendly welcome screen — not a login form.
+  // The login prompt is one tap away from there (or wherever they try to act).
+  if (!session) return <Navigate to="/welcome" replace />;
   return <>{children}</>;
 }
 
@@ -80,6 +83,14 @@ export default function App() {
       {/* Public — reachable in-app and as an App Store privacy URL. */}
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/support" element={<Support />} />
+      <Route
+        path="/welcome"
+        element={
+          <PublicOnly>
+            <GuestHome />
+          </PublicOnly>
+        }
+      />
       <Route
         path="/login"
         element={
