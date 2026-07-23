@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner, Input, Spinner } from "../components/ui";
 import { STATE_NAME } from "../lib/states";
+import { assertNearGym } from "../lib/location";
 import type { GymRow } from "../lib/database.types";
 
 /** ISO alpha-2 -> emoji flag. */
@@ -22,6 +23,7 @@ export function GymSelect() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [locError, setLocError] = useState<string | null>(null);
   const [openCountry, setOpenCountry] = useState<string | null>(null);
   const [openState, setOpenState] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,7 +61,15 @@ export function GymSelect() {
 
   async function choose(gym: GymRow) {
     if (!profile) return;
+    setLocError(null);
     setSaving(gym.id);
+    // Anti-cheat: confirm you're actually near this gym before it becomes home.
+    const near = await assertNearGym(gym);
+    if (!near.ok) {
+      setSaving(null);
+      setLocError(near.error ?? "You need to be near the gym to set it as home.");
+      return;
+    }
     await supabase
       .from("profiles")
       .update({ home_gym_id: gym.id })
@@ -242,6 +252,12 @@ export function GymSelect() {
           />
         </div>
       </div>
+
+      {locError ? (
+        <div className="mx-5 mb-3 rounded-2xl border border-wide/40 bg-wide/10 px-4 py-3 text-sm text-wide">
+          {locError}
+        </div>
+      ) : null}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-5">
         {loading ? (
