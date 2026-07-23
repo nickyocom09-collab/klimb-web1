@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Lock, Stamp, UserPlus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Clock, Lock, Stamp, UserPlus } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
-import { addFriendById, areFriends, removeFriend } from "../lib/friends";
+import {
+  acceptFriendRequest,
+  addFriendById,
+  friendshipStatus,
+  removeFriend,
+  type FriendStatus,
+} from "../lib/friends";
 import { Avatar } from "../components/Avatar";
 import { RouteCard } from "../components/RouteCard";
 import { Button, CenterSpinner } from "../components/ui";
@@ -29,7 +35,7 @@ export function PublicProfile() {
   const [sendCount, setSendCount] = useState(0);
   const [gradeCount, setGradeCount] = useState(0);
   const [sends, setSends] = useState<RouteWithStats[]>([]);
-  const [friend, setFriend] = useState(false);
+  const [status, setStatus] = useState<FriendStatus>("none");
   const [busy, setBusy] = useState(false);
 
   const isMe = !!me && me.id === id;
@@ -61,7 +67,7 @@ export function PublicProfile() {
       setSendCount(sc ?? 0);
       setGradeCount(gc ?? 0);
 
-      if (me && me.id !== id) setFriend(await areFriends(me.id, id));
+      if (me && me.id !== id) setStatus(await friendshipStatus(me.id, id));
 
       const canSee = (data?.sends_public ?? false) || me?.id === id;
       if (canSee) {
@@ -82,15 +88,21 @@ export function PublicProfile() {
     };
   }, [id, me]);
 
-  async function toggleFriend() {
+  // One button, four states: send request, cancel a sent request, accept an
+  // incoming one, or remove an existing friend.
+  async function onFriendAction() {
     if (!me || !id) return;
     setBusy(true);
-    if (friend) {
+    if (status === "friends" || status === "pending_out") {
+      // Remove friend, or cancel the request I sent.
       await removeFriend(me.id, id);
-      setFriend(false);
+      setStatus("none");
+    } else if (status === "pending_in") {
+      await acceptFriendRequest(me.id, id);
+      setStatus("friends");
     } else {
       await addFriendById(me.id, id);
-      setFriend(true);
+      setStatus("pending_out");
     }
     setBusy(false);
   }
@@ -144,14 +156,22 @@ export function PublicProfile() {
 
           {!isMe && me ? (
             <Button
-              variant={friend ? "secondary" : "primary"}
+              variant={status === "none" || status === "pending_in" ? "primary" : "secondary"}
               className="mt-4 px-6"
               loading={busy}
-              onClick={toggleFriend}
+              onClick={onFriendAction}
             >
-              {friend ? (
+              {status === "friends" ? (
                 <>
                   <Check size={16} className="mr-1.5" /> Friends
+                </>
+              ) : status === "pending_out" ? (
+                <>
+                  <Clock size={16} className="mr-1.5" /> Requested
+                </>
+              ) : status === "pending_in" ? (
+                <>
+                  <Check size={16} className="mr-1.5" /> Accept request
                 </>
               ) : (
                 <>

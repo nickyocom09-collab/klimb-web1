@@ -10,7 +10,7 @@ import {
   type ThemePref,
 } from "../lib/constants";
 import { AppHeader } from "../components/Layout";
-import { Button, Card, Input, Textarea } from "../components/ui";
+import { Button, Card, ConfirmDialog, Input, Textarea } from "../components/ui";
 
 /** A pill-style segmented control. */
 function Segmented<T extends string>({
@@ -77,6 +77,7 @@ export function Settings() {
   const [savingBio, setSavingBio] = useState(false);
   const [bioSaved, setBioSaved] = useState(false);
 
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -309,7 +310,11 @@ export function Settings() {
         </Section>
 
         <Section title="Account actions">
-          <Button variant="danger" className="w-full" onClick={signOut}>
+          <Button
+            variant="danger"
+            className="w-full"
+            onClick={() => setLogoutOpen(true)}
+          >
             Sign out
           </Button>
           <button
@@ -323,6 +328,16 @@ export function Settings() {
           </button>
         </Section>
       </div>
+
+      <ConfirmDialog
+        open={logoutOpen}
+        title="Sign out?"
+        message="You'll need to sign back in to see your logbook, stats, and friends."
+        confirmLabel="Sign out"
+        variant="danger"
+        onConfirm={signOut}
+        onCancel={() => setLogoutOpen(false)}
+      />
 
       {/* Delete-account confirmation sheet */}
       {deleteOpen ? (

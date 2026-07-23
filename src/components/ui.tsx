@@ -178,3 +178,54 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
     </div>
   );
 }
+
+/**
+ * A bottom-sheet yes/no confirmation. Render it with `open` controlled by the
+ * caller; it handles the scrim, its own dismissal on tap-out/Cancel, and calls
+ * `onConfirm` for the primary action.
+ */
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  variant = "primary",
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: "primary" | "danger";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold text-chalk">{title}</h3>
+        {message ? (
+          <p className="mt-1 text-sm text-muted">{message}</p>
+        ) : null}
+        <div className="mt-4 flex flex-col gap-2">
+          <Button variant={variant} className="w-full" onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+          <Button variant="ghost" className="w-full" onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

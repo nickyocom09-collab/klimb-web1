@@ -12,7 +12,7 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { AppHeader } from "../components/Layout";
 import { Avatar } from "../components/Avatar";
-import { Button } from "../components/ui";
+import { Button, ConfirmDialog } from "../components/ui";
 
 // Profile is intentionally simple: who you are, your headline numbers, and a
 // couple of doors (friends, logbook, settings). The logbook itself lives on
@@ -27,6 +27,7 @@ export function Profile() {
   const [flashCount, setFlashCount] = useState<number | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -194,10 +195,24 @@ export function Profile() {
       </div>
 
       <div className="p-5">
-        <Button variant="danger" className="w-full" onClick={signOut}>
+        <Button
+          variant="danger"
+          className="w-full"
+          onClick={() => setConfirmLogout(true)}
+        >
           Log out
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmLogout}
+        title="Log out?"
+        message="You'll need to sign back in to see your logbook, stats, and friends."
+        confirmLabel="Log out"
+        variant="danger"
+        onConfirm={signOut}
+        onCancel={() => setConfirmLogout(false)}
+      />
     </div>
   );
 }

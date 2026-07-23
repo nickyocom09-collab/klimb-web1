@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
-import { ChevronLeft, QrCode, UserPlus, X } from "lucide-react";
+import { Check, ChevronLeft, QrCode, UserPlus, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
+  acceptFriendRequest,
   addFriendByUsername,
+  declineFriendRequest,
   fetchFriends,
+  fetchPendingRequests,
   type FriendProfile,
 } from "../lib/friends";
 import { Avatar } from "../components/Avatar";
@@ -16,6 +19,8 @@ export function Friends() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [friends, setFriends] = useState<FriendProfile[]>([]);
+  const [requests, setRequests] = useState<FriendProfile[]>([]);
+  const [actingOn, setActingOn] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState("");
   const [adding, setAdding] = useState(false);
@@ -76,10 +81,30 @@ export function Friends() {
 
   async function reload() {
     if (!profile) return;
-    const list = await fetchFriends(profile.id);
+    const [list, reqs] = await Promise.all([
+      fetchFriends(profile.id),
+      fetchPendingRequests(profile.id),
+    ]);
     setFriends(list);
+    setRequests(reqs);
     setLoading(false);
     loadPeeks(list);
+  }
+
+  async function accept(otherId: string) {
+    if (!profile) return;
+    setActingOn(otherId);
+    await acceptFriendRequest(profile.id, otherId);
+    setActingOn(null);
+    reload();
+  }
+
+  async function decline(otherId: string) {
+    if (!profile) return;
+    setActingOn(otherId);
+    await declineFriendRequest(profile.id, otherId);
+    setActingOn(null);
+    setRequests((rs) => rs.filter((r) => r.id !== otherId));
   }
 
   useEffect(() => {
@@ -111,7 +136,7 @@ export function Friends() {
     }
     setUsername("");
     setMsgErr(false);
-    setMsg(`Added ${name ?? "climber"}!`);
+    setMsg(`Friend request sent to ${name ?? "climber"}.`);
     reload();
   }
 
@@ -168,6 +193,53 @@ export function Friends() {
             or share your QR code
           </button>
         </div>
+
+        {/* Incoming friend requests — accept or decline */}
+        {requests.length > 0 ? (
+          <>
+            <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-faint">
+              Requests · {requests.length}
+            </h2>
+            <ul className="flex flex-col gap-2">
+              {requests.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center gap-3 rounded-2xl bg-surface p-3 shadow-card"
+                >
+                  <Link to={`/u/${r.id}`} className="shrink-0">
+                    <Avatar name={r.display_name} url={r.avatar_url} size={44} />
+                  </Link>
+                  <Link to={`/u/${r.id}`} className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-chalk">
+                      {r.display_name}
+                    </p>
+                    {r.username ? (
+                      <p className="truncate text-sm text-muted">@{r.username}</p>
+                    ) : null}
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => decline(r.id)}
+                      disabled={actingOn === r.id}
+                      aria-label={`Decline ${r.display_name}`}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-faint transition hover:text-wide disabled:opacity-50"
+                    >
+                      <X size={18} />
+                    </button>
+                    <button
+                      onClick={() => accept(r.id)}
+                      disabled={actingOn === r.id}
+                      aria-label={`Accept ${r.display_name}`}
+                      className="flex h-9 items-center gap-1.5 rounded-full bg-accent px-4 text-sm font-bold text-bg transition active:scale-[0.97] disabled:opacity-50"
+                    >
+                      <Check size={16} /> Accept
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
 
         {/* Friends list */}
         <h2 className="mb-2 mt-6 text-sm font-semibold uppercase tracking-wide text-faint">
