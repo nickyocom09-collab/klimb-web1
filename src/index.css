@@ -15,8 +15,8 @@
     --c-chalk: 245 245 242;
     --c-muted: 154 154 162;
     --c-faint: 107 107 115;
-    --c-accent: 202 207 214;
-    --c-accent-dim: 150 156 166;
+    --c-accent: 57 255 136;
+    --c-accent-dim: 31 184 98;
     --c-wide: 255 159 69;
   }
 
@@ -29,8 +29,8 @@
     --c-chalk: 24 24 27;
     --c-muted: 82 82 91;
     --c-faint: 138 138 147;
-    --c-accent: 113 121 133;
-    --c-accent-dim: 90 98 110;
+    --c-accent: 13 153 79;
+    --c-accent-dim: 9 120 61;
     --c-wide: 200 70 10;
   }
 
