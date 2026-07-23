@@ -443,7 +443,7 @@ export function Settings() {
             <p className="text-sm text-muted">
               This permanently deletes your profile, sends, projects, grades,
               notes, and friends. Your logged history can't be recovered.
-              Routes you added stay for the community.
+              Routes you added stay visible to other climbers at your gym.
             </p>
             <p className="mt-4 mb-2 text-sm text-muted">
               Type <span className="font-bold text-chalk">DELETE</span> to

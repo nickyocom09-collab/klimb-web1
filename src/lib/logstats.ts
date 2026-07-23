@@ -3,7 +3,7 @@
 // rows, so it's fully meaningful with zero other users.
 import { supabase } from "./supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "./routes";
-import { communityGrade, formatGradeStyled, type GradeSystem } from "./grades";
+import { formatGradeStyled, type GradeSystem } from "./grades";
 import type { SendType } from "./database.types";
 
 export type LoggedItem = {
@@ -12,7 +12,7 @@ export type LoggedItem = {
   note: string | null;
   attempts: number | null;
   date: string;
-  /** Best-known ordinal for this climb: your grade > community > gym. */
+  /** Best-known ordinal for this climb: your grade, else the gym's. */
   ordinal: number | null;
 };
 
@@ -74,11 +74,7 @@ export async function fetchLogbook(profileId: string): Promise<{
         note: s.note,
         attempts: s.attempts,
         date: s.created_at,
-        ordinal:
-          myGrades.get(s.route_id) ??
-          communityGrade(route.gradeValues) ??
-          route.gym_grade ??
-          null,
+        ordinal: myGrades.get(s.route_id) ?? route.gym_grade ?? null,
       };
     });
 

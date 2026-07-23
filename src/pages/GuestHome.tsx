@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { MapPin, Mountain, Users } from "lucide-react";
+import { BarChart3, MapPin, Mountain } from "lucide-react";
 import { Button } from "../components/ui";
 
 /**
@@ -18,8 +18,8 @@ export function GuestHome() {
         </div>
         <h1 className="text-4xl font-extrabold tracking-tight text-chalk">Klimb</h1>
         <p className="mt-3 max-w-xs text-base text-muted">
-          The community grade for every route at your gym. Log your sends, track
-          your projects, and see what the crowd thinks a climb really goes at.
+          Your personal climbing logbook. Log every send, track your
+          projects, and watch your progress stack up.
         </p>
 
         <div className="mt-10 flex w-full max-w-xs flex-col gap-4 text-left">
@@ -29,9 +29,9 @@ export function GuestHome() {
             sub="Sends, flashes, and projects — your whole logbook in one place."
           />
           <Feature
-            icon={Users}
-            title="Community grades"
-            sub="See what real climbers think each route is graded."
+            icon={BarChart3}
+            title="Track your stats"
+            sub="Grade pyramids, streaks, and a recap every week."
           />
           <Feature
             icon={MapPin}

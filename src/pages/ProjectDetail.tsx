@@ -12,7 +12,7 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
-import { communityGrade, formatGradeStyled } from "../lib/grades";
+import { formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { DAY_MS } from "../lib/logstats";
 import { Button, CenterSpinner } from "../components/ui";
@@ -189,7 +189,7 @@ export function ProjectDetail() {
 
   const fmt = (g: number | null | undefined) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
-  const grade = communityGrade(route.gradeValues);
+  const grade = myGrade ?? route.gym_grade;
   const daysOpen = since
     ? Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / DAY_MS))
     : null;
@@ -243,7 +243,7 @@ export function ProjectDetail() {
                 {fmt(grade)}
               </p>
               <p className="mt-1 text-xs text-faint">
-                {myGrade !== null ? `felt ${fmt(myGrade)}` : "community"}
+                {myGrade !== null ? "your grade" : "gym grade"}
               </p>
             </div>
           </div>

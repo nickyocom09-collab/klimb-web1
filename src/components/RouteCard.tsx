@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, Plus, Video } from "lucide-react";
-import {
-  communityGrade,
-  formatGradeStyled,
-  formatGymGrade,
-  type GradeSystem,
-} from "../lib/grades";
+import { formatGradeStyled, formatGymGrade, type GradeSystem } from "../lib/grades";
 import { holdHex } from "../lib/constants";
 import type { RouteWithStats } from "../lib/routes";
 
@@ -25,9 +20,9 @@ export function RouteCard({
   authorName?: string | null;
   onGrade?: (route: RouteWithStats) => void;
 }) {
-  // The climber's own grade for this route (their logbook entry). No community
-  // aggregation — Klimb shows what this person said, next to the gym's grade.
-  const theirGrade = myGrade ?? communityGrade(route.gradeValues);
+  // The climber's own grade for this route (their logbook entry), shown next
+  // to the gym's grade — no crowd aggregation.
+  const theirGrade = myGrade;
   const fmt = (g: number | null) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
   const saysLabel = authorName ? `${authorName} says` : "Grade";

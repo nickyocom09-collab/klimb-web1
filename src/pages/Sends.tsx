@@ -29,7 +29,7 @@ import {
   recapCountdownLabel,
   type RecapRow,
 } from "../lib/recaps";
-import { communityGrade, formatGradeStyled } from "../lib/grades";
+import { formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { fetchNotifications } from "../lib/notifications";
 import { AppHeader } from "../components/Layout";
@@ -503,7 +503,7 @@ function ToppedRow({
   note?: string | null;
   onSent: () => void;
 }) {
-  const grade = communityGrade(route.gradeValues);
+  const grade = route.gym_grade;
   return (
     <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
       <div className="animate-fade-up rounded-2xl bg-surface p-3 shadow-card">
@@ -574,7 +574,7 @@ function RowLink({
   /** Override destination (projects open their journal, not the route). */
   to?: string;
 }) {
-  const grade = communityGrade(route.gradeValues);
+  const grade = route.gym_grade;
   return (
     <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
       <Link

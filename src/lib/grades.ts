@@ -6,8 +6,8 @@
 // The same ordinal renders in either grade system (American / European) by
 // indexing into the matching, index-aligned label array below. This is the
 // "mapping table" between American and European grades — every stored ordinal
-// has a label in both systems, so community grades display correctly in both
-// regardless of which scale they were submitted on.
+// has a label in both systems, so a grade displays correctly regardless of
+// which scale it was submitted on.
 
 export type ClimbingType = "boulder" | "toprope";
 export type GradeSystem = "american" | "european";
@@ -73,50 +73,6 @@ export function formatGrade(
   const labels = SCALES[type][system];
   const i = Math.round(grade);
   return labels[i] ?? "—";
-}
-
-/**
- * Community grade = MEDIAN of submitted ordinals (matches the DB trigger).
- * A median shrugs off a single sandbagged or trolled vote, where the old
- * average would drift. Null when nobody has graded.
- */
-export function communityGrade(grades: number[]): number | null {
-  if (grades.length === 0) return null;
-  const sorted = [...grades].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 1
-    ? sorted[mid]
-    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-}
-
-/** Build a distribution count map over the populated ordinal range. */
-export function gradeDistribution(grades: number[]): {
-  grade: number;
-  count: number;
-}[] {
-  if (grades.length === 0) return [];
-  const counts = new Map<number, number>();
-  for (const g of grades) counts.set(g, (counts.get(g) ?? 0) + 1);
-  const min = Math.min(...grades);
-  const max = Math.max(...grades);
-  const out: { grade: number; count: number }[] = [];
-  for (let g = min; g <= max; g++)
-    out.push({ grade: g, count: counts.get(g) ?? 0 });
-  return out;
-}
-
-/** Sample standard deviation — used to decide tight vs. wide spread coloring. */
-export function gradeSpread(grades: number[]): number {
-  if (grades.length < 2) return 0;
-  const mean = grades.reduce((a, b) => a + b, 0) / grades.length;
-  const variance =
-    grades.reduce((a, b) => a + (b - mean) ** 2, 0) / (grades.length - 1);
-  return Math.sqrt(variance);
-}
-
-/** Tight consensus -> accent green; wide disagreement -> orange. */
-export function spreadColor(grades: number[]): string {
-  return gradeSpread(grades) <= 1 ? "#39FF88" : "#FF9F45";
 }
 
 // --- Grade display -----------------------------------------------------------
@@ -221,54 +177,3 @@ export function formatGymGrade(
   return formatGrade(grade, type, system);
 }
 
-/** Group ordinals into display buckets for distributions (band-aware). */
-export function distributionBuckets(
-  grades: number[],
-  type: ClimbingType,
-  system: GradeSystem,
-  style: GradeStyle = "classic",
-): { label: string; count: number }[] {
-  if (grades.length === 0) return [];
-  const counts = new Map<string, number>();
-  const order: string[] = [];
-  const min = Math.min(...grades);
-  const max = Math.max(...grades);
-  for (let g = min; g <= max; g++) {
-    const label = formatGradeStyled(g, type, system, style);
-    if (!counts.has(label)) {
-      counts.set(label, 0);
-      order.push(label);
-    }
-  }
-  for (const g of grades) {
-    const label = formatGradeStyled(g, type, system, style);
-    counts.set(label, (counts.get(label) ?? 0) + 1);
-  }
-  return order.map((label) => ({ label, count: counts.get(label) ?? 0 }));
-}
-
-export type ConsensusTone = "green" | "orange" | "none";
-
-/**
- * The community "verdict" for a route: how much the crowd agrees.
- * - none: 0 or 1 grades (nothing to agree on yet)
- * - green: tight spread → strong consensus
- * - orange: wide spread → contested
- */
-export function gradeConsensus(grades: number[]): {
-  tone: ConsensusTone;
-  spread: number;
-  min: number | null;
-  max: number | null;
-  count: number;
-} {
-  const count = grades.length;
-  if (count === 0)
-    return { tone: "none", spread: 0, min: null, max: null, count };
-  const spread = gradeSpread(grades);
-  const min = Math.min(...grades);
-  const max = Math.max(...grades);
-  const tone: ConsensusTone =
-    count < 2 ? "none" : spread <= 1 ? "green" : "orange";
-  return { tone, spread, min, max, count };
-}

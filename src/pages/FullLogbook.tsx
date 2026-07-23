@@ -4,7 +4,7 @@ import { Check, ChevronLeft, Flag, MapPin, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchLogbook, DAY_MS, type LoggedItem } from "../lib/logstats";
-import { communityGrade, formatGradeStyled } from "../lib/grades";
+import { formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { CenterSpinner } from "../components/ui";
 
@@ -108,7 +108,7 @@ export function FullLogbook() {
                 </h2>
                 <ul className="flex flex-col gap-2">
                   {g.items.map((item) => {
-                    const grade = communityGrade(item.route.gradeValues);
+                    const grade = item.ordinal;
                     const gym = gymNames.get(item.route.gym_id);
                     return (
                       <li key={`${item.route.id}-${item.date}`}>

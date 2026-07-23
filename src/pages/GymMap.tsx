@@ -397,7 +397,7 @@ export function GymMap() {
       const { data: routeRows } = await supabase
         .from("routes")
         .select(
-          "id, gym_id, hold_color, wall_section, climbing_type, community_grade_cached, gym_grade, gyms(grading_style)",
+          "id, gym_id, hold_color, wall_section, climbing_type, gym_grade, gyms(grading_style)",
         )
         .in("id", allRouteIds);
       type RR = {
@@ -406,7 +406,6 @@ export function GymMap() {
         hold_color: string;
         wall_section: string;
         climbing_type: "boulder" | "toprope";
-        community_grade_cached: number | null;
         gym_grade: number | null;
         gyms: { grading_style: "classic" | "bands" } | null;
       };
@@ -425,11 +424,7 @@ export function GymMap() {
       for (const s of sendRows) {
         const r = routeMap.get(s.route_id);
         if (!r) continue;
-        const ord =
-          gradeMap.get(s.route_id) ??
-          r.community_grade_cached ??
-          r.gym_grade ??
-          -1;
+        const ord = gradeMap.get(s.route_id) ?? r.gym_grade ?? -1;
         const cur = stats.get(r.gym_id);
         if (!cur) {
           stats.set(r.gym_id, {
