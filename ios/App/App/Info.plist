@@ -62,6 +62,12 @@
 	<string>UIStatusBarStyleLightContent</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Klimb uses your location once to confirm you're at the gym you're logging at.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Klimb uses your camera to take a photo of the climb you're logging.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Klimb lets you attach a photo from your library to the climb you're logging.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Klimb can save climb photos to your library.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>instagram-stories</string>

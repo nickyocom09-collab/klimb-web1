@@ -4,7 +4,9 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ListChecks,
   MapPin,
+  ScrollText,
   Search,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -12,8 +14,29 @@ import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner, Input } from "../components/ui";
 import { STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
+import type { LogStylePref } from "../lib/constants";
 
-type Step = "name" | "gym";
+type Step = "name" | "gym" | "logStyle";
+
+const LOG_STYLE_OPTIONS: {
+  value: LogStylePref;
+  label: string;
+  sub: string;
+  Icon: typeof ListChecks;
+}[] = [
+  {
+    value: "steps",
+    label: "Step by step",
+    sub: "One question at a time — quick and guided.",
+    Icon: ListChecks,
+  },
+  {
+    value: "scroll",
+    label: "Single screen",
+    sub: "Every field at once, on one scrollable form.",
+    Icon: ScrollText,
+  },
+];
 
 /** ISO alpha-2 -> emoji flag. */
 function flagEmoji(cc: string): string {
@@ -35,6 +58,9 @@ export function Onboarding() {
   const [checkingUname, setCheckingUname] = useState(false);
   const [gymId, setGymId] = useState<string | null>(
     profile?.home_gym_id ?? null,
+  );
+  const [logStyle, setLogStyle] = useState<LogStylePref>(
+    profile?.log_style ?? "steps",
   );
   const [gyms, setGyms] = useState<GymRow[]>([]);
   const [query, setQuery] = useState("");
@@ -112,7 +138,7 @@ export function Onboarding() {
     [gyms, openCountry],
   );
 
-  const stepOrder: Step[] = ["name", "gym"];
+  const stepOrder: Step[] = ["name", "gym", "logStyle"];
   function goBack() {
     const i = stepOrder.indexOf(step);
     if (i > 0) setStep(stepOrder[i - 1]);
@@ -193,6 +219,7 @@ export function Onboarding() {
       display_name: name.trim() || "Climber",
       username: normalizedUname,
       home_gym_id: gymId,
+      log_style: logStyle,
       onboarded: true,
     });
     setFinishing(false);
@@ -420,6 +447,59 @@ export function Onboarding() {
             <Button
               className="w-full"
               disabled={!gymId}
+              onClick={() => setStep("logStyle")}
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {step === "logStyle" ? (
+        <div className="flex flex-1 flex-col px-6 pt-10">
+          <h1 className="text-2xl font-extrabold text-chalk">
+            How do you want to log?
+          </h1>
+          <p className="mt-1 text-muted">
+            Pick the logging flow that fits you. You can change this anytime in
+            Settings.
+          </p>
+          <div className="mt-6 flex flex-col gap-3">
+            {LOG_STYLE_OPTIONS.map(({ value, label, sub, Icon }) => {
+              const on = logStyle === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setLogStyle(value)}
+                  className={`flex items-center gap-4 rounded-2xl border p-4 text-left transition ${
+                    on
+                      ? "border-accent bg-accent/10"
+                      : "border-border bg-surface hover:border-faint"
+                  }`}
+                >
+                  <span
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                      on ? "bg-accent/15 text-accent" : "bg-surface-2 text-muted"
+                    }`}
+                  >
+                    <Icon size={22} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-bold ${on ? "text-accent" : "text-chalk"}`}>
+                      {label}
+                    </p>
+                    <p className="mt-0.5 text-sm text-muted">{sub}</p>
+                  </div>
+                  {on ? (
+                    <Check size={20} className="shrink-0 text-accent" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-auto pb-8">
+            <Button
+              className="w-full"
               loading={finishing}
               onClick={() => finish("/log")}
             >

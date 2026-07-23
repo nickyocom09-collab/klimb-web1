@@ -6,7 +6,6 @@ import { Button, ErrorText, Input, SlideTabs, Textarea } from "../ui";
 import { Dropdown } from "../Dropdown";
 import { GradePicker } from "../GradePicker";
 import { Stars } from "../Stars";
-import { OUTCOME_ICON } from "./outcomeIcon";
 
 type Step = {
   key: string;
@@ -32,30 +31,19 @@ const STEPS: Step[] = [
     title: "How'd it go?",
     ready: (s) => s.outcome !== null,
     render: (s) => (
-      <div
-        className={`grid gap-2.5 ${
-          s.outcomeOptions.length === 4 ? "grid-cols-2" : "grid-cols-3"
-        }`}
-      >
-        {s.outcomeOptions.map(({ value, label, hint }) => {
-          const Icon = OUTCOME_ICON[value];
+      <div className="flex rounded-full bg-surface-2 p-1">
+        {s.outcomeOptions.map(({ value, label }) => {
           const on = s.outcome === value;
           return (
             <button
               key={value}
               type="button"
               onClick={() => s.setOutcome(value)}
-              className={`flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-5 text-center transition ${
-                on
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border bg-surface-2 text-muted hover:text-chalk"
+              className={`flex-1 rounded-full py-3.5 text-sm font-bold transition ${
+                on ? "bg-accent text-bg" : "text-muted hover:text-chalk"
               }`}
             >
-              <Icon size={26} />
-              <span className="text-sm font-bold leading-none">{label}</span>
-              <span className="whitespace-nowrap text-[10px] leading-none text-faint">
-                {hint}
-              </span>
+              {label}
             </button>
           );
         })}
@@ -74,7 +62,6 @@ const STEPS: Step[] = [
           ref={s.photoRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={s.onPickPhoto}
           className="hidden"
         />
@@ -251,9 +238,10 @@ export function LogStepFlow({ s }: { s: LogClimbState }) {
   };
 
   return (
-    <div className="flex min-h-[calc(100dvh-4rem)] flex-col p-5">
-      {/* Progress segments */}
-      <div className="mb-6 flex gap-1.5">
+    <div className="flex flex-1 flex-col p-5">
+      {/* Progress segments — outside the scrollable middle so it never scrolls
+          out of view, even if a step's content needs to scroll internally. */}
+      <div className="mb-6 flex shrink-0 gap-1.5">
         {STEPS.map((_, k) => (
           <div key={k} className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
             <div
@@ -264,8 +252,12 @@ export function LogStepFlow({ s }: { s: LogClimbState }) {
         ))}
       </div>
 
-      {/* Question */}
-      <div key={step.key} className="flex-1 animate-fade-up">
+      {/* Question — centered in whatever space remains between the progress
+          bar and the nav button, instead of hugging the top. */}
+      <div
+        key={step.key}
+        className="flex flex-1 flex-col justify-center overflow-y-auto text-center animate-fade-up"
+      >
         <div className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-faint">
           Step {i + 1} of {STEPS.length}
         </div>
@@ -276,8 +268,9 @@ export function LogStepFlow({ s }: { s: LogClimbState }) {
 
       <ErrorText>{s.error}</ErrorText>
 
-      {/* Nav */}
-      <div className="mt-6 flex items-center gap-3">
+      {/* Nav — always pinned at the true bottom since the flex column above
+          now sizes exactly to the available space instead of guessing. */}
+      <div className="mt-6 flex shrink-0 items-center gap-3">
         {i > 0 ? (
           <button
             type="button"

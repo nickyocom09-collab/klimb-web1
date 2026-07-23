@@ -38,7 +38,7 @@ export function LogClimb() {
   const style = profile?.log_style ?? "steps";
 
   return (
-    <div className="relative">
+    <div className="relative flex h-full flex-col">
       <AppHeader title="Log a Klimb" subtitle={s.gymName ?? undefined} />
       {style === "steps" ? <LogStepFlow s={s} /> : <LogScrollForm s={s} />}
       {s.reward ? <RewardOverlay reward={s.reward} /> : null}

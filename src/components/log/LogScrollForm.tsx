@@ -60,7 +60,6 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
           ref={s.photoRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={s.onPickPhoto}
           className="hidden"
         />
