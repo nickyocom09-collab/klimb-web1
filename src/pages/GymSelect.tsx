@@ -175,7 +175,7 @@ export function GymSelect() {
       ? countryList.find((c) => c.cc === openCountry)?.name ?? "Choose your gym"
       : "Choose your gym";
   const subtitle = openState
-    ? "Pick your home gym to see its routes."
+    ? "Pick your home gym."
     : openCountry
       ? statesInCountry.length > 0
         ? "Pick your state."

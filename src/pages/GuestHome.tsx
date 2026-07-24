@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BarChart3, MapPin, Mountain } from "lucide-react";
 import { Button } from "../components/ui";
+import { IntroTutorial, INTRO_SEEN_KEY } from "../components/IntroTutorial";
 
 /**
  * First-launch landing for signed-out users. Instead of dropping people on a
@@ -9,6 +11,19 @@ import { Button } from "../components/ui";
  */
 export function GuestHome() {
   const navigate = useNavigate();
+  // Very first app open: play the welcome tutorial before anything else, then
+  // reveal this landing where they can create an account.
+  const [showIntro, setShowIntro] = useState(() => {
+    try {
+      return !localStorage.getItem(INTRO_SEEN_KEY);
+    } catch {
+      return false;
+    }
+  });
+
+  if (showIntro) {
+    return <IntroTutorial onDone={() => setShowIntro(false)} />;
+  }
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col justify-between bg-bg px-6 pb-10 pt-16">

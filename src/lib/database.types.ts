@@ -32,10 +32,13 @@ export type RecapPayload = {
   flash_rate: number | null;
   top_wall: string | null;
   top_color: string | null;
-  hardest_send: { boulder: number | null; toprope: number | null };
-  hardest_flash: { boulder: number | null; toprope: number | null };
-  pyramid: { type: "boulder" | "toprope"; ordinal: number; count: number }[];
-  new_grades: { type: "boulder" | "toprope"; ordinal: number }[];
+  hardest_send: { boulder: number | null; toprope: number | null; lead?: number | null };
+  hardest_flash: { boulder: number | null; toprope: number | null; lead?: number | null };
+  /** Send counts per discipline — the "what you like to climb" mix. Optional
+   *  because recaps generated before lead climbing existed won't have it. */
+  type_counts?: { boulder: number; toprope: number; lead: number };
+  pyramid: { type: "boulder" | "toprope" | "lead"; ordinal: number; count: number }[];
+  new_grades: { type: "boulder" | "toprope" | "lead"; ordinal: number }[];
   prev: { climbs: number; sends: number };
   projects_open: number;
   oldest_project_days: number | null;

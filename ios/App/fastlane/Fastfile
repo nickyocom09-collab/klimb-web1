@@ -39,12 +39,24 @@ platform :ios do
     )
 
     # 3) Archive and sign the app for the App Store.
+    #    The project uses automatic ("Xcode-managed") signing, so we tell the
+    #    EXPORT step to sign automatically too. Without this, gym's default
+    #    export options fall back to manual signing and hunt for an old-style
+    #    "iOS Distribution" certificate that no longer exists (modern accounts
+    #    use "Apple Distribution"), which fails with:
+    #      "exportArchive No signing certificate 'iOS Distribution' found".
+    #    -allowProvisioningUpdates lets Xcode fetch/create the App Store
+    #    provisioning profile on the fly using the App Store Connect API key.
     build_app(
       project: XCODEPROJ,
       scheme: SCHEME,
       export_method: "app-store",
       output_directory: "build",
       clean: true,
+      xcargs: "-allowProvisioningUpdates",
+      export_options: {
+        signingStyle: "automatic",
+      },
     )
 
     # 4) Upload to TestFlight. Doesn't wait for Apple's processing — the build

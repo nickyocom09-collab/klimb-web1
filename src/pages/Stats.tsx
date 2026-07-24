@@ -323,12 +323,13 @@ function HardestValue({
   parts,
   tone,
 }: {
-  parts: { boulder: string | null; toprope: string | null };
+  parts: { boulder: string | null; toprope: string | null; lead: string | null };
   tone: string;
 }) {
   const items = [
     parts.boulder ? { g: parts.boulder, t: "Boulder" } : null,
-    parts.toprope ? { g: parts.toprope, t: "Rope" } : null,
+    parts.toprope ? { g: parts.toprope, t: "Top Rope" } : null,
+    parts.lead ? { g: parts.lead, t: "Lead" } : null,
   ].filter(Boolean) as { g: string; t: string }[];
   if (items.length === 0) {
     return <span className={`text-2xl font-extrabold ${tone}`}>—</span>;

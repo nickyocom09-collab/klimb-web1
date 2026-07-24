@@ -458,13 +458,33 @@ export function WeeklyRecap({
   const p = recap.payload;
   const periodWord = recap.period === "weekly" ? "week" : "month";
 
-  const fmt = (o: number | null, t: "boulder" | "toprope"): string | null =>
+  const fmt = (
+    o: number | null | undefined,
+    t: "boulder" | "toprope" | "lead",
+  ): string | null =>
     o === null || o === undefined ? null : formatGradeStyled(o, t, system, "classic");
   const hardestBoulder = fmt(p.hardest_send.boulder, "boulder");
   const hardestTop = fmt(p.hardest_send.toprope, "toprope");
-  const hardestPrimary = hardestBoulder ?? hardestTop ?? "—";
+  const hardestLead = fmt(p.hardest_send.lead, "lead");
+  const hardestPrimary = hardestBoulder ?? hardestTop ?? hardestLead ?? "—";
   const hardestBoth =
-    [hardestBoulder, hardestTop].filter(Boolean).join(" · ") || "—";
+    [
+      hardestBoulder && `${hardestBoulder} boulder`,
+      hardestTop && `${hardestTop} TR`,
+      hardestLead && `${hardestLead} lead`,
+    ]
+      .filter(Boolean)
+      .join("  ·  ") || "—";
+
+  // "What you climb" mix — share of sends by discipline this period.
+  const mix = p.type_counts
+    ? (["boulder", "toprope", "lead"] as const)
+        .map((k) => ({
+          label: k === "toprope" ? "Top Rope" : k === "lead" ? "Lead" : "Boulder",
+          n: p.type_counts![k],
+        }))
+        .filter((m) => m.n > 0)
+    : [];
 
   const arch = useMemo(
     () => archetypeFor(p, `${recap.period}:${recap.period_start}`),
@@ -657,6 +677,35 @@ export function WeeklyRecap({
                 <Num icon={Zap} v={week.flashes} l="flashes" />
                 <Num icon={TrendingUp} v={week.sessions} l="sessions" />
               </div>
+              {mix.length > 0 ? (
+                <>
+                  <div style={{ marginTop: 22, ...S.kicker }}>WHAT YOU CLIMBED</div>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      justifyContent: "center",
+                      gap: 10,
+                    }}
+                  >
+                    {mix.map((m) => (
+                      <span
+                        key={m.label}
+                        style={{
+                          fontSize: 13,
+                          color: "rgba(255,255,255,0.7)",
+                          background: "rgba(255,255,255,0.06)",
+                          borderRadius: 999,
+                          padding: "6px 13px",
+                        }}
+                      >
+                        <b style={{ color: "#fff" }}>{m.n}</b> {m.label}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
         )}

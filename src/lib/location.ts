@@ -46,21 +46,29 @@ export function getCurrentCoords(): Promise<Coords> {
 }
 
 /**
- * Verify the device is within range of a gym. Gyms without coordinates can't
- * be verified, so we allow those through.
+ * Verify the device is within range of a gym. This fails CLOSED: if the gym has
+ * no coordinates on file, or we can't read the device location, it returns not-ok.
+ * That's deliberate anti-cheat — you should never be able to make a far-away gym
+ * yours (or log there) just because a location check couldn't run.
  */
 export async function assertNearGym(gym: {
+  name?: string | null;
   latitude: number | null;
   longitude: number | null;
 }): Promise<{ ok: boolean; error?: string }> {
-  if (gym.latitude == null || gym.longitude == null) return { ok: true };
+  if (gym.latitude == null || gym.longitude == null) {
+    return {
+      ok: false,
+      error: "This gym doesn't have a location on file yet, so we can't confirm you're there.",
+    };
+  }
   try {
     const me = await getCurrentCoords();
     const miles = milesBetween(me.lat, me.lng, gym.latitude, gym.longitude);
     if (miles > MAX_HOME_GYM_MILES) {
       return {
         ok: false,
-        error: `You're about ${Math.round(miles)} mi away. Get within ${MAX_HOME_GYM_MILES} mi of the gym to set it as home.`,
+        error: `You're about ${Math.round(miles)} mi from ${gym.name ?? "this gym"}. Get within ${MAX_HOME_GYM_MILES} mi of it to make it yours.`,
       };
     }
     return { ok: true };

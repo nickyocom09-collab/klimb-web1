@@ -10,6 +10,7 @@ import {
   type ClimbType,
 } from "../lib/constants";
 import { pickerOptions, type GradeStyle } from "../lib/grades";
+import { assertNearGym } from "../lib/location";
 import { AppHeader } from "../components/Layout";
 import { Button, ErrorText, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
@@ -24,41 +25,6 @@ const NO_PHOTO =
   encodeURIComponent(
     "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='#1b1e1c'/><path d='M110 205 L175 125 L215 172 L250 140 L300 205 Z' fill='#2a2f2c'/><circle cx='250' cy='95' r='16' fill='#2a2f2c'/></svg>",
   );
-
-// You must actually be at (well, near) the gym to post a route there — this
-// is the anti-fake-route check. 50 miles leaves room for GPS slop and suburbs.
-const MAX_POST_DISTANCE_MILES = 50;
-
-/** Great-circle distance in miles between two lat/lng points. */
-function milesBetween(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const R = 3958.8; // Earth radius, miles
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-function getPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("no_geolocation"));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 10_000,
-      maximumAge: 5 * 60_000,
-    });
-  });
-}
 
 export function AddRoute() {
   const { profile } = useAuth();
@@ -157,37 +123,15 @@ export function AddRoute() {
     setConfirming(false);
     setBusy(true);
     try {
-      // Location gate: you must be within 50 miles of the gym to post there.
-      // Only enforceable when the gym has coordinates on file. If we simply
-      // can't get a location (denied/unsupported), fall back to a manual
-      // confirmation rather than hard-blocking the post.
-      if (gymCoords) {
-        let pos: GeolocationPosition | null = null;
-        try {
-          pos = await getPosition();
-        } catch {
-          const confirmed = window.confirm(
-            `We couldn't check your location (it may be turned off for this app). Routes should only be posted from the gym itself.\n\nAre you at ${gymName ?? "this gym"} right now?`,
-          );
-          if (!confirmed) {
-            throw new Error(
-              "Post cancelled — enable location access or confirm you're at the gym to add a route.",
-            );
-          }
-        }
-        if (pos) {
-          const miles = milesBetween(
-            pos.coords.latitude,
-            pos.coords.longitude,
-            gymCoords.lat,
-            gymCoords.lng,
-          );
-          if (miles > MAX_POST_DISTANCE_MILES) {
-            throw new Error(
-              `You look to be ${Math.round(miles)} miles from ${gymName ?? "this gym"}. Routes can only be posted within ${MAX_POST_DISTANCE_MILES} miles of the gym.`,
-            );
-          }
-        }
+      // Location gate (fails closed): you must actually be near the gym to add
+      // a route there. No location / far away / no coords on file → blocked.
+      const near = await assertNearGym({
+        name: gymName,
+        latitude: gymCoords?.lat ?? null,
+        longitude: gymCoords?.lng ?? null,
+      });
+      if (!near.ok) {
+        throw new Error(near.error ?? "Get within range of the gym to add a route.");
       }
 
       const since = new Date();

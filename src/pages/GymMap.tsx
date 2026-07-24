@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
+import { assertNearGym } from "../lib/location";
 import { formatGradeStyled } from "../lib/grades";
 import {
   fetchOsmGyms,
@@ -574,17 +575,6 @@ export function GymMap() {
     return milesBetween(myLoc.lat, myLoc.lng, gym.latitude, gym.longitude);
   }
 
-  /** Block making a gym yours unless you're within range. Returns true if OK. */
-  function withinRange(gym: GymWithCount): boolean {
-    const away = milesAway(gym);
-    if (away !== null && away > MAX_LOG_MILES) {
-      window.alert(
-        `You're about ${Math.round(away)} mi from ${gym.name}. You need to be within ${MAX_LOG_MILES} miles to make it yours.`,
-      );
-      return false;
-    }
-    return true;
-  }
 
   async function setHome(gym: GymWithCount) {
     if (!profile) return;
@@ -592,8 +582,14 @@ export function GymMap() {
       navigate("/");
       return;
     }
-    if (!withinRange(gym)) return;
     setSaving("home");
+    // Actively confirm you're at the gym (fails closed if location is off).
+    const near = await assertNearGym(gym);
+    if (!near.ok) {
+      setSaving(null);
+      window.alert(near.error ?? "You need to be near the gym to make it yours.");
+      return;
+    }
     await supabase
       .from("profiles")
       .update({ home_gym_id: gym.id, visiting_gym_id: null })
@@ -607,7 +603,15 @@ export function GymMap() {
   // only starting a fresh visit does.
   async function visitGym(gym: GymWithCount, skipRange = false) {
     if (!profile) return;
-    if (!skipRange && !withinRange(gym)) return;
+    if (!skipRange) {
+      setSaving("visit");
+      const near = await assertNearGym(gym);
+      if (!near.ok) {
+        setSaving(null);
+        window.alert(near.error ?? "You need to be near the gym to visit it.");
+        return;
+      }
+    }
     setSaving("visit");
     await supabase
       .from("profiles")

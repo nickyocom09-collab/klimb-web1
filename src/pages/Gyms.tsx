@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
+import { assertNearGym } from "../lib/location";
 import { AppHeader } from "../components/Layout";
 import { CenterSpinner, Spinner } from "../components/ui";
 import { US_STATES, STATE_NAME } from "../lib/states";
@@ -19,7 +20,6 @@ export function Gyms() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [gyms, setGyms] = useState<GymRow[]>([]);
-  const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -29,23 +29,16 @@ export function Gyms() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([
-      supabase.from("gyms").select("*").eq("status", "approved").order("name"),
-      supabase
-        .from("routes")
-        .select("gym_id")
-        .eq("status", "active")
-        .eq("hidden", false),
-    ]).then(([{ data: g }, { data: r }]) => {
-      if (!active) return;
-      const map = new Map<string, number>();
-      for (const row of r ?? []) {
-        map.set(row.gym_id, (map.get(row.gym_id) ?? 0) + 1);
-      }
-      setGyms(g ?? []);
-      setCounts(map);
-      setLoading(false);
-    });
+    supabase
+      .from("gyms")
+      .select("*")
+      .eq("status", "approved")
+      .order("name")
+      .then(({ data: g }) => {
+        if (!active) return;
+        setGyms(g ?? []);
+        setLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -57,6 +50,13 @@ export function Gyms() {
       return;
     }
     setSaving(gym.id);
+    // Anti-cheat: you must be near the gym to make it home (fails closed).
+    const near = await assertNearGym(gym);
+    if (!near.ok) {
+      setSaving(null);
+      window.alert(near.error ?? "You need to be near the gym to make it home.");
+      return;
+    }
     await supabase
       .from("profiles")
       .update({ home_gym_id: gym.id })
@@ -92,7 +92,6 @@ export function Gyms() {
 
   function renderGym(gym: GymRow) {
     const home = gym.id === profile?.home_gym_id;
-    const count = counts.get(gym.id) ?? 0;
     return (
       <li key={gym.id}>
         <button
@@ -118,9 +117,6 @@ export function Gyms() {
                 {[gym.city, gym.state].filter(Boolean).join(", ")}
               </p>
             ) : null}
-            <p className="mt-0.5 text-xs text-faint">
-              {count} active {count === 1 ? "route" : "routes"}
-            </p>
           </div>
           {saving === gym.id ? (
             <Spinner className="text-accent" />

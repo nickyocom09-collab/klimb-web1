@@ -1,7 +1,15 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { IntroTutorial } from "./IntroTutorial";
+import { IntroTutorial, INTRO_SEEN_KEY } from "./IntroTutorial";
 import { BarChart3, BookOpen, MapPin, Plus, User } from "lucide-react";
+
+function introAlreadySeenLocally(): boolean {
+  try {
+    return !!localStorage.getItem(INTRO_SEEN_KEY);
+  } catch {
+    return false;
+  }
+}
 
 // Logbook-first IA: your history is the front door, the map is where you climb
 // (and collect gyms), and the center Log button is the hero — fast logging is
@@ -17,8 +25,14 @@ const tabs = [
 export function Layout() {
   const { profile } = useAuth();
   // First launch only: a quick "how Klimb works" carousel. The seen_intro
-  // flag lives on the profile so it never reappears, on any device.
-  const showIntro = !!profile && profile.onboarded && !profile.seen_intro;
+  // flag lives on the profile so it never reappears, on any device. We also
+  // skip it if it already played locally before sign-up (guest tutorial), so a
+  // brand-new user who just watched it during onboarding doesn't see it twice.
+  const showIntro =
+    !!profile &&
+    profile.onboarded &&
+    !profile.seen_intro &&
+    !introAlreadySeenLocally();
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
@@ -28,7 +42,14 @@ export function Layout() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-app px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-        <div className="flex items-center justify-between gap-1 rounded-full border border-border bg-surface/95 px-2 py-2 shadow-lg backdrop-blur">
+        {/* Liquid-glass hot bar: translucent, heavy blur + saturation, with a
+            soft top highlight so it reads like frosted glass floating over the
+            content. */}
+        <div className="relative flex items-center justify-between gap-1 overflow-hidden rounded-full border border-white/10 bg-surface/50 px-2 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-2xl backdrop-saturate-150">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+          />
           {tabs.map(({ to, label, Icon, end, hero }) =>
             hero ? (
               <NavLink

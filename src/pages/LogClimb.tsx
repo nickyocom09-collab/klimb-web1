@@ -37,8 +37,12 @@ export function LogClimb() {
 
   const style = profile?.log_style ?? "steps";
 
+  // The step flow is a fixed-height layout (pinned Back/Next), so it needs
+  // h-full. The scroll form must be free to grow taller than the viewport so
+  // the page scrolls all the way to the "Log it" button — h-full there clipped
+  // the button off the bottom (the scroll glitch). min-h-full fixes it.
   return (
-    <div className="relative flex h-full flex-col">
+    <div className={`relative flex flex-col ${style === "steps" ? "h-full" : "min-h-full"}`}>
       <AppHeader title="Log a Klimb" subtitle={s.gymName ?? undefined} />
       {style === "steps" ? <LogStepFlow s={s} /> : <LogScrollForm s={s} />}
       {s.reward ? <RewardOverlay reward={s.reward} /> : null}

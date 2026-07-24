@@ -43,12 +43,17 @@ const SLIDES: Slide[] = [
   },
 ];
 
+/** Local flag so the intro shows on the very first app open, even before an
+ *  account exists. Mirrors profiles.seen_intro for signed-in users. */
+export const INTRO_SEEN_KEY = "klimb_seen_intro";
+
 /**
- * First-launch "how Klimb works" carousel. Shows once per user (the
- * profiles.seen_intro flag follows them across devices); Skip in the
+ * First-launch "how Klimb works" carousel. For brand-new visitors it plays
+ * BEFORE sign-up (pass onDone); for signed-in users who haven't seen it, it
+ * plays inside the app and writes the profiles.seen_intro flag. Skip in the
  * top-right dismisses from any slide. ~10 seconds to skim, by design.
  */
-export function IntroTutorial() {
+export function IntroTutorial({ onDone }: { onDone?: () => void }) {
   const { updateProfile } = useAuth();
   const [slide, setSlide] = useState(0);
   const [leaving, setLeaving] = useState(false);
@@ -58,7 +63,13 @@ export function IntroTutorial() {
 
   async function dismiss() {
     setLeaving(true);
-    await updateProfile({ seen_intro: true });
+    try {
+      localStorage.setItem(INTRO_SEEN_KEY, "1");
+    } catch {
+      /* storage may be unavailable; not fatal */
+    }
+    if (onDone) onDone();
+    else await updateProfile({ seen_intro: true });
   }
 
   function next() {

@@ -33,16 +33,27 @@ export function setupDeepLinks(navigate: (path: string) => void) {
       const parsed = new URL(url);
       if (parsed.protocol !== "klimb:") return;
 
-      // Supabase puts the session tokens in the hash fragment (implicit
-      // flow) or, occasionally, the query string.
-      const raw = parsed.hash ? parsed.hash.slice(1) : parsed.search.slice(1);
-      const params = new URLSearchParams(raw);
-      const access_token = params.get("access_token");
-      const refresh_token = params.get("refresh_token");
-      const type = params.get("type");
+      // Two possible shapes come back here:
+      //  1. Implicit flow (email confirm / recovery): tokens in the hash.
+      //  2. PKCE OAuth (Google, Apple-on-web): a `?code=` in the query that
+      //     must be exchanged for a session. This second case is what makes
+      //     Google sign-in actually complete — without the exchange the app
+      //     reopens but never gets a session.
+      const hashParams = new URLSearchParams(
+        parsed.hash ? parsed.hash.slice(1) : "",
+      );
+      const queryParams = new URLSearchParams(parsed.search.slice(1));
+      const access_token = hashParams.get("access_token");
+      const refresh_token = hashParams.get("refresh_token");
+      const code = queryParams.get("code");
+      const type = hashParams.get("type") ?? queryParams.get("type");
 
       if (access_token && refresh_token) {
         await supabase.auth.setSession({ access_token, refresh_token });
+      } else if (code) {
+        // Complete the PKCE handshake (uses the code verifier stashed in
+        // storage when signInWithOAuth kicked things off).
+        await supabase.auth.exchangeCodeForSession(code);
       }
 
       navigate(parsed.pathname.includes("reset-password") || type === "recovery"

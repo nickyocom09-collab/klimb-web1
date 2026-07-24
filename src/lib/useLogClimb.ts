@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
 import { isRopeType, type ClimbType } from "./constants";
+import { assertNearGym } from "./location";
 import {
   gymGradeOptions,
   pickerOptions,
@@ -57,6 +58,10 @@ export function useLogClimb() {
   const gymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
 
   const [gymName, setGymName] = useState<string | null>(null);
+  const [gymCoords, setGymCoords] = useState<{
+    latitude: number | null;
+    longitude: number | null;
+  } | null>(null);
   const [gradeStyle, setGradeStyle] = useState<GradeStyle>("classic");
 
   const [photo, setPhoto] = useState<File | null>(null);
@@ -76,12 +81,17 @@ export function useLogClimb() {
     if (!gymId) return;
     supabase
       .from("gyms")
-      .select("name, grading_style")
+      .select("name, grading_style, latitude, longitude")
       .eq("id", gymId)
       .maybeSingle()
       .then(({ data }) => {
         setGymName(data?.name ?? null);
         setGradeStyle(data?.grading_style ?? "classic");
+        setGymCoords(
+          data
+            ? { latitude: data.latitude, longitude: data.longitude }
+            : null,
+        );
       });
   }, [gymId]);
 
@@ -119,6 +129,18 @@ export function useLogClimb() {
     setError(null);
     setBusy(true);
     try {
+      // Anti-cheat: you must actually be at the gym to log a climb there.
+      const near = await assertNearGym({
+        name: gymName,
+        latitude: gymCoords?.latitude ?? null,
+        longitude: gymCoords?.longitude ?? null,
+      });
+      if (!near.ok) {
+        setBusy(false);
+        return setError(
+          near.error ?? "Get within range of your gym to log a climb.",
+        );
+      }
       // 1) The route itself — yours, on your gym. Photo optional; without one
       // we store a quiet dark placeholder.
       let photoUrl =

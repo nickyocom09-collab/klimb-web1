@@ -3,7 +3,7 @@
 // rows, so it's fully meaningful with zero other users.
 import { supabase } from "./supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "./routes";
-import { formatGradeStyled, type GradeSystem } from "./grades";
+import { formatGradeStyled, isRope, type GradeSystem } from "./grades";
 import type { SendType } from "./database.types";
 
 export type LoggedItem = {
@@ -129,8 +129,18 @@ export type LogStats = {
   /** Days since the current streak started (0 when there's no streak). */
   streakDays: number;
   pyramid: { label: string; count: number; sort: number }[];
-  hardestSend: { boulder: LoggedItem | null; toprope: LoggedItem | null };
-  hardestFlash: { boulder: LoggedItem | null; toprope: LoggedItem | null };
+  hardestSend: {
+    boulder: LoggedItem | null;
+    toprope: LoggedItem | null;
+    lead: LoggedItem | null;
+  };
+  hardestFlash: {
+    boulder: LoggedItem | null;
+    toprope: LoggedItem | null;
+    lead: LoggedItem | null;
+  };
+  /** How many sends of each discipline — drives the "what you climb" mix. */
+  typeCounts: { boulder: number; toprope: number; lead: number };
   weeks: number[];
 };
 
@@ -166,7 +176,7 @@ export function computeLogStats(
       system,
       l.route.gradingStyle,
     );
-    const sort = (l.route.climbing_type === "toprope" ? 100 : 0) + l.ordinal;
+    const sort = (isRope(l.route.climbing_type) ? 100 : 0) + l.ordinal;
     const cur = buckets.get(label) ?? { count: 0, sort };
     cur.count += 1;
     buckets.set(label, cur);
@@ -178,14 +188,26 @@ export function computeLogStats(
   const hardest = (items: LoggedItem[]) => {
     let boulder: LoggedItem | null = null;
     let toprope: LoggedItem | null = null;
+    let lead: LoggedItem | null = null;
     for (const l of items) {
       if (l.ordinal === null) continue;
-      if (l.route.climbing_type === "boulder") {
+      const t = l.route.climbing_type;
+      if (t === "boulder") {
         if (!boulder || l.ordinal > boulder.ordinal!) boulder = l;
+      } else if (t === "lead") {
+        if (!lead || l.ordinal > lead.ordinal!) lead = l;
       } else if (!toprope || l.ordinal > toprope.ordinal!) toprope = l;
     }
-    return { boulder, toprope };
+    return { boulder, toprope, lead };
   };
+
+  // Discipline mix across all sends — for the "what you like to climb" view.
+  const typeCounts = { boulder: 0, toprope: 0, lead: 0 };
+  for (const l of sent) {
+    if (l.route.climbing_type === "boulder") typeCounts.boulder += 1;
+    else if (l.route.climbing_type === "lead") typeCounts.lead += 1;
+    else typeCounts.toprope += 1;
+  }
 
   // Weekly streak: consecutive rolling weeks with >=1 log, counting back from
   // now. If this week is still empty, start from last week (grace) so the
@@ -239,15 +261,20 @@ export function computeLogStats(
     pyramid,
     hardestSend: hardest(sent),
     hardestFlash: hardest(flashes),
+    typeCounts,
     weeks,
   };
 }
 
-/** Hardest boulder + rope grades, kept separate so the UI can label each. */
+/** Hardest boulder + top-rope + lead grades, kept separate for labelling. */
 export function hardestParts(
-  h: { boulder: LoggedItem | null; toprope: LoggedItem | null },
+  h: {
+    boulder: LoggedItem | null;
+    toprope: LoggedItem | null;
+    lead: LoggedItem | null;
+  },
   system: GradeSystem,
-): { boulder: string | null; toprope: string | null } {
+): { boulder: string | null; toprope: string | null; lead: string | null } {
   return {
     boulder: h.boulder
       ? formatGradeStyled(
@@ -263,6 +290,14 @@ export function hardestParts(
           "toprope",
           system,
           h.toprope.route.gradingStyle,
+        )
+      : null,
+    lead: h.lead
+      ? formatGradeStyled(
+          h.lead.ordinal,
+          "lead",
+          system,
+          h.lead.route.gradingStyle,
         )
       : null,
   };
