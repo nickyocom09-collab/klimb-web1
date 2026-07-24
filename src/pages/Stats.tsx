@@ -174,7 +174,7 @@ export function Stats() {
               <p className="mt-1.5 text-sm text-muted">
                 {stats.streakWeeks > 0
                   ? "Streak's alive — just one log a week keeps it burning."
-                  : "Log a climb this week to spark your streak."}
+                  : "Log a Klimb this week to spark your streak."}
               </p>
             </div>
           </div>

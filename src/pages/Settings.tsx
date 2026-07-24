@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ChevronRight, Mail, Shield, Trash2, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  AtSign,
+  Mail,
+  Shield,
+  Trash2,
+  X,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import {
@@ -19,6 +27,9 @@ import {
 } from "../lib/constants";
 import { AppHeader } from "../components/Layout";
 import { Button, Card, ConfirmDialog, Input, Textarea } from "../components/ui";
+import type { Database } from "../lib/database.types";
+
+type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
 /** A pill-style segmented control. */
 function Segmented<T extends string>({
@@ -74,16 +85,11 @@ export function Settings() {
   const { profile, session, updateProfile, signOut } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState(profile?.display_name ?? "");
-  const [savingName, setSavingName] = useState(false);
-  const [nameSaved, setNameSaved] = useState(false);
 
   const [uname, setUname] = useState(profile?.username ?? "");
-  const [savingU, setSavingU] = useState(false);
   const [uMsg, setUMsg] = useState<string | null>(null);
 
   const [bio, setBio] = useState(profile?.bio ?? "");
-  const [savingBio, setSavingBio] = useState(false);
-  const [bioSaved, setBioSaved] = useState(false);
 
   const [blockedList, setBlockedList] = useState<BlockedProfile[]>([]);
   const [unblocking, setUnblocking] = useState<string | null>(null);
@@ -101,6 +107,8 @@ export function Settings() {
     setBlockedList((list) => list.filter((b) => b.id !== otherId));
   }
 
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [accountSaved, setAccountSaved] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
@@ -118,48 +126,58 @@ export function Settings() {
     await signOut();
   }
 
-  async function saveBio() {
-    const trimmed = bio.trim();
-    if (trimmed === (profile?.bio ?? "")) return;
-    setSavingBio(true);
-    await updateProfile({ bio: trimmed || null });
-    setSavingBio(false);
-    setBioSaved(true);
-    setTimeout(() => setBioSaved(false), 2000);
-  }
-
   const theme = (profile?.theme ?? "dark") as ThemePref;
   const sendsPublic = profile?.sends_public ?? true;
   const projectsPublic = profile?.projects_public ?? true;
 
-  async function saveUsername() {
-    const h = uname.trim().replace(/^@/, "").toLowerCase();
-    if (h === (profile?.username ?? "")) return;
-    if (h.length < 3) {
-      setUMsg("Usernames need at least 3 characters.");
-      return;
-    }
-    if (!/^[a-z0-9_]+$/.test(h)) {
-      setUMsg("Use letters, numbers, and underscores only.");
-      return;
-    }
-    setSavingU(true);
-    const { error } = await updateProfile({ username: h });
-    setSavingU(false);
-    setUMsg(error ? "That username is already taken." : "Saved!");
-    if (!error) setUname(h);
-  }
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
   const logStyle = (profile?.log_style ?? "steps") as LogStylePref;
 
-  async function saveName() {
-    const trimmed = name.trim();
-    if (trimmed.length < 2 || trimmed === profile?.display_name) return;
-    setSavingName(true);
-    await updateProfile({ display_name: trimmed });
-    setSavingName(false);
-    setNameSaved(true);
-    setTimeout(() => setNameSaved(false), 2000);
+  // --- One "Save changes" for the whole account card -----------------------
+  // Three separate save buttons made the page feel like a form graveyard.
+  // This writes only what actually changed, in a single pass.
+  const trimmedName = name.trim();
+  const trimmedBio = bio.trim();
+  const normUname = uname.trim().replace(/^@/, "").toLowerCase();
+  const accountDirty =
+    (trimmedName !== (profile?.display_name ?? "") && trimmedName.length >= 2) ||
+    trimmedBio !== (profile?.bio ?? "") ||
+    normUname !== (profile?.username ?? "");
+
+  async function saveAccount() {
+    if (!accountDirty) return;
+    setUMsg(null);
+    // Username is the only field with rules — validate before touching anything.
+    if (normUname !== (profile?.username ?? "")) {
+      if (normUname.length < 3) {
+        setUMsg("Usernames need at least 3 characters.");
+        return;
+      }
+      if (!/^[a-z0-9_]+$/.test(normUname)) {
+        setUMsg("Use letters, numbers, and underscores only.");
+        return;
+      }
+    }
+    const patch: ProfileUpdate = {};
+    if (trimmedName !== (profile?.display_name ?? "") && trimmedName.length >= 2)
+      patch.display_name = trimmedName;
+    if (trimmedBio !== (profile?.bio ?? "")) patch.bio = trimmedBio || null;
+    if (normUname !== (profile?.username ?? "")) patch.username = normUname;
+
+    setSavingAccount(true);
+    const { error } = await updateProfile(patch);
+    setSavingAccount(false);
+    if (error) {
+      setUMsg(
+        patch.username
+          ? "That username is already taken."
+          : "Couldn't save — try again.",
+      );
+      return;
+    }
+    if (patch.username) setUname(normUname);
+    setAccountSaved(true);
+    setTimeout(() => setAccountSaved(false), 2000);
   }
 
   return (
@@ -192,7 +210,7 @@ export function Settings() {
             onChange={(v) => updateProfile({ log_style: v })}
           />
           <p className="ml-1 text-xs text-faint">
-            Log a climb on one scrollable screen, or step through it one
+            Log a Klimb on one scrollable screen, or step through it one
             question at a time.
           </p>
         </Section>
@@ -250,33 +268,18 @@ export function Settings() {
         </Section>
 
         <Section title="Account">
+          {/* One card, one save. Every field edits in place; the button at the
+              bottom writes whatever actually changed. */}
           <Card className="flex flex-col gap-4 p-4">
+            <Input
+              label="Display name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Nick Yocom"
+            />
             <div>
               <Input
-                label="Display name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Nick Yocom"
-              />
-              <p className="ml-1 mt-1.5 text-xs text-faint">
-                The name shown on your profile and logs.
-              </p>
-              <Button
-                variant="secondary"
-                className="mt-3 w-full"
-                loading={savingName}
-                disabled={
-                  name.trim().length < 2 ||
-                  name.trim() === profile?.display_name
-                }
-                onClick={saveName}
-              >
-                {nameSaved ? "Saved" : "Save name"}
-              </Button>
-            </div>
-            <div>
-              <Input
-                label="Username (@handle)"
+                label="Username"
                 value={uname}
                 onChange={(e) => {
                   setUname(e.target.value);
@@ -287,23 +290,8 @@ export function Settings() {
                 autoCorrect="off"
               />
               <p className="ml-1 mt-1.5 text-xs text-faint">
-                Your unique handle — how friends find and add you.
+                Your @handle — how friends find and add you.
               </p>
-              <Button
-                variant="secondary"
-                className="mt-3 w-full"
-                loading={savingU}
-                disabled={
-                  uname.trim().replace(/^@/, "").toLowerCase() ===
-                  (profile?.username ?? "")
-                }
-                onClick={saveUsername}
-              >
-                Save username
-              </Button>
-              {uMsg ? (
-                <p className="ml-1 mt-2 text-xs text-muted">{uMsg}</p>
-              ) : null}
             </div>
             <div>
               <Textarea
@@ -314,31 +302,41 @@ export function Settings() {
                 maxLength={160}
                 rows={3}
               />
-              <div className="mt-1 flex items-center justify-between">
-                <span className="ml-1 text-xs text-faint">{bio.length}/160</span>
-              </div>
-              <Button
-                variant="secondary"
-                className="mt-2 w-full"
-                loading={savingBio}
-                disabled={bio.trim() === (profile?.bio ?? "")}
-                onClick={saveBio}
-              >
-                {bioSaved ? "Saved" : "Save bio"}
-              </Button>
+              <span className="ml-1 mt-1 block text-xs text-faint">
+                {bio.length}/160
+              </span>
             </div>
-            <div>
-              <p className="ml-1 text-sm text-muted">Email</p>
-              <p className="mt-1 ml-1 text-chalk">{session?.user.email}</p>
-            </div>
+
+            {uMsg ? <p className="ml-1 text-xs text-wide">{uMsg}</p> : null}
+
             <Button
-              variant="secondary"
               className="w-full"
-              onClick={() => navigate("/gym/select")}
+              loading={savingAccount}
+              disabled={!accountDirty}
+              onClick={saveAccount}
             >
-              Switch home gym
+              {accountSaved ? "Saved" : "Save changes"}
             </Button>
           </Card>
+
+          {/* Read-only / navigational rows, kept out of the editable card. */}
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3.5 shadow-card">
+              <span className="text-sm text-muted">Email</span>
+              <span className="truncate pl-3 text-sm text-chalk">
+                {session?.user.email}
+              </span>
+            </div>
+            <button
+              onClick={() => navigate("/gym/select")}
+              className="flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-3.5 text-left shadow-card transition active:scale-[0.99]"
+            >
+              <span className="text-sm font-semibold text-chalk">
+                Switch home gym
+              </span>
+              <ChevronRight size={16} className="text-faint" />
+            </button>
+          </div>
         </Section>
 
         <Section title="Ideas & feedback">
@@ -353,6 +351,17 @@ export function Settings() {
             >
               <Mail size={16} /> realklimb@gmail.com
             </a>
+            <a
+              href="https://instagram.com/theklimbapp"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 flex items-center justify-center gap-2 rounded-2xl border border-border bg-surface-2 py-3 text-sm font-bold text-chalk transition active:scale-[0.99]"
+            >
+              <AtSign size={16} className="text-accent" /> @theklimbapp
+            </a>
+            <p className="mt-2 text-center text-xs text-faint">
+              DM me on Instagram — I'll respond!
+            </p>
           </Card>
           <button
             onClick={() => navigate("/privacy")}

@@ -138,7 +138,7 @@ export function useLogClimb() {
       if (!near.ok) {
         setBusy(false);
         return setError(
-          near.error ?? "Get within range of your gym to log a climb.",
+          near.error ?? "Get within range of your gym to log a Klimb.",
         );
       }
       // 1) The route itself — yours, on your gym. Photo optional; without one

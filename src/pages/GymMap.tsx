@@ -312,6 +312,10 @@ export function GymMap() {
   const [gyms, setGyms] = useState<GymWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  // True while the search box is focused or has text — the floating chips get
+  // out of the way so the results list has the screen to itself.
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searching = searchFocused || query.trim().length > 0;
   const [selected, setSelected] = useState<GymWithCount | null>(null);
   const [saving, setSaving] = useState<"home" | "visit" | null>(null);
   // Gyms you've logged a send at — your "collected" gyms — plus what you've
@@ -678,6 +682,9 @@ export function GymMap() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            // Delay so a tap on a result registers before the chips return.
+            onBlur={() => window.setTimeout(() => setSearchFocused(false), 150)}
             placeholder="Search gym or city"
             className="h-12 w-full rounded-2xl bg-surface/95 pl-11 pr-4 text-chalk shadow-lg backdrop-blur placeholder:text-faint outline-none focus:ring-1 focus:ring-accent"
           />
@@ -709,8 +716,9 @@ export function GymMap() {
         </div>
       </div>
 
-      {/* Collection progress — how many gyms you've stamped */}
-      {!loading ? (
+      {/* Collection progress — how many gyms you've stamped. Hidden while
+          searching so it doesn't sit on top of the results list. */}
+      {!loading && !searching ? (
         <div className="absolute left-4 top-20 z-10">
           <div className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-bold text-chalk shadow-lg backdrop-blur">
             <Trophy size={14} style={{ color: "#ffc24b" }} />
@@ -728,8 +736,13 @@ export function GymMap() {
         </div>
       ) : null}
 
-      {/* Quick actions: passport, home, me — uniform width */}
-      <div className="absolute right-4 top-20 z-10 flex flex-col items-end gap-2 [&>button]:w-32 [&>button]:justify-center">
+      {/* Quick actions: passport, home, me — uniform width. Also hidden while
+          searching; the results list needs the whole screen. */}
+      <div
+        className={`absolute right-4 top-20 z-10 flex-col items-end gap-2 [&>button]:w-32 [&>button]:justify-center ${
+          searching ? "hidden" : "flex"
+        }`}
+      >
         <button
           onClick={() => navigate("/passport")}
           className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur transition active:scale-95"

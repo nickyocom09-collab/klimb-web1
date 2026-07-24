@@ -515,7 +515,7 @@ export function Onboarding() {
               loading={finishing}
               onClick={() => finish("/log")}
             >
-              Log my first climb
+              Log my first Klimb
             </Button>
           </div>
         </div>

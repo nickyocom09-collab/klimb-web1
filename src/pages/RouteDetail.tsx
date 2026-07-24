@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   Flag,
   Pencil,
-  Share2,
   Trash2,
   Trophy,
   Zap,
@@ -18,16 +17,7 @@ import { formatGrade, formatGymGrade } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
-import { ShareClimbSheet } from "../components/ShareClimbSheet";
-import type { ShareClimb, ShareOutcome } from "../lib/shareCard";
 import type { SendType } from "../lib/database.types";
-
-/** Map a stored send_type to the share card's outcome. */
-function shareOutcomeOf(t: SendType | null): ShareOutcome {
-  if (t === "flash") return "flash";
-  if (t === "topped") return "topped";
-  return "send";
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -57,7 +47,6 @@ export function RouteDetail() {
   const [myNote, setMyNote] = useState<string | null>(null);
   const [isProject, setIsProject] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -190,15 +179,6 @@ export function RouteDetail() {
         >
           <ChevronLeft size={22} />
         </button>
-        {isMine && hasSent ? (
-          <button
-            onClick={() => setShareOpen(true)}
-            aria-label="Share climb"
-            className="absolute right-3 top-3 rounded-full bg-bg/70 p-2 text-chalk backdrop-blur transition hover:text-accent"
-          >
-            <Share2 size={20} />
-          </button>
-        ) : null}
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-10 pt-5">
@@ -358,21 +338,6 @@ export function RouteDetail() {
             setLogOpen(false);
             await load();
           }}
-        />
-      ) : null}
-
-      {/* Share this climb */}
-      {shareOpen ? (
-        <ShareClimbSheet
-          climb={{
-            routeId: route.id,
-            photoUrl: route.photo_url,
-            gradeText: fmt(myGrade ?? route.gym_grade),
-            outcome: shareOutcomeOf(mySendType),
-            climbLabel: climbTypeLabel(route.climbing_type),
-            gymName: null,
-          } satisfies ShareClimb}
-          onClose={() => setShareOpen(false)}
         />
       ) : null}
 

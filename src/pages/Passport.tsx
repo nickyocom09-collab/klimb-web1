@@ -183,7 +183,7 @@ export function Passport() {
           <div style={{ ...S.barFill, width: `${pct}%` }} />
         </div>
         <p style={S.hint}>
-          A country unlocks the first time you log a climb at a gym there.
+          A country unlocks the first time you log a Klimb at a gym there.
         </p>
 
         {/* Grid by continent */}

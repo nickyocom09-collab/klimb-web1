@@ -20,7 +20,7 @@ type Step = {
 const STEPS: Step[] = [
   {
     key: "type",
-    title: "What did you climb?",
+    title: "What did you Klimb?",
     ready: () => true,
     render: (s) => (
       <ClimbTypePicker value={s.climbingType} onChange={s.changeType} />
