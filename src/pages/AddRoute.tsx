@@ -4,21 +4,19 @@ import { Camera, ImagePlus } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
-  CLIMB_TYPES,
   HOLD_COLORS,
   holdHex,
   MAX_ROUTES_PER_DAY,
-  WALL_SECTIONS,
   type ClimbType,
 } from "../lib/constants";
 import { pickerOptions, type GradeStyle } from "../lib/grades";
 import { AppHeader } from "../components/Layout";
-import { Button, ErrorText, Input, SlideTabs, Textarea } from "../components/ui";
+import { Button, ErrorText, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
+import { ClimbTypePicker } from "../components/log/ClimbTypePicker";
 
 const NOT_SURE = "Not sure";
 const NOT_SET = "Not set";
-const OTHER = "Other…";
 
 // Shown when a climb is logged without a photo — a quiet dark placeholder.
 const NO_PHOTO =
@@ -80,8 +78,6 @@ export function AddRoute() {
 
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
-  const [section, setSection] = useState("");
-  const [customSection, setCustomSection] = useState("");
   const [grade, setGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
   const [description, setDescription] = useState("");
@@ -128,11 +124,8 @@ export function AddRoute() {
     setGymGrade(null);
   }
 
-  const resolvedSection = section === OTHER ? customSection.trim() : section;
-
   function validate(): string | null {
     if (!holdColor) return "Pick the hold color.";
-    if (!resolvedSection) return "Choose or enter a wall section.";
     if (!targetGymId) return "No gym selected.";
     return null;
   }
@@ -219,7 +212,6 @@ export function AddRoute() {
           photo_url: photoUrl,
           video_url: null,
           hold_color: holdColor!,
-          wall_section: resolvedSection,
           climbing_type: climbingType,
           gym_grade: gymGrade,
           description: description.trim() || null,
@@ -257,7 +249,7 @@ export function AddRoute() {
         {/* Climbing type — sliding segmented */}
         <div>
           <p className="mb-2 ml-1 text-sm text-muted">Climbing type</p>
-          <SlideTabs value={climbingType} onChange={changeType} options={CLIMB_TYPES} />
+          <ClimbTypePicker value={climbingType} onChange={changeType} />
         </div>
 
         {/* Photo (required) */}
@@ -318,22 +310,6 @@ export function AddRoute() {
               />
               {holdColor} holds
             </div>
-          ) : null}
-
-          <Row label="Wall section">
-            <Dropdown
-              value={section || "Choose"}
-              options={[...WALL_SECTIONS, OTHER]}
-              onChange={setSection}
-              align="right"
-            />
-          </Row>
-          {section === OTHER ? (
-            <Input
-              value={customSection}
-              onChange={(e) => setCustomSection(e.target.value)}
-              placeholder="Name the section"
-            />
           ) : null}
 
           <Row label="Your grade guess">

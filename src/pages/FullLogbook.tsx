@@ -130,7 +130,7 @@ export function FullLogbook() {
                                 }}
                               />
                               <span className="truncate">
-                                {item.route.hold_color} · {item.route.wall_section}
+                                {item.route.hold_color}
                               </span>
                             </p>
                             {gym ? (

@@ -9,8 +9,13 @@
 // has a label in both systems, so a grade displays correctly regardless of
 // which scale it was submitted on.
 
-export type ClimbingType = "boulder" | "toprope";
+export type ClimbingType = "boulder" | "toprope" | "lead";
 export type GradeSystem = "american" | "european";
+
+/** Rope disciplines share the YDS / French scale (top rope + lead). */
+export function isRope(t: ClimbingType): boolean {
+  return t === "toprope" || t === "lead";
+}
 
 // --- Boulder ---------------------------------------------------------------
 // American: Hueco V-scale.
@@ -48,6 +53,8 @@ const SCALES: Record<
 > = {
   boulder: { american: BOULDER_AMERICAN, european: BOULDER_EUROPEAN },
   toprope: { american: TOPROPE_AMERICAN, european: TOPROPE_EUROPEAN },
+  // Lead uses the same rope scale as top rope.
+  lead: { american: TOPROPE_AMERICAN, european: TOPROPE_EUROPEAN },
 };
 
 /** Ordinal indices [0..n-1] available for a climbing type. */
@@ -139,7 +146,7 @@ export function gymGradeOptions(
   system: GradeSystem,
   style: GradeStyle,
 ): { value: number; label: string }[] {
-  if (type === "toprope" && system === "american") {
+  if (isRope(type) && system === "american") {
     return TOPROPE_GYM_PM.map((b) => ({ value: b.rep, label: b.label }));
   }
   if (style === "bands" && type === "boulder") {
@@ -156,7 +163,7 @@ export function formatGymGrade(
   style: GradeStyle,
 ): string {
   if (grade === null || grade === undefined) return "—";
-  if (type === "toprope" && system === "american") {
+  if (isRope(type) && system === "american") {
     const exact = TOPROPE_GYM_PM.find((b) => b.rep === grade);
     if (exact) return exact.label;
     // Any ordinal not landing exactly on a +/- rep: show the nearest one.

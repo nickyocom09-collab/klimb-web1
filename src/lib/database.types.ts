@@ -2,10 +2,10 @@
 // If you later run `supabase gen types`, you can replace this file.
 
 export type RouteStatus = "active" | "archived";
-export type ClimbingTypeEnum = "boulder" | "toprope";
+export type ClimbingTypeEnum = "boulder" | "toprope" | "lead";
 export type GradeSystemEnum = "american" | "european";
 export type ThemeEnum = "dark" | "light";
-export type ClimbFilterEnum = "all" | "boulder" | "toprope";
+export type ClimbFilterEnum = "all" | "boulder" | "toprope" | "lead";
 export type LogStyleEnum = "scroll" | "steps";
 export type GymStatus = "pending" | "approved";
 export type GradingStyle = "classic" | "bands";
@@ -178,7 +178,7 @@ export interface Database {
           photo_url: string;
           video_url: string | null;
           hold_color: string;
-          wall_section: string;
+          wall_section: string | null;
           climbing_type: ClimbingTypeEnum;
           description: string | null;
           gym_grade: number | null;
@@ -197,7 +197,7 @@ export interface Database {
           photo_url: string;
           video_url?: string | null;
           hold_color: string;
-          wall_section: string;
+          wall_section?: string | null;
           climbing_type?: ClimbingTypeEnum;
           description?: string | null;
           gym_grade?: number | null;
@@ -213,7 +213,7 @@ export interface Database {
           photo_url?: string;
           video_url?: string | null;
           hold_color?: string;
-          wall_section?: string;
+          wall_section?: string | null;
           climbing_type?: ClimbingTypeEnum;
           description?: string | null;
           gym_grade?: number | null;
@@ -369,6 +369,28 @@ export interface Database {
         };
         Update: {
           kind?: BookmarkKind;
+        };
+        Relationships: [];
+      };
+      climb_shares: {
+        Row: {
+          id: string;
+          route_id: string;
+          from_user: string;
+          to_user: string;
+          message: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          route_id: string;
+          from_user: string;
+          to_user: string;
+          message?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          message?: string | null;
         };
         Relationships: [];
       };

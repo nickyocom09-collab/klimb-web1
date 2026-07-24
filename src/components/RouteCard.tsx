@@ -47,7 +47,7 @@ export function RouteCard({
                 className="h-2.5 w-2.5 rounded-full border border-white/10"
                 style={{ backgroundColor: holdHex(route.hold_color) }}
               />
-              {route.hold_color} · {route.wall_section}
+              {route.hold_color}
             </p>
           </div>
         </div>
@@ -55,7 +55,7 @@ export function RouteCard({
         <div className="relative aspect-[4/3] w-full bg-surface-2">
           <FadeImg
             src={route.photo_url}
-            alt={`${route.hold_color} route on ${route.wall_section}`}
+            alt={`${route.hold_color} route`}
           />
           {route.video_url ? (
             <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-bg/80 px-2 py-1 backdrop-blur">

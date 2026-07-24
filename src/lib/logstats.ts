@@ -121,7 +121,6 @@ export type LogStats = {
   flashRate: number | null;
   thisWeek: number;
   lastWeek: number;
-  topWall: string | null;
   topColor: string | null;
   /** Consecutive weeks with at least one log. Weekly on purpose — nobody
    * climbs every day; one session a week keeps the flame alive. The current
@@ -234,7 +233,6 @@ export function computeLogStats(
         : null,
     thisWeek,
     lastWeek,
-    topWall: mode(logged.map((l) => l.route.wall_section)),
     topColor: mode(logged.map((l) => l.route.hold_color)),
     streakWeeks,
     streakDays,

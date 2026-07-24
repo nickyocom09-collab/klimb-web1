@@ -16,28 +16,25 @@ export function holdHex(name: string): string {
   return HOLD_COLORS.find((c) => c.name === name)?.hex ?? "#9A9AA2";
 }
 
-// Common wall sections — users can also type a custom one.
-export const WALL_SECTIONS = [
-  "Main Wall",
-  "Cave",
-  "Slab",
-  "Overhang",
-  "Arete",
-  "Roof",
-  "Corner",
-  "Spray Wall",
-];
-
 // Climbing type ------------------------------------------------------------
-export type ClimbType = "boulder" | "toprope";
+// Two umbrellas: rope (top rope + lead) and non-rope (boulder).
+export type ClimbType = "boulder" | "toprope" | "lead";
+
+// Is this a rope discipline? (drives grade scale + outcomes)
+export function isRopeType(t: ClimbType): boolean {
+  return t === "toprope" || t === "lead";
+}
 
 export const CLIMB_TYPES: { value: ClimbType; label: string }[] = [
   { value: "boulder", label: "Boulder" },
   { value: "toprope", label: "Top Rope" },
+  { value: "lead", label: "Lead" },
 ];
 
 export function climbTypeLabel(t: ClimbType): string {
-  return t === "toprope" ? "Top Rope" : "Boulder";
+  if (t === "toprope") return "Top Rope";
+  if (t === "lead") return "Lead";
+  return "Boulder";
 }
 
 // Feed filter (adds "All" on top of the climbing types) --------------------
@@ -47,15 +44,18 @@ export const CLIMB_FILTERS: { value: ClimbFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "boulder", label: "Boulder" },
   { value: "toprope", label: "Top Rope" },
+  { value: "lead", label: "Lead" },
 ];
 
 // Preferences --------------------------------------------------------------
+// Note: the stored value is still "european" for back-compat; the label shown
+// to users is "International" (the correct name for the Font/French scales).
 export type GradeSystemPref = "american" | "european";
 export type ThemePref = "dark" | "light";
 
 export const GRADE_SYSTEMS: { value: GradeSystemPref; label: string }[] = [
   { value: "american", label: "American" },
-  { value: "european", label: "European" },
+  { value: "european", label: "International" },
 ];
 
 export const THEMES: { value: ThemePref; label: string }[] = [

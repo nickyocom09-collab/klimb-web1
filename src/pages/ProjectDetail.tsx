@@ -200,7 +200,7 @@ export function ProjectDetail() {
       <div className="relative">
         <img
           src={route.photo_url}
-          alt={`${route.hold_color} route on ${route.wall_section}`}
+          alt={`${route.hold_color} route`}
           className="aspect-[16/10] w-full object-cover"
         />
         <button
@@ -234,7 +234,7 @@ export function ProjectDetail() {
               <div>
                 <p className="text-lg font-bold text-chalk">{route.hold_color}</p>
                 <p className="text-sm text-muted">
-                  {route.wall_section} · {climbTypeLabel(route.climbing_type)}
+                  {climbTypeLabel(route.climbing_type)}
                 </p>
               </div>
             </div>

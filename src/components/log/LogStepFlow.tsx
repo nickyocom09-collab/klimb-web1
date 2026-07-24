@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, ImagePlus } from "lucide-react";
-import { CLIMB_TYPES, HOLD_COLORS, holdHex, WALL_SECTIONS } from "../../lib/constants";
-import { NOT_SET, OTHER, type LogClimbState } from "../../lib/useLogClimb";
-import { Button, ErrorText, Input, SlideTabs, Textarea } from "../ui";
-import { Dropdown } from "../Dropdown";
+import { HOLD_COLORS, holdHex } from "../../lib/constants";
+import { type LogClimbState } from "../../lib/useLogClimb";
+import { Button, ErrorText, Textarea } from "../ui";
 import { GradePicker } from "../GradePicker";
 import { Stars } from "../Stars";
+import { ClimbTypePicker } from "./ClimbTypePicker";
 
 type Step = {
   key: string;
@@ -23,7 +23,7 @@ const STEPS: Step[] = [
     title: "What did you climb?",
     ready: () => true,
     render: (s) => (
-      <SlideTabs value={s.climbingType} onChange={s.changeType} options={CLIMB_TYPES} />
+      <ClimbTypePicker value={s.climbingType} onChange={s.changeType} />
     ),
   },
   {
@@ -122,58 +122,42 @@ const STEPS: Step[] = [
     ),
   },
   {
-    key: "section",
-    title: "Which wall?",
-    ready: (s) => !!s.resolvedSection,
-    render: (s) => (
-      <div className="flex flex-col gap-3">
-        <div className="grid grid-cols-2 gap-2.5">
-          {[...WALL_SECTIONS, OTHER].map((w) => {
-            const on = s.section === w;
-            return (
-              <button
-                key={w}
-                type="button"
-                onClick={() => s.setSection(w)}
-                className={`rounded-2xl border px-3 py-3.5 text-sm font-semibold transition ${
-                  on
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border bg-surface-2 text-muted hover:text-chalk"
-                }`}
-              >
-                {w}
-              </button>
-            );
-          })}
-        </div>
-        {s.section === OTHER ? (
-          <Input
-            value={s.customSection}
-            onChange={(e) => s.setCustomSection(e.target.value)}
-            placeholder="Name the section"
-          />
-        ) : null}
-      </div>
-    ),
-  },
-  {
     key: "gymGrade",
     title: "What's the gym's grade?",
     hint: "Optional — the tag on the wall, if it has one.",
     optional: true,
     ready: () => true,
     render: (s) => (
-      <Dropdown
-        value={s.gymGradeLabel}
-        options={[NOT_SET, ...s.gymGradeOpts.map((o) => o.label)]}
-        onChange={(l) =>
-          s.setGymGrade(
-            l === NOT_SET
-              ? null
-              : s.gymGradeOpts.find((o) => o.label === l)?.value ?? null,
-          )
-        }
-      />
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-4 gap-2">
+          {s.gymGradeOpts.map((o) => {
+            const on = s.gymGrade === o.value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => s.setGymGrade(on ? null : o.value)}
+                className={`h-11 rounded-xl border text-sm font-bold transition ${
+                  on
+                    ? "border-accent bg-accent text-bg"
+                    : "border-border bg-surface-2 text-muted hover:text-chalk"
+                }`}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => s.setGymGrade(null)}
+          className={`self-center text-sm font-semibold transition ${
+            s.gymGrade === null ? "text-accent" : "text-faint hover:text-chalk"
+          }`}
+        >
+          This climb isn't tagged
+        </button>
+      </div>
     ),
   },
   {

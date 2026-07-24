@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
-import { type ClimbType } from "./constants";
+import { isRopeType, type ClimbType } from "./constants";
 import {
   gymGradeOptions,
   pickerOptions,
@@ -25,7 +25,7 @@ export type OutcomeOption = {
 export function outcomesFor(type: ClimbType): OutcomeOption[] {
   const flash: OutcomeOption = { value: "flash", label: "Flash", hint: "First try" };
   const project: OutcomeOption = { value: "project", label: "Project", hint: "Working it" };
-  if (type === "toprope") {
+  if (isRopeType(type)) {
     return [
       flash,
       { value: "send", label: "Sent", hint: "No falls" },
@@ -63,8 +63,6 @@ export function useLogClimb() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
-  const [section, setSection] = useState("");
-  const [customSection, setCustomSection] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
@@ -96,7 +94,6 @@ export function useLogClimb() {
       : gymGradeOpts.find((o) => o.value === gymGrade)?.label ??
         feltOpts.find((o) => o.value === gymGrade)?.label ??
         NOT_SET;
-  const resolvedSection = section === OTHER ? customSection.trim() : section;
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -111,13 +108,12 @@ export function useLogClimb() {
     setFeltGrade(null);
     setGymGrade(null);
     // "Topped" only exists for rope climbs — drop it if switching to boulder.
-    if (t !== "toprope" && outcome === "topped") setOutcome(null);
+    if (!isRopeType(t) && outcome === "topped") setOutcome(null);
   }
 
   async function save() {
     // Validate quietly and inline — no popups mid-form. Photo is optional.
     if (!holdColor) return setError("Pick the hold color.");
-    if (!resolvedSection) return setError("Choose or enter a wall section.");
     if (!outcome) return setError("How'd it go? Flash, Sent, or Project.");
     if (!gymId || !profile) return setError("Pick a home gym first.");
     setError(null);
@@ -148,7 +144,6 @@ export function useLogClimb() {
           gym_id: gymId,
           photo_url: photoUrl,
           hold_color: holdColor,
-          wall_section: resolvedSection,
           climbing_type: climbingType,
           gym_grade: gymGrade,
           created_by: profile.id,
@@ -211,8 +206,10 @@ export function useLogClimb() {
       // The reward moment lives HERE, on the initial log.
       setBusy(false);
       setReward(outcome);
-      const dest = outcome === "project" ? `/project/${route.id}` : "/";
-      setTimeout(() => navigate(dest, { replace: true }), 1200);
+      // Projects and sends both drop you back Home after the reward — a project
+      // is saved to your list, not "completed," so we don't shove the user onto
+      // the project's Complete-it screen right after creating it.
+      setTimeout(() => navigate("/", { replace: true }), 1200);
     } catch (err) {
       setBusy(false);
       setError(err instanceof Error ? err.message : "Couldn't save the climb.");
@@ -232,8 +229,6 @@ export function useLogClimb() {
     photoPreview,
     climbingType,
     holdColor,
-    section,
-    customSection,
     outcome,
     feltGrade,
     gymGrade,
@@ -244,8 +239,6 @@ export function useLogClimb() {
     reward,
     // setters
     setHoldColor,
-    setSection,
-    setCustomSection,
     setOutcome,
     setFeltGrade,
     setGymGrade,
@@ -256,7 +249,6 @@ export function useLogClimb() {
     gymGradeOpts,
     outcomeOptions,
     gymGradeLabel,
-    resolvedSection,
     // actions
     onPickPhoto,
     changeType,

@@ -164,7 +164,7 @@ export function LogSheet({
               <span className="truncate">{route.hold_color}</span>
             </p>
             <p className="truncate text-sm text-muted">
-              {route.wall_section} · {climbTypeLabel(route.climbing_type)}
+              {climbTypeLabel(route.climbing_type)}
             </p>
           </div>
           <button

@@ -61,10 +61,10 @@ export function Friends() {
     if (routeIds.length > 0) {
       const { data: rs } = await supabase
         .from("routes")
-        .select("id, hold_color, wall_section")
+        .select("id, hold_color")
         .in("id", routeIds);
       for (const r of rs ?? [])
-        labelMap.set(r.id, `${r.hold_color} · ${r.wall_section}`);
+        labelMap.set(r.id, `${r.hold_color}`);
     }
     const out = new Map<string, string>();
     for (const f of list) {

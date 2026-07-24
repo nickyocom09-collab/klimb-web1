@@ -1,6 +1,10 @@
 import { supabase } from "./supabase";
 
-export type NotificationKind = "friend_request" | "friend_accept" | "recap";
+export type NotificationKind =
+  | "friend_request"
+  | "friend_accept"
+  | "recap"
+  | "climb_share";
 
 export type Notification = {
   id: string;
@@ -30,7 +34,7 @@ export async function fetchNotifications(
   const cleared = clearedAt ? new Date(clearedAt).getTime() : 0;
   const notes: Notification[] = [];
 
-  const [{ data: requests }, { data: accepts }, { data: recaps }] =
+  const [{ data: requests }, { data: accepts }, { data: recaps }, { data: shares }] =
     await Promise.all([
       supabase
         .from("friendships")
@@ -53,11 +57,18 @@ export async function fetchNotifications(
         .eq("period", "weekly")
         .order("generated_at", { ascending: false })
         .limit(8),
+      supabase
+        .from("climb_shares")
+        .select("id, route_id, from_user, created_at")
+        .eq("to_user", userId)
+        .order("created_at", { ascending: false })
+        .limit(limit),
     ]);
 
   const actorIds = new Set<string>([
     ...(requests ?? []).map((f) => f.requester_id),
     ...(accepts ?? []).map((f) => f.addressee_id),
+    ...(shares ?? []).map((s) => s.from_user),
   ]);
   const nameMap = new Map<string, string>();
   if (actorIds.size > 0) {
@@ -98,6 +109,16 @@ export async function fetchNotifications(
       createdAt: r.generated_at,
       // Unread until you've actually watched it.
       unread: !r.seen_at,
+    });
+  }
+  for (const s of shares ?? []) {
+    notes.push({
+      id: `share-${s.id}`,
+      kind: "climb_share",
+      text: `${name(s.from_user)} shared a climb with you 🧗`,
+      link: `/route/${s.route_id}`,
+      createdAt: s.created_at,
+      unread: new Date(s.created_at).getTime() > seen,
     });
   }
 

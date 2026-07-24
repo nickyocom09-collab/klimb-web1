@@ -9,6 +9,7 @@ import {
   Flag,
   Plus,
   RotateCcw,
+  Share2,
   Sparkles,
   TrendingUp,
   Trophy,
@@ -34,7 +35,32 @@ import { climbTypeLabel, holdHex } from "../lib/constants";
 import { fetchNotifications } from "../lib/notifications";
 import { AppHeader } from "../components/Layout";
 import { WeeklyRecap } from "../components/WeeklyRecap";
+import { ShareClimbSheet } from "../components/ShareClimbSheet";
+import type { ShareClimb, ShareOutcome } from "../lib/shareCard";
 import { Button, CenterSpinner } from "../components/ui";
+
+/** Build the share payload for a logged climb (skips plain attempts). */
+function buildShareClimb(
+  route: RouteWithStats,
+  system: "american" | "european",
+  outcome: ShareOutcome,
+): ShareClimb {
+  // Prefer the climber's own felt grade; fall back to the gym's tag.
+  const felt =
+    route.gradeValues.length > 0
+      ? route.gradeValues.slice().sort((a, b) => a - b)[
+          Math.floor(route.gradeValues.length / 2)
+        ]
+      : route.gym_grade;
+  return {
+    routeId: route.id,
+    photoUrl: route.photo_url,
+    gradeText: formatGradeStyled(felt, route.climbing_type, system, route.gradingStyle),
+    outcome,
+    climbLabel: climbTypeLabel(route.climbing_type),
+    gymName: null,
+  };
+}
 import type { RouteWithStats } from "../lib/routes";
 
 function fmt(iso: string): string {
@@ -71,6 +97,7 @@ export function Sends() {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [latestRecap, setLatestRecap] = useState<RecapRow | null>(null);
   const [story, setStory] = useState<RecapRow | null>(null);
+  const [shareTarget, setShareTarget] = useState<ShareClimb | null>(null);
   const [unread, setUnread] = useState(0);
   const [gymName, setGymName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -358,6 +385,16 @@ export function Sends() {
                           }
                           sub={fmt(item.date)}
                           note={item.note}
+                          share={
+                            item.sendType === "attempt"
+                              ? undefined
+                              : buildShareClimb(
+                                  item.route,
+                                  system,
+                                  item.sendType === "flash" ? "flash" : "send",
+                                )
+                          }
+                          onShare={setShareTarget}
                         />
                       ))}
                     </ul>
@@ -379,6 +416,8 @@ export function Sends() {
                     sub={fmt(item.date)}
                     note={item.note}
                     onSent={() => upgradeToSend(item.route.id)}
+                    share={buildShareClimb(item.route, system, "topped")}
+                    onShare={setShareTarget}
                   />
                 ))}
               </ul>
@@ -410,6 +449,10 @@ export function Sends() {
 
       {story ? (
         <WeeklyRecap recap={story} system={system} onClose={() => setStory(null)} />
+      ) : null}
+
+      {shareTarget ? (
+        <ShareClimbSheet climb={shareTarget} onClose={() => setShareTarget(null)} />
       ) : null}
 
       {/* "I sent this" celebration — quick, satisfying, then it's gone. */}
@@ -495,6 +538,8 @@ function ToppedRow({
   sub,
   note,
   onSent,
+  share,
+  onShare,
 }: {
   route: RouteWithStats;
   system: "american" | "european";
@@ -502,11 +547,22 @@ function ToppedRow({
   sub: string;
   note?: string | null;
   onSent: () => void;
+  share?: ShareClimb;
+  onShare?: (c: ShareClimb) => void;
 }) {
   const grade = route.gym_grade;
   return (
     <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
-      <div className="animate-fade-up rounded-2xl bg-surface p-3 shadow-card">
+      <div className="relative animate-fade-up rounded-2xl bg-surface p-3 shadow-card">
+        {share && onShare ? (
+          <button
+            onClick={() => onShare(share)}
+            aria-label="Share climb"
+            className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-2 text-muted transition hover:text-accent"
+          >
+            <Share2 size={15} />
+          </button>
+        ) : null}
         <Link
           to={`/route/${route.id}`}
           className="flex items-center gap-3 transition active:scale-[0.99]"
@@ -523,7 +579,7 @@ function ToppedRow({
                 style={{ backgroundColor: holdHex(route.hold_color) }}
               />
               <span className="truncate">
-                {route.hold_color} · {route.wall_section}
+                {route.hold_color}
               </span>
             </p>
             <div className="mt-1 flex items-center gap-2">
@@ -564,6 +620,8 @@ function RowLink({
   sub,
   note,
   to,
+  share,
+  onShare,
 }: {
   route: RouteWithStats;
   system: "american" | "european";
@@ -573,10 +631,13 @@ function RowLink({
   note?: string | null;
   /** Override destination (projects open their journal, not the route). */
   to?: string;
+  /** When set, a share button appears that opens the share sheet. */
+  share?: ShareClimb;
+  onShare?: (c: ShareClimb) => void;
 }) {
   const grade = route.gym_grade;
   return (
-    <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
+    <li className="relative" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
       <Link
         to={to ?? `/route/${route.id}`}
         className="flex animate-fade-up items-center gap-3 rounded-2xl bg-surface p-3 shadow-card transition active:scale-[0.99]"
@@ -592,9 +653,7 @@ function RowLink({
               className="h-3 w-3 shrink-0 rounded-full border border-white/10"
               style={{ backgroundColor: holdHex(route.hold_color) }}
             />
-            <span className="truncate">
-              {route.hold_color} · {route.wall_section}
-            </span>
+            <span className="truncate">{route.hold_color}</span>
             {route.status === "archived" ? (
               <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-faint">
                 Archived
@@ -609,7 +668,7 @@ function RowLink({
             <p className="mt-1 truncate text-xs italic text-faint">"{note}"</p>
           ) : null}
         </div>
-        <div className="shrink-0 text-right">
+        <div className="shrink-0 pr-8 text-right">
           <p className="text-lg font-extrabold leading-none text-accent">
             {formatGradeStyled(grade, route.climbing_type, system, route.gradingStyle)}
           </p>
@@ -618,6 +677,15 @@ function RowLink({
           </p>
         </div>
       </Link>
+      {share && onShare ? (
+        <button
+          onClick={() => onShare(share)}
+          aria-label="Share climb"
+          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-surface-2 text-muted transition hover:text-accent"
+        >
+          <Share2 size={15} />
+        </button>
+      ) : null}
     </li>
   );
 }

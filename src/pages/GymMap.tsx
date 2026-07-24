@@ -397,15 +397,14 @@ export function GymMap() {
       const { data: routeRows } = await supabase
         .from("routes")
         .select(
-          "id, gym_id, hold_color, wall_section, climbing_type, gym_grade, gyms(grading_style)",
+          "id, gym_id, hold_color, climbing_type, gym_grade, gyms(grading_style)",
         )
         .in("id", allRouteIds);
       type RR = {
         id: string;
         gym_id: string;
         hold_color: string;
-        wall_section: string;
-        climbing_type: "boulder" | "toprope";
+        climbing_type: "boulder" | "toprope" | "lead";
         gym_grade: number | null;
         gyms: { grading_style: "classic" | "bands" } | null;
       };
@@ -473,7 +472,7 @@ export function GymMap() {
         const r = routeMap.get(b.route_id);
         if (!r) continue;
         const list = projects.get(r.gym_id) ?? [];
-        list.push(`${r.hold_color} · ${r.wall_section}`);
+        list.push(`${r.hold_color}`);
         projects.set(r.gym_id, list);
       }
 

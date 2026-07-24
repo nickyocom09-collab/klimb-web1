@@ -1,10 +1,11 @@
 import { Camera, ImagePlus } from "lucide-react";
-import { CLIMB_TYPES, HOLD_COLORS, holdHex, WALL_SECTIONS } from "../../lib/constants";
-import { NOT_SET, OTHER, type LogClimbState } from "../../lib/useLogClimb";
-import { Button, ErrorText, Input, SlideTabs, Textarea } from "../ui";
+import { HOLD_COLORS, holdHex } from "../../lib/constants";
+import { NOT_SET, type LogClimbState } from "../../lib/useLogClimb";
+import { Button, ErrorText, Textarea } from "../ui";
 import { Dropdown } from "../Dropdown";
 import { GradePicker } from "../GradePicker";
 import { Stars } from "../Stars";
+import { ClimbTypePicker } from "./ClimbTypePicker";
 import { OUTCOME_ICON } from "./outcomeIcon";
 
 /** The original one-screen log form: every field on a single scroll. */
@@ -14,7 +15,7 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
       {/* Boulder or rope? First choice — it drives the outcomes and grades. */}
       <div>
         <p className="mb-2 ml-1 text-sm text-muted">Type of climb</p>
-        <SlideTabs value={s.climbingType} onChange={s.changeType} options={CLIMB_TYPES} />
+        <ClimbTypePicker value={s.climbingType} onChange={s.changeType} />
       </div>
 
       {/* How'd it go? The heart of the log. */}
@@ -106,21 +107,6 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
             />
             {s.holdColor} holds
           </div>
-        ) : null}
-        <Row label="Wall section">
-          <Dropdown
-            value={s.section || "Choose"}
-            options={[...WALL_SECTIONS, OTHER]}
-            onChange={s.setSection}
-            align="right"
-          />
-        </Row>
-        {s.section === OTHER ? (
-          <Input
-            value={s.customSection}
-            onChange={(e) => s.setCustomSection(e.target.value)}
-            placeholder="Name the section"
-          />
         ) : null}
         <Row label="Gym's grade">
           <Dropdown
