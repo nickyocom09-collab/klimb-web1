@@ -564,13 +564,18 @@ export function WeeklyRecap({
     }, "image/png");
   };
 
+  // Primary "Share" — open the native OS share sheet directly so the chooser
+  // (Instagram, Messenger, Messages, Save…) always appears. We intentionally do
+  // NOT auto-jump into Instagram Stories here: the user asked for the chooser.
   const shareStory = async () => {
     const canvas = buildStoryCanvas(arch, week);
     const shareText = "This week I was " + arch.label + " 🧗";
+    await shareViaSheet(canvas, shareText);
+  };
 
-    // iOS + Instagram installed + we have a Facebook App ID configured:
-    // hand the image straight to Instagram's Stories composer (Strava-style
-    // one-tap share) instead of the generic OS share sheet.
+  // Optional one-tap Instagram Stories (kept for a dedicated IG button).
+  const shareToInstagram = async () => {
+    const canvas = buildStoryCanvas(arch, week);
     if (Capacitor.getPlatform() === "ios" && FACEBOOK_APP_ID) {
       try {
         const { available } = await InstagramStories.isAvailable();
@@ -582,11 +587,10 @@ export function WeeklyRecap({
           return;
         }
       } catch {
-        // Fall through to the generic share sheet below.
+        /* fall through to the generic sheet */
       }
     }
-
-    await shareViaSheet(canvas, shareText);
+    await shareViaSheet(canvas, "This week I was " + arch.label + " 🧗");
   };
 
   const shareViaMessage = async () => {
@@ -697,15 +701,18 @@ export function WeeklyRecap({
             <div style={S.cardInner}>
               <div style={S.kicker}>THAT'S A WRAP</div>
               <h2 style={S.wrapTitle}>Your {periodWord}, sent.</h2>
-              <div style={S.shareRow}>
-                <button style={S.shareBtn} onClick={(e) => { e.stopPropagation(); shareStory(); }}>
-                  <Share2 size={16} /> Share recap
+              <button style={{ ...S.shareBtn, width: "100%" }} onClick={(e) => { e.stopPropagation(); shareStory(); }}>
+                <Share2 size={16} /> Share
+              </button>
+              <div style={{ ...S.shareRow, marginTop: 10 }}>
+                <button style={S.shareBtnSecondary} onClick={(e) => { e.stopPropagation(); shareToInstagram(); }}>
+                  <Camera size={16} /> Instagram
                 </button>
                 <button style={S.shareBtnSecondary} onClick={(e) => { e.stopPropagation(); shareViaMessage(); }}>
                   <MessageCircle size={16} /> Message
                 </button>
               </div>
-              <p style={S.shareHelp}>Generates a story image — share to Instagram or send it as a text.</p>
+              <p style={S.shareHelp}>Tap Share to send it to Instagram, Messenger, Messages, and more.</p>
             </div>
           </div>
         )}

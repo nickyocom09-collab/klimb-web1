@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Check,
@@ -70,6 +70,13 @@ export function Onboarding() {
   const [openState, setOpenState] = useState<string | null>(null);
   const [openCountry, setOpenCountry] = useState<string | null>(null);
 
+  // Jump the list back to the top whenever we drill into a country/state or
+  // search, so you never land mid-scroll on a fresh list.
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: 0 });
+  }, [openCountry, openState, query]);
+
   useEffect(() => {
     let active = true;
     supabase
@@ -114,7 +121,12 @@ export function Onboarding() {
     }
     return [...m.entries()]
       .map(([cc, v]) => ({ cc, ...v }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => {
+        // United States always first, then alphabetical.
+        if (a.cc === "us") return -1;
+        if (b.cc === "us") return 1;
+        return a.name.localeCompare(b.name);
+      });
   }, [gyms]);
 
   const statesInCountry = useMemo(() => {
@@ -366,7 +378,7 @@ export function Onboarding() {
             />
           </div>
 
-          <div className="-mx-6 mt-3 flex-1 overflow-y-auto px-6">
+          <div ref={listRef} className="-mx-6 mt-3 flex-1 overflow-y-auto px-6">
             {gymsLoading ? (
               <CenterSpinner />
             ) : q ? (
