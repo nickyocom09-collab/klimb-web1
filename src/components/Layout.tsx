@@ -42,14 +42,16 @@ export function Layout() {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-app px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-        {/* Liquid-glass hot bar: translucent, heavy blur + saturation, with a
-            soft top highlight so it reads like frosted glass floating over the
-            content. */}
-        <div className="relative flex items-center justify-between gap-1 overflow-hidden rounded-full border border-white/10 bg-surface/50 px-2 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-2xl backdrop-saturate-150">
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
-          />
+        {/* Fade the page out behind the floating bar. Without this, content
+            scrolling past shows through the transparent gap around the pill. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[140%] bg-gradient-to-t from-bg via-bg to-transparent"
+        />
+        {/* Near-opaque bar. It floats over the content, so it has to actually
+            hide what scrolls beneath it — a translucent version let page
+            content and map pins read through and looked broken. */}
+        <div className="flex items-center justify-between gap-1 rounded-full border border-border bg-surface/95 px-2 py-2 shadow-lg backdrop-blur">
           {tabs.map(({ to, label, Icon, end, hero }) =>
             hero ? (
               <NavLink

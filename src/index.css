@@ -63,8 +63,17 @@
        light/dark can never leave a bar of the previous colour at the top. */
     background-color: rgb(var(--c-bg));
   }
+  /* Hide scroll indicators everywhere. `width: 0` alone still let a track show
+     through on iOS, so also kill it outright and cover the non-WebKit
+     properties. Scrolling itself is unaffected. */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* old Edge/IE */
+  }
   ::-webkit-scrollbar {
+    display: none;
     width: 0;
+    height: 0;
     background: transparent;
   }
   /* iOS Safari zooms the page when focusing a control whose font is under
