@@ -67,7 +67,7 @@ const STEPS: Step[] = [
         />
         <button
           type="button"
-          onClick={() => s.photoRef.current?.click()}
+          onClick={s.pickPhoto}
           className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-3xl bg-surface-2 text-faint"
         >
           {s.photoPreview ? (
@@ -82,7 +82,7 @@ const STEPS: Step[] = [
         {s.photoPreview ? (
           <button
             type="button"
-            onClick={() => s.photoRef.current?.click()}
+            onClick={s.pickPhoto}
             className="mt-3 flex items-center gap-1 text-sm text-accent"
           >
             <Camera size={15} /> Change photo

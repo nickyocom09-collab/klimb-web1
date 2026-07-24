@@ -66,7 +66,7 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
         />
         <button
           type="button"
-          onClick={() => s.photoRef.current?.click()}
+          onClick={s.pickPhoto}
           className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-3xl bg-surface-2 text-faint"
         >
           {s.photoPreview ? (
@@ -81,7 +81,7 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
         {s.photoPreview ? (
           <button
             type="button"
-            onClick={() => s.photoRef.current?.click()}
+            onClick={s.pickPhoto}
             className="mt-2 flex items-center gap-1 text-sm text-accent"
           >
             <Camera size={15} /> Change photo

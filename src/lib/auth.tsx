@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 import { supabase } from "./supabase";
 import type { Database, UserRow } from "./database.types";
 import { applyTheme } from "./theme";
@@ -235,9 +237,26 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
             return { error: message };
           }
         }
-        // Everyone else (Google, and Apple on web): OAuth is a full-page
-        // redirect; on return, onAuthStateChange picks up the session and
-        // ensureProfile creates the profile if it's new.
+        // Everyone else (Google, and Apple on web).
+        if (Capacitor.isNativePlatform()) {
+          // On device, DON'T let Supabase navigate the WebView to Google —
+          // that kicks the user out to Safari. Instead get the URL and open it
+          // in an in-app browser (SFSafariViewController). The klimb://
+          // deep-link handler catches the ?code= return, exchanges it for a
+          // session, and closes this browser.
+          const { data, error } = await supabase.auth.signInWithOAuth({
+            provider,
+            options: {
+              redirectTo: authRedirectUrl(),
+              skipBrowserRedirect: true,
+            },
+          });
+          if (error) return { error: error.message };
+          if (data?.url) await Browser.open({ url: data.url });
+          return { error: null };
+        }
+        // Web: a normal full-page redirect; onAuthStateChange picks up the
+        // session on return.
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
           options: { redirectTo: authRedirectUrl() },

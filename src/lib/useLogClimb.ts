@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
 import { isRopeType, type ClimbType } from "./constants";
@@ -105,12 +107,52 @@ export function useLogClimb() {
         feltOpts.find((o) => o.value === gymGrade)?.label ??
         NOT_SET;
 
+  // Web path: the hidden <input type="file"> change handler.
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
     setError(null);
     setPhoto(f);
     setPhotoPreview(URL.createObjectURL(f));
+  }
+
+  /**
+   * Add a photo. On device we use the native Camera plugin, which shows a
+   * "Take Photo / Choose from Library" action sheet — this replaces the
+   * WKWebView file input that was crashing the app. On web we just trigger
+   * the hidden file input.
+   */
+  async function pickPhoto() {
+    if (!Capacitor.isNativePlatform()) {
+      photoRef.current?.click();
+      return;
+    }
+    setError(null);
+    try {
+      const shot = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        // Prompt lets the user pick camera OR photo library from one sheet.
+        source: CameraSource.Prompt,
+        promptLabelHeader: "Add a photo",
+        promptLabelPhoto: "Choose from Library",
+        promptLabelPicture: "Take Photo",
+      });
+      if (!shot.dataUrl) return;
+      // Turn the data URL into a File so the existing upload path is unchanged.
+      const blob = await (await fetch(shot.dataUrl)).blob();
+      const ext = shot.format || "jpg";
+      const file = new File([blob], `photo.${ext}`, {
+        type: blob.type || `image/${ext}`,
+      });
+      setPhoto(file);
+      setPhotoPreview(shot.dataUrl);
+    } catch (err) {
+      // The plugin throws on cancel — treat that as a no-op, surface real errors.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/cancel/i.test(msg)) setError("Couldn't add that photo — try again.");
+    }
   }
 
   function changeType(t: ClimbType) {
@@ -273,6 +315,7 @@ export function useLogClimb() {
     gymGradeLabel,
     // actions
     onPickPhoto,
+    pickPhoto,
     changeType,
     save,
   };

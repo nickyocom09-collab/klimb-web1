@@ -1,5 +1,6 @@
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 import { supabase } from "./supabase";
 
 /**
@@ -55,6 +56,9 @@ export function setupDeepLinks(navigate: (path: string) => void) {
         // storage when signInWithOAuth kicked things off).
         await supabase.auth.exchangeCodeForSession(code);
       }
+
+      // OAuth ran in the in-app browser — close it now that we're back.
+      Browser.close().catch(() => {});
 
       navigate(parsed.pathname.includes("reset-password") || type === "recovery"
         ? "/reset-password"
