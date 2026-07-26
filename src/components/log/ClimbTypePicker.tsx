@@ -1,4 +1,4 @@
-import { Mountain, Cable } from "lucide-react";
+import { Mountain, Route } from "lucide-react";
 import { isRopeType, type ClimbType } from "../../lib/constants";
 import { SlideTabs } from "../ui";
 
@@ -27,7 +27,7 @@ export function ClimbTypePicker({
         />
         <Umbrella
           active={rope}
-          icon={Cable}
+          icon={Route}
           label="Rope"
           sub="Top rope or lead"
           // Default a fresh rope pick to top rope; keep the current rope

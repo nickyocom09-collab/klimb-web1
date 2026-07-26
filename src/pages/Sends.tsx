@@ -6,12 +6,10 @@ import {
   Check,
   ChevronRight,
   Clapperboard,
-  Flag,
   Plus,
   RotateCcw,
   Sparkles,
   TrendingUp,
-  Trophy,
   Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -74,11 +72,7 @@ export function Sends() {
   const [unread, setUnread] = useState(0);
   const [gymName, setGymName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"logged" | "topped" | "projecting">(
-    "logged",
-  );
-  // Little celebration when a topped climb graduates to a clean send.
-  const [celebrate, setCelebrate] = useState(false);
+  const [view, setView] = useState<"logged" | "projecting">("logged");
 
   // The home logbook is scoped to the gym you're currently at — your home
   // gym, or a gym you're visiting. Your *complete* logbook (every gym) lives
@@ -100,33 +94,10 @@ export function Sends() {
     [projects, activeGymId],
   );
 
-  // Topped climbs (reached the top, but with falls) live apart from clean
-  // sends — they're a to-do, not a trophy, until you go back for the send.
   const cleanSends = useMemo(
     () => scopedLogged.filter((l) => l.sendType !== "topped"),
     [scopedLogged],
   );
-  const toppedItems = useMemo(
-    () => scopedLogged.filter((l) => l.sendType === "topped"),
-    [scopedLogged],
-  );
-
-  // Upgrade a topped climb to a clean send — the "I sent this" button.
-  async function upgradeToSend(routeId: string) {
-    if (!profile) return;
-    setCelebrate(true);
-    window.setTimeout(() => setCelebrate(false), 1600);
-    setLogged((prev) =>
-      prev.map((l) =>
-        l.route.id === routeId ? { ...l, sendType: "send" } : l,
-      ),
-    );
-    await supabase
-      .from("sends")
-      .update({ send_type: "send" })
-      .eq("user_id", profile.id)
-      .eq("route_id", routeId);
-  }
 
   useEffect(() => {
     if (!profile) return;
@@ -199,12 +170,12 @@ export function Sends() {
     <div>
       <AppHeader
         title={
-          view === "logged" ? "Sends" : view === "topped" ? "Topped" : "Projects"
+          view === "logged" ? "Sends" : "Projects"
         }
         subtitle={
           gymName
-            ? `Climbing out of ${gymName}${isVisiting ? " (visiting)" : ""}`
-            : "Your climbing history"
+            ? `Klimbing out of ${gymName}${isVisiting ? " (visiting)" : ""}`
+            : "Your Klimbing history"
         }
         right={
           <button
@@ -259,7 +230,7 @@ export function Sends() {
                 </p>
                 <p className="mt-1 text-lg font-extrabold text-chalk">
                   Your {latestRecap.period === "weekly" ? "week" : "month"} in
-                  climbing is in 🎬
+                  Klimbing is in 🎬
                 </p>
               </button>
             ) : (
@@ -304,7 +275,7 @@ export function Sends() {
           {/* View toggle */}
           <div className="px-5 py-4">
             <div className="flex gap-1 rounded-full bg-surface-2 p-1">
-              {(["logged", "topped", "projecting"] as const).map((v) => (
+              {(["logged", "projecting"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -316,9 +287,7 @@ export function Sends() {
                 >
                   {v === "logged"
                     ? "Sends"
-                    : v === "topped"
-                      ? "Topped"
-                      : "Projects"}
+                    : "Projects"}
                 </button>
               ))}
             </div>
@@ -365,24 +334,6 @@ export function Sends() {
                 ))}
               </div>
             )
-          ) : view === "topped" ? (
-            toppedItems.length === 0 ? (
-              <Empty text="No topped climbs. When you reach the top with falls, it lands here — go back for the clean send." />
-            ) : (
-              <ul className="flex flex-col gap-2 px-5 pb-6">
-                {toppedItems.map((item, i) => (
-                  <ToppedRow
-                    key={`${item.route.id}-${item.date}`}
-                    route={item.route}
-                    system={system}
-                    index={i}
-                    sub={fmt(item.date)}
-                    note={item.note}
-                    onSent={() => upgradeToSend(item.route.id)}
-                  />
-                ))}
-              </ul>
-            )
           ) : scopedProjects.length === 0 ? (
             <Empty text="Nothing on the project board here. Log a Klimb as 'Project' to add one." />
           ) : (
@@ -394,11 +345,7 @@ export function Sends() {
                   system={system}
                   index={i}
                   to={`/project/${p.route.id}`}
-                  badge={
-                    <Badge tone="muted">
-                      <Bookmark size={12} /> Projecting
-                    </Badge>
-                  }
+                  badge={p.topped ? <Badge tone="accent"><Check size={12} /> Topped · still open</Badge> : <Badge tone="muted"><Bookmark size={12} /> Projecting</Badge>}
                   sub={daysOpen(p.since)}
                   note={p.notePeek}
                 />
@@ -410,28 +357,6 @@ export function Sends() {
 
       {story ? (
         <WeeklyRecap recap={story} system={system} onClose={() => setStory(null)} />
-      ) : null}
-
-      {/* "I sent this" celebration — quick, satisfying, then it's gone. */}
-      {celebrate ? (
-        <div className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in flex-col items-center justify-center gap-3 bg-bg/90 backdrop-blur-sm">
-          <span className="relative flex h-24 w-24 items-center justify-center">
-            <span className="absolute inset-0 rounded-full bg-accent/25 animate-pulse-ring" />
-            <span
-              className="absolute inset-0 rounded-full bg-accent/20"
-              style={{ animation: "klimb-spark-ring 0.85s ease-out forwards" }}
-            />
-            <span className="flex h-20 w-20 animate-pop items-center justify-center rounded-full bg-accent text-bg shadow-glow">
-              <Trophy size={38} strokeWidth={2.5} />
-            </span>
-          </span>
-          <p className="animate-fade-up text-3xl font-extrabold text-chalk [animation-delay:120ms]">
-            Sent it!
-          </p>
-          <p className="animate-fade-up text-sm text-muted [animation-delay:220ms]">
-            Clean send — off the projects, into the book.
-          </p>
-        </div>
       ) : null}
     </div>
   );
@@ -485,75 +410,6 @@ function Badge({
 
 function Empty({ text }: { text: string }) {
   return <p className="px-8 py-16 text-center text-faint">{text}</p>;
-}
-
-/** A topped climb: the info opens the route; the button upgrades it to a send. */
-function ToppedRow({
-  route,
-  system,
-  index,
-  sub,
-  note,
-  onSent,
-}: {
-  route: RouteWithStats;
-  system: "american" | "european";
-  index: number;
-  sub: string;
-  note?: string | null;
-  onSent: () => void;
-}) {
-  const grade = route.gym_grade;
-  return (
-    <li style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
-      <div className="relative animate-fade-up rounded-2xl bg-surface p-3 shadow-card">
-        <Link
-          to={`/route/${route.id}`}
-          className="flex items-center gap-3 transition active:scale-[0.99]"
-        >
-          <img
-            src={route.photo_url}
-            alt=""
-            className="h-14 w-14 shrink-0 rounded-xl object-cover"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-2 font-semibold text-chalk">
-              <span
-                className="h-3 w-3 shrink-0 rounded-full border border-white/10"
-                style={{ backgroundColor: holdHex(route.hold_color) }}
-              />
-              <span className="truncate">
-                {route.hold_color}
-              </span>
-            </p>
-            <div className="mt-1 flex items-center gap-2">
-              <Badge tone="muted">
-                <Flag size={12} /> Topped
-              </Badge>
-              <span className="truncate text-xs text-muted">{sub}</span>
-            </div>
-            {note ? (
-              <p className="mt-1 truncate text-xs italic text-faint">"{note}"</p>
-            ) : null}
-          </div>
-          <div className="shrink-0 text-right">
-            <p className="text-lg font-extrabold leading-none text-accent">
-              {formatGradeStyled(grade, route.climbing_type, system, route.gradingStyle)}
-            </p>
-            <p className="mt-0.5 text-[10px] text-faint">
-              {climbTypeLabel(route.climbing_type)}
-            </p>
-          </div>
-        </Link>
-        <button
-          onClick={onSent}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-2.5 text-sm font-bold text-bg transition active:scale-[0.99]"
-        >
-          <Trophy size={15} /> I sent this
-        </button>
-      </div>
-    </li>
-  );
 }
 
 function RowLink({

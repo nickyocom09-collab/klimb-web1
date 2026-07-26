@@ -23,6 +23,8 @@ export type ProjectItem = {
   notePeek: string | null;
   /** Tries logged so far (from an 'attempt' log), if any. */
   attempts: number | null;
+  /** A rope project can be topped and still remain open until it is sent clean. */
+  topped: boolean;
 };
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -78,9 +80,15 @@ export async function fetchLogbook(profileId: string): Promise<{
       };
     });
 
-  // Projects you haven't actually sent = "still projecting".
+  // A clean send/flash completes a project. Topped is meaningful progress but
+  // intentionally stays in Projects until the climber sends it clean.
   const sentIds = new Set(
-    sendRows.filter((s) => s.send_type !== "attempt").map((s) => s.route_id),
+    sendRows
+      .filter((s) => s.send_type === "send" || s.send_type === "flash")
+      .map((s) => s.route_id),
+  );
+  const toppedIds = new Set(
+    sendRows.filter((s) => s.send_type === "topped").map((s) => s.route_id),
   );
   const projectRows = bmRows.filter(
     (b) => byId.has(b.route_id) && !sentIds.has(b.route_id),
@@ -108,6 +116,7 @@ export async function fetchLogbook(profileId: string): Promise<{
     since: b.created_at,
     notePeek: noteMap.get(b.route_id) ?? null,
     attempts: attemptMap.get(b.route_id) ?? null,
+    topped: toppedIds.has(b.route_id),
   }));
 
   return { logged, projects };

@@ -171,13 +171,16 @@ export function LogSheet({
         },
         { onConflict: "route_id,user_id" },
       );
-      // Logging it clears any "project" bookmark — you're past working on it.
-      await supabase
-        .from("bookmarks")
-        .delete()
-        .eq("user_id", profile.id)
-        .eq("route_id", route.id)
-        .eq("kind", "project");
+      // A topped rope route remains a project: reaching the anchor with falls
+      // is progress, not a finished project. Only a clean send graduates it.
+      if (outcome !== "topped") {
+        await supabase
+          .from("bookmarks")
+          .delete()
+          .eq("user_id", profile.id)
+          .eq("route_id", route.id)
+          .eq("kind", "project");
+      }
     }
 
     setSaving(false);

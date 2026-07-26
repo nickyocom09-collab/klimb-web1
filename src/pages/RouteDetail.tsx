@@ -49,6 +49,7 @@ export function RouteDetail() {
   const [logOpen, setLogOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id || !profile) return;
@@ -134,7 +135,7 @@ export function RouteDetail() {
   if (!route) {
     return (
       <div className="mx-auto flex h-full max-w-app flex-col items-center justify-center gap-4 bg-bg px-8">
-        <p className="text-faint">Climb not found.</p>
+        <p className="text-faint">Klimb not found.</p>
         <Button onClick={() => navigate("/")}>Back to logbook</Button>
       </div>
     );
@@ -165,12 +166,21 @@ export function RouteDetail() {
             playsInline
             controls
           />
+        ) : route.photo_url ? (
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(true)}
+            className="block w-full"
+            aria-label="View route photo full screen"
+          >
+            <img
+              src={route.photo_url}
+              alt={`${route.hold_color} route`}
+              className="aspect-[4/3] w-full object-cover"
+            />
+          </button>
         ) : (
-          <img
-            src={route.photo_url}
-            alt={`${route.hold_color} route`}
-            className="aspect-[4/3] w-full object-cover"
-          />
+          <div className="flex aspect-[4/3] items-center justify-center bg-surface text-sm text-faint">No photo yet</div>
         )}
         <button
           onClick={() => navigate(-1)}
@@ -180,6 +190,19 @@ export function RouteDetail() {
           <ChevronLeft size={22} />
         </button>
       </div>
+
+      {photoOpen && route.photo_url ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4"
+          onClick={() => setPhotoOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full route photo"
+        >
+          <img src={route.photo_url} alt={`${route.hold_color} route`} className="max-h-full max-w-full rounded-xl object-contain shadow-2xl" />
+          <button className="absolute right-4 top-4 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white" onClick={() => setPhotoOpen(false)}>Done</button>
+        </div>
+      ) : null}
 
       <div className="flex-1 overflow-y-auto px-5 pb-10 pt-5">
         <div className="flex flex-col gap-5">
@@ -243,7 +266,7 @@ export function RouteDetail() {
           {/* Someone else's climb — read-only, no logging onto their route. */}
           {!isMine ? (
             <div className="rounded-2xl bg-surface p-4 text-sm text-muted shadow-card">
-              This climb is from {authorName}'s logbook. Log your own climbs from
+              This Klimb is from {authorName}'s logbook. Log your own Klimbs from
               the Log tab.
             </div>
           ) : hasSent ? (

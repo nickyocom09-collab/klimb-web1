@@ -50,7 +50,7 @@ export function Signup() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col justify-center bg-bg px-6">
+    <div className="mx-auto flex min-h-full max-w-app flex-col justify-start overflow-y-auto bg-bg px-6 py-8 sm:justify-center">
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold text-chalk">Create your account</h1>
         <p className="mt-2 text-muted">
@@ -67,7 +67,7 @@ export function Signup() {
           </li>
           <li className="flex gap-2">
             <span className="font-bold text-accent">3.</span> Log your first
-            climb 🧗
+            Klimb 🧗
           </li>
         </ol>
       </div>
@@ -109,7 +109,7 @@ export function Signup() {
           Create my account
         </Button>
         <p className="text-center text-xs text-faint">
-          By continuing you agree to climb responsibly and log honestly.
+          By continuing you agree to Klimb responsibly and log honestly.
         </p>
       </form>
 

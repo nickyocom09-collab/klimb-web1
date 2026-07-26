@@ -144,8 +144,8 @@ export function ProjectDetail() {
     navigate("/");
   }
 
-  // Complete the project right here — log it, drop the project bookmark, then
-  // celebrate. No extra page: the chooser IS the finish.
+  // Topping a rope route records its progress but leaves it open. A clean send
+  // is the only outcome that graduates a project out of this space.
   async function completeProject(outcome: "send" | "topped") {
     if (!routeId || !profile) return;
     setFinishOpen(false);
@@ -158,12 +158,14 @@ export function ProjectDetail() {
       },
       { onConflict: "route_id,user_id" },
     );
-    await supabase
-      .from("bookmarks")
-      .delete()
-      .eq("user_id", profile.id)
-      .eq("route_id", routeId)
-      .eq("kind", "project");
+    if (outcome === "send") {
+      await supabase
+        .from("bookmarks")
+        .delete()
+        .eq("user_id", profile.id)
+        .eq("route_id", routeId)
+        .eq("kind", "project");
+    }
     window.setTimeout(
       () => navigate(`/route/${routeId}`, { replace: true }),
       1600,
@@ -361,7 +363,7 @@ export function ProjectDetail() {
               Nice — how'd you finish?
             </p>
             <p className="mt-1 text-sm text-muted">
-              You can always upgrade a Topped climb to a clean Sent later.
+              Topped keeps this project open. A clean send marks it complete.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button

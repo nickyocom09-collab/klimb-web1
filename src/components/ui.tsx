@@ -87,7 +87,7 @@ export function PasswordInput({
           aria-label={show ? "Hide password" : "Show password"}
           className="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center text-faint transition hover:text-chalk"
         >
-          {show ? <EyeOff size={18} /> : <Eye size={18} />}
+          {show ? <Eye size={18} /> : <EyeOff size={18} />}
         </button>
       </div>
     </label>

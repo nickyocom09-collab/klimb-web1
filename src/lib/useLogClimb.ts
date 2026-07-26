@@ -237,7 +237,8 @@ export function useLogClimb() {
         );
       }
 
-      // 3) The log: a send in the book, or a project with its first note.
+      // 3) A topped rope route is still in progress, so it gets both the
+      // progress log and a project bookmark. Only a clean send is finished.
       const trimmed = note.trim();
       if (outcome === "project") {
         writes.push(
@@ -264,6 +265,13 @@ export function useLogClimb() {
             note: trimmed || null,
           }),
         );
+        if (outcome === "topped") {
+          writes.push(
+            supabase
+              .from("bookmarks")
+              .insert({ user_id: profile.id, route_id: route.id, kind: "project" }),
+          );
+        }
       }
       await Promise.all(writes);
 

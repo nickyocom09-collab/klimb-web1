@@ -208,15 +208,15 @@ export function Profile() {
           className="w-full"
           onClick={() => setConfirmLogout(true)}
         >
-          Log out
+          Sign out
         </Button>
       </div>
 
       <ConfirmDialog
         open={confirmLogout}
-        title="Log out?"
+        title="Sign out?"
         message="You'll need to sign back in to see your logbook, stats, and friends."
-        confirmLabel="Log out"
+        confirmLabel="Sign out"
         variant="danger"
         onConfirm={signOut}
         onCancel={() => setConfirmLogout(false)}
