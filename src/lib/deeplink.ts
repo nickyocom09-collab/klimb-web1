@@ -29,7 +29,10 @@ export function authRedirectUrl(path = ""): string {
 export function setupDeepLinks(navigate: (path: string) => void) {
   if (!Capacitor.isNativePlatform()) return;
 
-  App.addListener("appUrlOpen", async ({ url }) => {
+  // Keep URL parsing in one place. In particular, Google may bring a suspended
+  // app to the foreground *or* cold-launch it, so both appUrlOpen and
+  // getLaunchUrl must take the same path.
+  const handleUrl = async (url: string) => {
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== "klimb:") return;
@@ -50,11 +53,13 @@ export function setupDeepLinks(navigate: (path: string) => void) {
       const type = hashParams.get("type") ?? queryParams.get("type");
 
       if (access_token && refresh_token) {
-        await supabase.auth.setSession({ access_token, refresh_token });
+        const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (error) throw error;
       } else if (code) {
         // Complete the PKCE handshake (uses the code verifier stashed in
         // storage when signInWithOAuth kicked things off).
-        await supabase.auth.exchangeCodeForSession(code);
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) throw error;
       }
 
       // OAuth ran in the in-app browser — close it now that we're back.
@@ -66,5 +71,19 @@ export function setupDeepLinks(navigate: (path: string) => void) {
     } catch (err) {
       console.warn("[Klimb] Failed to handle auth deep link", url, err);
     }
+  };
+
+  const listener = App.addListener("appUrlOpen", ({ url }) => {
+    void handleUrl(url);
   });
+
+  // Without this, Google succeeds in Safari but leaves the user unsigned in
+  // whenever iOS had evicted Klimb before it received the callback.
+  void App.getLaunchUrl().then((launch) => {
+    if (launch?.url) void handleUrl(launch.url);
+  });
+
+  return () => {
+    void listener.then((handle) => handle.remove());
+  };
 }

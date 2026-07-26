@@ -75,7 +75,7 @@ export default function App() {
   // return) so they hand the session to Supabase and route in-app instead
   // of bouncing to Safari, which can't open a native scheme/localhost link.
   useEffect(() => {
-    setupDeepLinks((path) => navigate(path, { replace: true }));
+    return setupDeepLinks((path) => navigate(path, { replace: true }));
   }, [navigate]);
 
   return (

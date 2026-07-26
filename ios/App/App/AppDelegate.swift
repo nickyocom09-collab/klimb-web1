@@ -105,7 +105,11 @@ public class InstagramStoriesPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Missing or invalid backgroundImageBase64")
             return
         }
-        guard let url = URL(string: "instagram-stories://share?source_application=\(appId)") else {
+        // Instagram attributes the Story to this Meta app. Reject malformed
+        // values early instead of handing Instagram a URL it will ignore.
+        let cleanedAppId = appId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleanedAppId.allSatisfy({ $0.isNumber }),
+              let url = URL(string: "instagram-stories://share?source_application=\(cleanedAppId)") else {
             call.reject("Could not build Instagram share URL")
             return
         }

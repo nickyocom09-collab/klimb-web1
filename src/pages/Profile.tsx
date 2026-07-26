@@ -12,6 +12,7 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { AppHeader } from "../components/Layout";
 import { Avatar } from "../components/Avatar";
+import { AvatarCropper } from "../components/AvatarCropper";
 import { Button, ConfirmDialog } from "../components/ui";
 
 // Profile is intentionally simple: who you are, your headline numbers, and a
@@ -27,6 +28,7 @@ export function Profile() {
   const [flashCount, setFlashCount] = useState<number | null>(null);
   const [projectCount, setProjectCount] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [avatarToCrop, setAvatarToCrop] = useState<File | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
 
   useEffect(() => {
@@ -65,8 +67,13 @@ export function Profile() {
     };
   }, [profile]);
 
-  async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+  function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
+    e.target.value = "";
+    if (f) setAvatarToCrop(f);
+  }
+
+  async function uploadAvatar(f: File) {
     if (!f || !profile) return;
     setUploading(true);
     try {
@@ -104,6 +111,7 @@ export function Profile() {
       />
 
       <div className="flex flex-col items-center px-5 py-4">
+        {avatarToCrop ? <AvatarCropper file={avatarToCrop} onCancel={() => setAvatarToCrop(null)} onConfirm={(file) => { setAvatarToCrop(null); void uploadAvatar(file); }} /> : null}
         <input
           ref={avatarRef}
           type="file"

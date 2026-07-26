@@ -11,6 +11,7 @@ import {
   Download,
   X,
   Camera,
+  Check,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
@@ -18,8 +19,7 @@ import { Directory, Filesystem } from "@capacitor/filesystem";
 import type { RecapRow } from "../lib/recaps";
 import type { RecapPayload } from "../lib/database.types";
 import { formatGradeStyled, type GradeSystem } from "../lib/grades";
-import { FACEBOOK_APP_ID } from "../lib/constants";
-import { InstagramStories, toRawBase64 } from "../lib/instagramStories";
+import { toRawBase64 } from "../lib/instagramStories";
 import { MessageCompose, canUseNativeMessageCompose } from "../lib/messageCompose";
 import { StreakFire } from "./StreakFire";
 
@@ -593,24 +593,13 @@ export function WeeklyRecap({
     await shareViaSheet(canvas, shareText);
   };
 
-  // Optional one-tap Instagram Stories (kept for a dedicated IG button).
+  // Instagram's direct Story API needs an active Meta developer-account
+  // configuration. The native iOS sheet is more dependable: it passes the
+  // rendered image to Instagram's own share extension, where Instagram lets
+  // the climber choose Story or Post just like sharing from Photos/YouTube.
   const shareToInstagram = async () => {
     const canvas = buildStoryCanvas(arch, week);
-    if (Capacitor.getPlatform() === "ios" && FACEBOOK_APP_ID) {
-      try {
-        const { available } = await InstagramStories.isAvailable();
-        if (available) {
-          await InstagramStories.shareToStory({
-            appId: FACEBOOK_APP_ID,
-            backgroundImageBase64: toRawBase64(canvas.toDataURL("image/png")),
-          });
-          return;
-        }
-      } catch {
-        /* fall through to the generic sheet */
-      }
-    }
-    await shareViaSheet(canvas, "This week I was " + arch.label + " 🧗");
+    await shareViaSheet(canvas, "This week I was " + arch.label + " 🧗 — Klimb");
   };
 
   const shareViaMessage = async () => {
@@ -746,12 +735,15 @@ export function WeeklyRecap({
         )}
 
         {card === "share" && (
-          <div style={{ ...S.card, background: "radial-gradient(circle at 50% 30%, #12201a, #080B0A)" }}>
+          <div style={{ ...S.card, background: "radial-gradient(circle at 50% 14%, #1c4430 0%, #0b1510 42%, #080B0A 100%)" }}>
             <div style={S.cardInner}>
-              <div style={S.kicker}>THAT'S A WRAP</div>
-              <h2 style={S.wrapTitle}>Your {periodWord}, sent.</h2>
+              <div style={S.finishMark}><Check size={24} strokeWidth={2.7} /></div>
+              <div style={{ ...S.kicker, marginTop: 17 }}>THAT'S A WRAP</div>
+              <h2 style={S.wrapTitle}>Your {periodWord},<br />well spent.</h2>
+              <p style={S.wrapSub}>{week.climbs} climbs logged · {week.sends} sends earned</p>
+              <div style={S.finishRule} />
               <button style={{ ...S.shareBtn, width: "100%" }} onClick={(e) => { e.stopPropagation(); shareStory(); }}>
-                <Share2 size={16} /> Share
+                <Share2 size={16} /> Share your recap
               </button>
               <div style={{ ...S.shareRow, marginTop: 10 }}>
                 <button style={S.shareBtnSecondary} onClick={(e) => { e.stopPropagation(); shareToInstagram(); }}>
@@ -761,7 +753,7 @@ export function WeeklyRecap({
                   <MessageCircle size={16} /> Message
                 </button>
               </div>
-              <p style={S.shareHelp}>Tap Share to send it to Instagram, Messenger, Messages, and more.</p>
+              <p style={S.shareHelp}>Instagram opens the native share menu so you can choose Story or Post.</p>
             </div>
           </div>
         )}
@@ -831,7 +823,10 @@ const S: Record<string, React.CSSProperties> = {
   streakDays: { fontFamily: serif, fontSize: 26, color: "#B8C4BD", fontWeight: 600 },
   streakDivider: { width: 44, height: 3, borderRadius: 3, background: "rgba(251,146,60,0.45)", margin: "22px 0 16px" },
   streakNote: { fontSize: 14.5, color: "#B8C4BD", lineHeight: 1.5, maxWidth: 240, margin: 0 },
-  wrapTitle: { fontFamily: serif, fontSize: 38, fontWeight: 700, color: "#E8F0EB", margin: "6px 0 26px" },
+  finishMark: { width: 54, height: 54, borderRadius: 27, display: "flex", alignItems: "center", justifyContent: "center", color: "#07110B", background: "#82F0A7", boxShadow: "0 0 0 7px rgba(130,240,167,0.1), 0 0 38px rgba(130,240,167,0.32)" },
+  wrapTitle: { fontFamily: serif, fontSize: 40, lineHeight: 1.05, fontWeight: 700, color: "#F1F8F2", margin: "7px 0 10px", letterSpacing: -1.2 },
+  wrapSub: { color: "#B8CFC0", fontSize: 14, margin: 0 },
+  finishRule: { width: 42, height: 1, background: "rgba(130,240,167,0.55)", margin: "24px 0" },
   shareRow: { display: "flex", gap: 10 },
   shareBtn: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#080B0A", background: "#4ADE80", border: "none", padding: "13px 22px", borderRadius: 12, cursor: "pointer" },
   shareBtnSecondary: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#E8F0EB", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)", padding: "13px 20px", borderRadius: 12, cursor: "pointer" },
