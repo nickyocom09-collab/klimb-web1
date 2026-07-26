@@ -21,6 +21,12 @@ export const supabase = createClient<Database>(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // PKCE is the reliable flow for mobile deep-link OAuth: the provider
+      // returns a short `?code=` (which our deep-link handler exchanges for a
+      // session) instead of a long #hash fragment that custom URL schemes
+      // deliver unreliably. This is what makes Google/Apple OAuth complete on
+      // device instead of spinning forever.
+      flowType: "pkce",
     },
   },
 );

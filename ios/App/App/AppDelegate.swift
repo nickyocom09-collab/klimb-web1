@@ -1,6 +1,22 @@
 import UIKit
 import Capacitor
 
+// MARK: - Bridge view controller with explicit local-plugin registration
+//
+// Capacitor's automatic plugin discovery can miss plugins defined in the app
+// target (as ours are, below), which surfaces in JS as
+// "<Plugin> not implemented on iOS". Registering each instance explicitly in
+// capacitorDidLoad() guarantees AppleSignIn, InstagramStories, and
+// MessageCompose are always available. The Main storyboard points its bridge
+// scene at this class (customClass="MainViewController", module "App").
+class MainViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(AppleSignInPlugin())
+        bridge?.registerPluginInstance(InstagramStoriesPlugin())
+        bridge?.registerPluginInstance(MessageComposePlugin())
+    }
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 

@@ -234,10 +234,16 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             if (message === "CANCELED") return { error: null };
-            return { error: message };
+            // If the native plugin isn't registered on this build, don't
+            // dead-end — fall through to the OAuth browser flow below (which
+            // still uses the real Apple sign-in, just via Safari). Only surface
+            // genuine errors (bad token, network, etc.).
+            if (!/not implemented|unimplemented|not available/i.test(message)) {
+              return { error: message };
+            }
           }
         }
-        // Everyone else (Google, and Apple on web).
+        // Google, plus Apple when the native plugin is unavailable.
         if (Capacitor.isNativePlatform()) {
           // On device, DON'T let Supabase navigate the WebView to Google —
           // that kicks the user out to Safari. Instead get the URL and open it

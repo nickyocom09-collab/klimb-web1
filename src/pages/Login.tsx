@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { Button, ErrorText, Input } from "../components/ui";
+import { Button, ErrorText, Input, PasswordInput } from "../components/ui";
 import { OAuthButtons } from "../components/OAuthButtons";
 
 export function Login() {
@@ -43,9 +43,8 @@ export function Login() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
         />
-        <Input
+        <PasswordInput
           label="Password"
-          type="password"
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

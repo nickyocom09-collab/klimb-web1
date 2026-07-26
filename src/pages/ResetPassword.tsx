@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { Button, ErrorText, Input } from "../components/ui";
+import { Button, ErrorText, PasswordInput } from "../components/ui";
 
 export function ResetPassword() {
   const navigate = useNavigate();
@@ -41,17 +41,15 @@ export function ResetPassword() {
       </div>
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Input
+        <PasswordInput
           label="New password"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
         />
-        <Input
+        <PasswordInput
           label="Confirm password"
-          type="password"
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

@@ -1,14 +1,15 @@
-import { useState } from "react";
-import { Bookmark, Check, Flag, X, Zap } from "lucide-react";
+import { useRef, useState } from "react";
+import { Bookmark, Camera, Check, Flag, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { toggleBookmark } from "../lib/bookmarks";
+import { pickPhotoNative } from "../lib/photo";
 import { formatGradeStyled, gymGradeOptions } from "../lib/grades";
 import type { RouteWithStats } from "../lib/routes";
 import type { SendType } from "../lib/database.types";
 import type { ClimbingType } from "../lib/grades";
-import { Button } from "./ui";
+import { Button, Spinner } from "./ui";
 import { GradePicker } from "./GradePicker";
 
 export type LogOutcome = "flash" | "send" | "topped" | "attempt" | "project";
@@ -86,6 +87,45 @@ export function LogSheet({
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState<LogOutcome | null>(null);
 
+  // Add / change the climb's photo, independent of logging an outcome.
+  const [photoUrl, setPhotoUrl] = useState(route.photo_url);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  async function uploadPhoto(file: File) {
+    if (!profile) return;
+    setPhotoBusy(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${profile.id}/${Date.now()}-photo.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("route-photos")
+        .upload(path, file, { contentType: file.type });
+      if (upErr) throw upErr;
+      const url = supabase.storage.from("route-photos").getPublicUrl(path).data
+        .publicUrl;
+      await supabase.from("routes").update({ photo_url: url }).eq("id", route.id);
+      setPhotoUrl(url);
+    } catch {
+      /* leave the old photo in place on failure */
+    }
+    setPhotoBusy(false);
+  }
+
+  async function changePhoto() {
+    const picked = await pickPhotoNative();
+    if (picked === undefined) {
+      photoInputRef.current?.click(); // web fallback
+      return;
+    }
+    if (picked) await uploadPhoto(picked.file);
+  }
+
+  function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) void uploadPhoto(f);
+  }
+
   async function save() {
     if (!profile || !outcome) return;
     setSaving(true);
@@ -150,11 +190,28 @@ export function LogSheet({
       <div className="relative w-full animate-fade-up overflow-hidden rounded-3xl border border-border bg-surface p-5 shadow-card">
         {/* Route header */}
         <div className="mb-4 flex items-center gap-3">
-          <img
-            src={route.photo_url}
-            alt=""
-            className="h-12 w-12 shrink-0 rounded-xl object-cover"
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={onPickFile}
+            className="hidden"
           />
+          <button
+            type="button"
+            onClick={changePhoto}
+            aria-label="Change photo"
+            className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-surface-2"
+          >
+            <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/35">
+              {photoBusy ? (
+                <Spinner className="text-white" />
+              ) : (
+                <Camera size={16} className="text-white" />
+              )}
+            </span>
+          </button>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 font-semibold text-chalk">
               <span

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -57,6 +59,37 @@ export function Input({ label, className = "", ...props }: InputProps) {
         className={`h-12 w-full rounded-2xl border border-border bg-surface-2 px-4 text-chalk placeholder:text-faint outline-none focus:border-accent ${className}`}
         {...props}
       />
+    </label>
+  );
+}
+
+/** Password field with a show/hide eye toggle. */
+export function PasswordInput({
+  label,
+  className = "",
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & { label?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <label className="block w-full">
+      {label ? (
+        <span className="mb-2 ml-1 block text-sm text-muted">{label}</span>
+      ) : null}
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          className={`h-12 w-full rounded-2xl border border-border bg-surface-2 px-4 pr-12 text-chalk placeholder:text-faint outline-none focus:border-accent ${className}`}
+          {...props}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          aria-label={show ? "Hide password" : "Show password"}
+          className="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center text-faint transition hover:text-chalk"
+        >
+          {show ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
     </label>
   );
 }

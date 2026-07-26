@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { Button, ErrorText, Input } from "../components/ui";
+import { Button, ErrorText, Input, PasswordInput } from "../components/ui";
 import { OAuthButtons } from "../components/OAuthButtons";
 
 export function Signup() {
@@ -9,6 +9,7 @@ export function Signup() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,6 +24,10 @@ export function Signup() {
     }
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Those passwords don't match.");
       return;
     }
     setBusy(true);
@@ -82,13 +87,19 @@ export function Signup() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
         />
-        <Input
+        <PasswordInput
           label="Password"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="At least 6 characters"
+        />
+        <PasswordInput
+          label="Confirm password"
+          autoComplete="new-password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Type it again"
         />
         <ErrorText>{error}</ErrorText>
         {notice ? (

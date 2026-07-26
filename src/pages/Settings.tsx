@@ -109,7 +109,32 @@ export function Settings() {
 
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountSaved, setAccountSaved] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
+
+  async function changeEmail() {
+    const next = newEmail.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(next)) {
+      setEmailMsg("Enter a valid email address.");
+      return;
+    }
+    setEmailBusy(true);
+    setEmailMsg(null);
+    const { error } = await supabase.auth.updateUser({ email: next });
+    setEmailBusy(false);
+    if (error) {
+      setEmailMsg(error.message);
+      return;
+    }
+    setEmailMsg(
+      "Check your new inbox — tap the confirmation link to finish the change.",
+    );
+    setEmailOpen(false);
+    setNewEmail("");
+  }
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -321,11 +346,48 @@ export function Settings() {
 
           {/* Read-only / navigational rows, kept out of the editable card. */}
           <div className="mt-3 flex flex-col gap-2">
-            <div className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3.5 shadow-card">
-              <span className="text-sm text-muted">Email</span>
-              <span className="truncate pl-3 text-sm text-chalk">
-                {session?.user.email}
-              </span>
+            <div className="rounded-2xl bg-surface px-4 py-3.5 shadow-card">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted">Email</span>
+                <div className="flex min-w-0 items-center gap-3 pl-3">
+                  <span className="truncate text-sm text-chalk">
+                    {session?.user.email}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setEmailOpen((v) => !v);
+                      setEmailMsg(null);
+                      setNewEmail("");
+                    }}
+                    className="shrink-0 text-sm font-semibold text-accent"
+                  >
+                    {emailOpen ? "Cancel" : "Change"}
+                  </button>
+                </div>
+              </div>
+              {emailOpen ? (
+                <div className="mt-3 flex flex-col gap-2">
+                  <Input
+                    label="New email"
+                    type="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                  <Button
+                    className="w-full"
+                    loading={emailBusy}
+                    onClick={changeEmail}
+                  >
+                    Update email
+                  </Button>
+                </div>
+              ) : null}
+              {emailMsg ? (
+                <p className="ml-1 mt-2 text-xs text-accent">{emailMsg}</p>
+              ) : null}
             </div>
             <button
               onClick={() => navigate("/gym/select")}
