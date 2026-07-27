@@ -834,7 +834,9 @@ export function GymMap() {
                         {s.sends === 1 ? "" : "s"}
                       </span>
                       {s.hardestLabel ? (
-                        <span>hardest {s.hardestLabel}</span>
+                        <span>
+                          hardest <span className="klimb-grade">{s.hardestLabel}</span>
+                        </span>
                       ) : null}
                       <span className="font-normal opacity-80">
                         {shortDate(s.firstVisit) === shortDate(s.lastVisit)

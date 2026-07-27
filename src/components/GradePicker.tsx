@@ -37,7 +37,7 @@ export function GradePicker({
             key={o.value}
             type="button"
             onClick={() => onChange(selected ? null : o.value)}
-            className={`h-11 rounded-xl border text-sm font-bold transition ${
+            className={`klimb-grade h-11 rounded-xl border text-sm font-bold transition ${
               selected
                 ? "border-accent bg-accent text-bg"
                 : "border-border bg-surface-2 text-muted hover:text-chalk"

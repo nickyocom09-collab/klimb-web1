@@ -239,7 +239,7 @@ export function ProjectDetail() {
             </div>
             <div className="flex items-start gap-2">
               <div className="text-right">
-                <p className="text-3xl font-extrabold leading-none tabular-nums text-accent">
+                <p className="klimb-grade text-3xl font-extrabold leading-none text-accent">
                   {fmt(grade)}
                 </p>
                 <p className="mt-1 text-xs text-faint">

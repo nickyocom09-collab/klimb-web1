@@ -181,11 +181,11 @@ export function Sends() {
           <button
             onClick={() => navigate("/notifications")}
             aria-label="Notifications"
-            className="relative rounded-full p-2 text-muted transition hover:text-chalk"
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-chalk"
           >
             <Bell size={22} />
             {unread > 0 ? (
-              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-bg">
+              <span className="absolute -right-0.5 -top-0.5 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-extrabold leading-none text-bg ring-2 ring-bg">
                 {unread > 9 ? "9+" : unread}
               </span>
             ) : null}
@@ -464,13 +464,24 @@ function RowLink({
           ) : null}
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-lg font-extrabold leading-none text-accent">
-            {formatGradeStyled(grade, route.climbing_type, system, route.gradingStyle)}
-          </p>
-          <p className="mt-0.5 text-[10px] text-faint">
+          <p
+            className={
+              grade === null || grade === undefined
+                ? "text-xs font-bold leading-none text-muted"
+                : "klimb-grade text-lg font-extrabold leading-none text-accent"
+            }
+          >
             {grade === null || grade === undefined
               ? "Not graded"
-              : climbTypeLabel(route.climbing_type)}
+              : formatGradeStyled(
+                  grade,
+                  route.climbing_type,
+                  system,
+                  route.gradingStyle,
+                )}
+          </p>
+          <p className="mt-0.5 text-[10px] text-faint">
+            {climbTypeLabel(route.climbing_type)}
           </p>
         </div>
       </Link>

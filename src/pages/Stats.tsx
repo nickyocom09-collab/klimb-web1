@@ -181,7 +181,7 @@ export function Stats() {
             <div className="min-w-0">
               <p className="text-2xl font-extrabold leading-none tabular-nums text-chalk">
                 {stats.streakWeeks > 0
-                  ? `${stats.streakDays} day${stats.streakDays === 1 ? "" : "s"}`
+                  ? `${stats.streakWeeks} week${stats.streakWeeks === 1 ? "" : "s"}`
                   : "No streak"}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -351,7 +351,7 @@ function HardestValue({
     <div className="mt-3 grid grid-cols-3 gap-2">
       {items.map((it) => (
         <div key={it.t} className="rounded-xl bg-surface-2 px-3 py-2.5 text-left leading-none">
-          <p className={`text-xl font-extrabold tabular-nums ${tone}`}>
+          <p className={`klimb-grade text-xl font-extrabold ${tone}`}>
             {it.g}
           </p>
           <p className="mt-1.5 truncate text-[9px] font-semibold uppercase tracking-wide text-faint">

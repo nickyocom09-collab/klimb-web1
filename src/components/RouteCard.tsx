@@ -71,7 +71,7 @@ export function RouteCard({
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 {saysLabel}
               </p>
-              <p className="mt-0.5 text-3xl font-extrabold leading-none text-accent">
+              <p className="klimb-grade mt-0.5 text-3xl font-extrabold leading-none text-accent">
                 {fmt(theirGrade)}
               </p>
             </div>
@@ -80,7 +80,7 @@ export function RouteCard({
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                   Gym says
                 </p>
-                <p className="mt-0.5 text-3xl font-extrabold leading-none text-chalk">
+                <p className="klimb-grade mt-0.5 text-3xl font-extrabold leading-none text-chalk">
                   {formatGymGrade(
                     route.gym_grade,
                     route.climbing_type,
@@ -105,7 +105,8 @@ export function RouteCard({
         >
           {myGrade !== null ? (
             <>
-              <Check size={16} /> You said {fmt(myGrade)} · change
+              <Check size={16} /> You said{" "}
+              <span className="klimb-grade">{fmt(myGrade)}</span> · change
             </>
           ) : (
             <>

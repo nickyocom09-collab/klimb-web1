@@ -233,7 +233,7 @@ export function RouteDetail() {
               </p>
               <p
                 key={(isMine ? myGrade : theirGrade) ?? -1}
-                className="mt-0.5 animate-pop text-4xl font-extrabold leading-none tabular-nums text-accent"
+                className="klimb-grade mt-0.5 animate-pop text-4xl font-extrabold leading-none text-accent"
               >
                 {fmt(isMine ? myGrade : theirGrade)}
               </p>
@@ -254,7 +254,7 @@ export function RouteDetail() {
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 Gym says
               </p>
-              <p className="mt-0.5 text-4xl font-extrabold leading-none tabular-nums text-chalk">
+              <p className="klimb-grade mt-0.5 text-4xl font-extrabold leading-none text-chalk">
                 {route.gym_grade !== null && route.gym_grade !== undefined
                   ? formatGymGrade(
                       route.gym_grade,
@@ -305,7 +305,7 @@ export function RouteDetail() {
                   {myGrade !== null ? (
                     <p className="mt-1 text-xs text-muted">
                       Felt like{" "}
-                      <span className="font-semibold text-chalk">
+                      <span className="klimb-grade font-semibold text-chalk">
                         {fmt(myGrade)}
                       </span>
                     </p>

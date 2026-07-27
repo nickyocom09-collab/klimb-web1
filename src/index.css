@@ -100,6 +100,17 @@
   letter-spacing: -0.055em;
 }
 
+/* Grade labels are technical data, not display copy. Keep every character on
+   one optical baseline so V5 never looks like a superscript/subscript pair. */
+.klimb-grade {
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "Segoe UI", sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
 /* ---- 2D gym map ------------------------------------------------------------
    Labeled pins: a glowing green dot with the gym name on a pill underneath,
    so you always know which gym you're tapping. The home gym gets a green

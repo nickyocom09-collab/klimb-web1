@@ -131,12 +131,9 @@ export type LogStats = {
   thisWeek: number;
   lastWeek: number;
   topColor: string | null;
-  /** Consecutive weeks with at least one log. Weekly on purpose — nobody
-   * climbs every day; one session a week keeps the flame alive. The current
-   * week gets a grace period: an empty week-so-far doesn't kill the streak. */
+  /** Consecutive weeks with at least one saved log. Opening the app never
+   * affects this value. Weekly on purpose — nobody climbs every day. */
   streakWeeks: number;
-  /** Days since the current streak started (0 when there's no streak). */
-  streakDays: number;
   pyramid: { label: string; count: number; sort: number }[];
   hardestSend: {
     boulder: LoggedItem | null;
@@ -218,30 +215,16 @@ export function computeLogStats(
     else typeCounts.toprope += 1;
   }
 
-  // Weekly streak: consecutive rolling weeks with >=1 log, counting back from
-  // now. If this week is still empty, start from last week (grace) so the
-  // streak only breaks after a full week off the wall.
+  // Weekly streak: derived exclusively from saved log rows. App opens,
+  // profile updates, and notification checks cannot start or advance it.
+  // If this week is still empty, last week's earned streak remains in grace.
   const weekHasLog = (i: number) =>
     logged.some((l) => {
       const t = new Date(l.date).getTime();
       return t >= now - (i + 1) * 7 * DAY_MS && t < now - i * 7 * DAY_MS;
     });
   let streakWeeks = 0;
-  const graceStart = !weekHasLog(0); // streak counted from last week (grace)
   for (let i = weekHasLog(0) ? 0 : 1; weekHasLog(i); i++) streakWeeks++;
-
-  // Days since the streak began = days from the oldest log in the streak span.
-  let streakDays = 0;
-  if (streakWeeks > 0) {
-    const weeksBack = streakWeeks + (graceStart ? 1 : 0);
-    const spanStart = now - weeksBack * 7 * DAY_MS;
-    const inStreak = logged
-      .map((l) => new Date(l.date).getTime())
-      .filter((t) => t >= spanStart);
-    if (inStreak.length > 0) {
-      streakDays = Math.max(1, Math.floor((now - Math.min(...inStreak)) / DAY_MS));
-    }
-  }
 
   // Sends per week for the last 8 rolling weeks (oldest → newest).
   const weeks = Array.from({ length: 8 }, (_, i) => {
@@ -266,7 +249,6 @@ export function computeLogStats(
     lastWeek,
     topColor: mode(logged.map((l) => l.route.hold_color)),
     streakWeeks,
-    streakDays,
     pyramid,
     hardestSend: hardest(sent),
     hardestFlash: hardest(flashes),

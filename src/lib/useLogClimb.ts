@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
-import { pickPhotoNative } from "./photo";
+import { pickPhotoNative, type PhotoSource } from "./photo";
 import type { ClimbType } from "./constants";
 import { assertNearGym } from "./location";
 import {
@@ -71,6 +71,7 @@ export function useLogClimb() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reward, setReward] = useState<Outcome | null>(null);
+  const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
 
   useEffect(() => {
     if (!gymId) return;
@@ -109,20 +110,19 @@ export function useLogClimb() {
     setPhotoPreview(URL.createObjectURL(f));
   }
 
-  /**
-   * Add a photo. On device we use the native Camera plugin, which shows a
-   * "Take Photo / Choose from Library" action sheet — this replaces the
-   * WKWebView file input that was crashing the app. On web we just trigger
-   * the hidden file input.
-   */
-  async function pickPhoto() {
+  function pickPhoto() {
     if (!Capacitor.isNativePlatform()) {
       photoRef.current?.click();
       return;
     }
+    setPhotoSourceOpen(true);
+  }
+
+  async function pickPhotoFrom(source: PhotoSource) {
+    setPhotoSourceOpen(false);
     setError(null);
     try {
-      const picked = await pickPhotoNative();
+      const picked = await pickPhotoNative(source);
       if (!picked) return;
       setPhoto(picked.file);
       setPhotoPreview(picked.previewUrl);
@@ -276,6 +276,7 @@ export function useLogClimb() {
     error,
     busy,
     reward,
+    photoSourceOpen,
     // setters
     setHoldColor,
     setOutcome,
@@ -284,6 +285,7 @@ export function useLogClimb() {
     setStars,
     setNote,
     setError,
+    setPhotoSourceOpen,
     // derived
     gymGradeOpts,
     outcomeOptions,
@@ -291,6 +293,7 @@ export function useLogClimb() {
     // actions
     onPickPhoto,
     pickPhoto,
+    pickPhotoFrom,
     changeType,
     save,
   };

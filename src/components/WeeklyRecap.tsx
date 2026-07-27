@@ -1,14 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Flame,
-  MessageCircle,
   Mountain,
   Zap,
   TrendingUp,
   Download,
   X,
-  Camera,
   Check,
+  Share2,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
@@ -16,8 +15,6 @@ import { Directory, Filesystem } from "@capacitor/filesystem";
 import type { RecapRow } from "../lib/recaps";
 import type { RecapPayload } from "../lib/database.types";
 import { formatGradeStyled, type GradeSystem } from "../lib/grades";
-import { toRawBase64 } from "../lib/instagramStories";
-import { MessageCompose, canUseNativeMessageCompose } from "../lib/messageCompose";
 import { StreakFire } from "./StreakFire";
 
 /* ---------------- 15 archetypes ---------------- */
@@ -429,7 +426,7 @@ function buildStoryCanvas(arch: Archetype, w: WeekData) {
   ctx.font = "600 28px system-ui, sans-serif";
   drawSpaced(ctx, "HARDEST SEND", 540, 1400, 8);
   ctx.fillStyle = "#E4B363";
-  ctx.font = "700 200px Georgia, serif";
+  ctx.font = '800 200px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   ctx.shadowColor = "#E4B36355";
   ctx.shadowBlur = 50;
   ctx.fillText(w.grade, 540, 1600);
@@ -581,37 +578,14 @@ export function WeeklyRecap({
     }, "image/png");
   };
 
-  // Instagram's direct Story API needs an active Meta developer-account
-  // configuration. The native iOS sheet is more dependable: it passes the
-  // rendered image to Instagram's own share extension, where Instagram lets
-  // the climber choose Story or Post just like sharing from Photos/YouTube.
-  const shareToInstagram = async () => {
+  // One native share surface, like Photos/YouTube: iOS shows every compatible
+  // installed destination together (Instagram, Messages, WhatsApp, etc.).
+  const shareRecap = async () => {
     const canvas = buildStoryCanvas(arch, week);
-    await shareViaSheet(canvas, "This week I was " + arch.label + " 🧗 — Klimb");
-  };
-
-  const shareViaMessage = async () => {
-    const canvas = buildStoryCanvas(arch, week);
-    const shareText = "This week I was " + arch.label + " 🧗 — check out Klimb";
-
-    // iOS: open the native Messages composer directly (Strava-style
-    // dedicated "Message" share target) instead of the full OS share sheet.
-    if (canUseNativeMessageCompose()) {
-      try {
-        const { available } = await MessageCompose.isAvailable();
-        if (available) {
-          await MessageCompose.send({
-            text: shareText,
-            imageBase64: toRawBase64(canvas.toDataURL("image/png")),
-          });
-          return;
-        }
-      } catch {
-        // Fall through to the generic share sheet below.
-      }
-    }
-
-    await shareViaSheet(canvas, shareText);
+    await shareViaSheet(
+      canvas,
+      "This week I was " + arch.label + " 🧗 — check out Klimb",
+    );
   };
 
   const card = cards[i];
@@ -730,14 +704,15 @@ export function WeeklyRecap({
               <h2 style={S.wrapTitle}>Your {periodWord},<br />well spent.</h2>
               <p style={S.wrapSub}>{week.climbs} climbs logged · {week.sends} sends earned</p>
               <div style={S.finishRule} />
-              <div style={S.shareRow}>
-                <button style={S.shareBtn} onClick={(e) => { e.stopPropagation(); shareToInstagram(); }}>
-                  <Camera size={16} /> Instagram
-                </button>
-                <button style={S.shareBtnSecondary} onClick={(e) => { e.stopPropagation(); shareViaMessage(); }}>
-                  <MessageCircle size={16} /> Message
-                </button>
-              </div>
+              <button
+                style={S.shareBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void shareRecap();
+                }}
+              >
+                <Share2 size={18} strokeWidth={2.4} /> Share your recap
+              </button>
             </div>
           </div>
         )}
@@ -753,7 +728,7 @@ export function WeeklyRecap({
             <img src={preview} alt="Klimb weekly story" style={S.previewImg} />
             <div style={S.previewActions}>
               <a href={preview} download="klimb-week.png" style={S.dlBtn}><Download size={15} /> Save image</a>
-              <div style={S.igNote}><Camera size={14} color="#7C8C84" /> Save, then post to your IG story</div>
+              <div style={S.igNote}><Share2 size={14} color="#7C8C84" /> Save, then share anywhere</div>
             </div>
           </div>
         </div>
@@ -799,7 +774,7 @@ const S: Record<string, React.CSSProperties> = {
   num: { background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.16)", borderRadius: 16, padding: "20px 14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 },
   numV: { fontFamily: serif, fontSize: 30, fontWeight: 700, color: "#E8F0EB", fontVariantNumeric: "lining-nums tabular-nums" },
   numL: { fontSize: 11.5, color: "#7C8C84", letterSpacing: "0.04em" },
-  grade: { fontFamily: serif, fontSize: 92, fontWeight: 700, color: "#E4B363", textShadow: "0 0 44px rgba(228,179,99,0.4)", lineHeight: 1, fontVariantNumeric: "lining-nums tabular-nums" },
+  grade: { fontFamily: 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif', fontSize: 92, fontWeight: 800, color: "#E4B363", textShadow: "0 0 44px rgba(228,179,99,0.4)", lineHeight: 1, letterSpacing: "-0.045em", whiteSpace: "nowrap", fontVariantNumeric: "lining-nums tabular-nums" },
   streakNum: { fontFamily: serif, fontSize: 82, fontWeight: 700, color: "#FB923C", lineHeight: 1, textShadow: "0 0 44px rgba(251,146,60,0.55)", fontVariantNumeric: "lining-nums tabular-nums", marginTop: 18 },
   streakDays: { fontFamily: serif, fontSize: 26, color: "#B8C4BD", fontWeight: 600 },
   streakDivider: { width: 44, height: 3, borderRadius: 3, background: "rgba(251,146,60,0.45)", margin: "22px 0 16px" },
@@ -808,9 +783,7 @@ const S: Record<string, React.CSSProperties> = {
   wrapTitle: { fontFamily: serif, fontSize: 38, lineHeight: 1.05, fontWeight: 700, color: "#F1F8F2", margin: "6px 0 10px", letterSpacing: -1.1 },
   wrapSub: { color: "#B8CFC0", fontSize: 14, margin: 0 },
   finishRule: { width: 42, height: 1, background: "rgba(130,240,167,0.55)", margin: "22px 0" },
-  shareRow: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, width: "100%", maxWidth: 330 },
-  shareBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "#080B0A", background: "#4ADE80", border: "none", padding: "14px 12px", borderRadius: 14, cursor: "pointer" },
-  shareBtnSecondary: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "#E8F0EB", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.13)", padding: "14px 12px", borderRadius: 14, cursor: "pointer" },
+  shareBtn: { width: "100%", maxWidth: 330, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 15, fontWeight: 750, color: "#080B0A", background: "#4ADE80", border: "none", padding: "16px 18px", borderRadius: 16, boxShadow: "0 10px 30px rgba(74,222,128,0.16)", cursor: "pointer" },
   overlay: { position: "fixed", inset: 0, background: "rgba(4,6,5,0.85)", backdropFilter: "blur(4px)", display: "grid", placeItems: "center", zIndex: 60, padding: 20 },
   previewCard: { width: "100%", maxWidth: 300, background: "#0E1512", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 18, padding: 14 },
   previewHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },

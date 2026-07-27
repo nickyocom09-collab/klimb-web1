@@ -312,7 +312,10 @@ export function LogSheet({
           />
           {route.gym_grade !== null && route.gym_grade !== undefined ? (
             <p className="mt-1 text-xs text-faint">
-              Currently {formatGradeStyled(route.gym_grade, route.climbing_type, system)}
+              Currently{" "}
+              <span className="klimb-grade">
+                {formatGradeStyled(route.gym_grade, route.climbing_type, system)}
+              </span>
             </p>
           ) : null}
         </div>

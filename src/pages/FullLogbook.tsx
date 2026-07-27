@@ -160,7 +160,7 @@ export function FullLogbook() {
                             </div>
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className="text-lg font-extrabold leading-none text-accent">
+                            <p className="klimb-grade text-lg font-extrabold leading-none text-accent">
                               {formatGradeStyled(
                                 grade,
                                 item.route.climbing_type,

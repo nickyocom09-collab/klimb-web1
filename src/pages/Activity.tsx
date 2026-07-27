@@ -75,7 +75,7 @@ export function ActivityFeed() {
           <>
             graded{" "}
             <span className="font-semibold text-chalk">{e.routeLabel}</span> at{" "}
-            <span className="font-semibold text-accent">
+            <span className="klimb-grade font-semibold text-accent">
               {formatGradeStyled(e.grade ?? null, e.climbingType, system, gradeStyle)}
             </span>
           </>

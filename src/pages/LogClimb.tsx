@@ -6,6 +6,7 @@ import { Button } from "../components/ui";
 import { LogScrollForm } from "../components/log/LogScrollForm";
 import { LogStepFlow } from "../components/log/LogStepFlow";
 import { RewardOverlay } from "../components/log/RewardOverlay";
+import { PhotoSourceSheet } from "../components/PhotoSourceSheet";
 
 /**
  * THE log flow — one screen, one save. You describe the climb (photo, color,
@@ -45,6 +46,11 @@ export function LogClimb() {
     <div className={`relative flex flex-col ${style === "steps" ? "h-full" : "min-h-full"}`}>
       <AppHeader title="Log a Klimb" subtitle={s.gymName ?? undefined} />
       {style === "steps" ? <LogStepFlow s={s} /> : <LogScrollForm s={s} />}
+      <PhotoSourceSheet
+        open={s.photoSourceOpen}
+        onClose={() => s.setPhotoSourceOpen(false)}
+        onChoose={(source) => void s.pickPhotoFrom(source)}
+      />
       {s.reward ? <RewardOverlay reward={s.reward} /> : null}
     </div>
   );

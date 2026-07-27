@@ -169,6 +169,7 @@ public class WebAuthenticationPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
 
     private var authenticationSession: ASWebAuthenticationSession?
     private var pendingCall: CAPPluginCall?
+    private var redirectTask: URLSessionDataTask?
 
     @objc func authenticate(_ call: CAPPluginCall) {
         guard let urlString = call.getString("url"),
@@ -185,6 +186,31 @@ public class WebAuthenticationPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
         }
         pendingCall = call
 
+        // Supabase's authorize endpoint immediately redirects to the selected
+        // identity provider. Resolve that redirect before presenting Apple's
+        // sheet so its consent copy names accounts.google.com/appleid.apple.com
+        // instead of exposing the raw project-ref.supabase.co hostname.
+        redirectTask?.cancel()
+        redirectTask = URLSession.shared.dataTask(with: url) { [weak self] _, response, _ in
+            guard let self else { return }
+            let resolvedURL = response?.url
+            let providerHost = resolvedURL?.host?.lowercased() ?? ""
+            let startURL =
+                providerHost.contains("google.com") || providerHost.contains("apple.com")
+                    ? resolvedURL!
+                    : url
+            DispatchQueue.main.async {
+                guard self.pendingCall === call else { return }
+                self.startAuthenticationSession(
+                    url: startURL,
+                    callbackScheme: callbackScheme
+                )
+            }
+        }
+        redirectTask?.resume()
+    }
+
+    private func startAuthenticationSession(url: URL, callbackScheme: String) {
         let session = ASWebAuthenticationSession(
             url: url,
             callbackURLScheme: callbackScheme
@@ -193,6 +219,7 @@ public class WebAuthenticationPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
             defer {
                 self.pendingCall = nil
                 self.authenticationSession = nil
+                self.redirectTask = nil
             }
 
             if let callbackURL {
@@ -217,6 +244,7 @@ public class WebAuthenticationPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
                 self.pendingCall?.reject("Could not present Google sign-in")
                 self.pendingCall = nil
                 self.authenticationSession = nil
+                self.redirectTask = nil
             }
         }
     }

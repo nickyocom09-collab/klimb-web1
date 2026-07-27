@@ -64,7 +64,9 @@ export function Layout() {
         <div className="relative flex items-center justify-between rounded-full border border-border bg-surface/95 px-2 py-2 shadow-lg backdrop-blur">
           <span
             aria-hidden
-            className="pointer-events-none absolute bottom-2 top-2 left-2 w-[calc((100%-1rem)/5)] rounded-full bg-surface-2 transition-transform duration-300 ease-out"
+            className={`pointer-events-none absolute bottom-2 top-2 left-2 w-[calc((100%-1rem)/5)] rounded-full bg-surface-2 transition-[transform,opacity] duration-300 ease-out ${
+              activeTab === 2 ? "opacity-0" : "opacity-100"
+            }`}
             style={{ transform: `translateX(${activeTab * 100}%)` }}
           />
           {tabs.map(({ to, label, Icon, end, hero }) =>
@@ -131,10 +133,10 @@ export function AppHeader({
   right?: React.ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between bg-bg/95 px-5 py-4 backdrop-blur">
-      <div>
+    <header className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-bg/95 px-5 py-4 backdrop-blur">
+      <div className="min-w-0">
         {subtitle ? (
-          <p className="text-xs text-muted">{subtitle}</p>
+          <p className="truncate text-xs text-muted">{subtitle}</p>
         ) : null}
         <h1 className="text-2xl font-extrabold tracking-tight text-chalk">
           {title}

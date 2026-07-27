@@ -6,8 +6,10 @@ import {
   ChevronRight,
   ListChecks,
   MapPin,
+  Plus,
   ScrollText,
   Search,
+  X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -70,6 +72,11 @@ export function Onboarding() {
   // Which state's gyms are open. null = showing the list of all states.
   const [openState, setOpenState] = useState<string | null>(null);
   const [openCountry, setOpenCountry] = useState<string | null>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestName, setSuggestName] = useState("");
+  const [suggestCity, setSuggestCity] = useState("");
+  const [suggestSaving, setSuggestSaving] = useState(false);
+  const [suggestDone, setSuggestDone] = useState(false);
 
   // Jump the list back to the top whenever we drill into a country/state or
   // search, so you never land mid-scroll on a fresh list.
@@ -241,6 +248,32 @@ export function Onboarding() {
     navigate(dest, { replace: true });
   }
 
+  function openGymSuggestion() {
+    setSuggestName("");
+    setSuggestCity("");
+    setSuggestDone(false);
+    setSuggestOpen(true);
+  }
+
+  async function submitGymSuggestion() {
+    if (!profile || suggestName.trim().length < 2) return;
+    setSuggestSaving(true);
+    const country =
+      countryList.find((countryOption) => countryOption.cc === openCountry)
+        ?.name ?? null;
+    await supabase.from("gyms").insert({
+      name: suggestName.trim(),
+      city: suggestCity.trim() || null,
+      state: openState,
+      country,
+      cc: openCountry,
+      status: "pending",
+      created_by: profile.id,
+    });
+    setSuggestSaving(false);
+    setSuggestDone(true);
+  }
+
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       {/* Back button + progress dots */}
@@ -345,14 +378,24 @@ export function Onboarding() {
               <ChevronLeft size={18} /> All countries
             </button>
           ) : null}
-          <h1 className="text-2xl font-extrabold text-chalk">
-            {openState
-              ? STATE_NAME[openState] ?? openState
-              : openCountry
-                ? countryList.find((c) => c.cc === openCountry)?.name ??
-                  "Pick your gym"
-                : "Pick your home gym"}
-          </h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="min-w-0 text-2xl font-extrabold text-chalk">
+              {openState
+                ? STATE_NAME[openState] ?? openState
+                : openCountry
+                  ? countryList.find((c) => c.cc === openCountry)?.name ??
+                    "Pick your gym"
+                  : "Pick your home gym"}
+            </h1>
+            <button
+              type="button"
+              onClick={openGymSuggestion}
+              className="shrink-0 text-right text-xs font-bold leading-tight text-accent"
+            >
+              Don't see it?
+              <span className="block font-semibold">Add your gym</span>
+            </button>
+          </div>
           <p className="mt-1 text-muted">
             {openState
               ? "Choose your gym. You can switch anytime."
@@ -453,6 +496,16 @@ export function Onboarding() {
           </div>
 
           <div className="flex flex-col gap-2 py-6">
+            {openState ||
+            (openCountry !== null && statesInCountry.length === 0) ? (
+              <button
+                type="button"
+                onClick={openGymSuggestion}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface/40 p-3.5 text-sm font-semibold text-muted transition active:scale-[0.99]"
+              >
+                <Plus size={16} /> Don't see your gym? Add it
+              </button>
+            ) : null}
             <Button
               className="w-full"
               disabled={!gymId}
@@ -514,6 +567,83 @@ export function Onboarding() {
             >
               Log my first Klimb
             </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {suggestOpen ? (
+        <div
+          className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          onClick={() => setSuggestOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Suggest a gym"
+            className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-chalk">
+                {suggestDone ? "Thanks!" : "Suggest a gym"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSuggestOpen(false)}
+                aria-label="Close"
+                className="rounded-full bg-surface-2 p-2 text-faint transition active:scale-95"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            {suggestDone ? (
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-muted">
+                  Got it —{" "}
+                  <span className="font-semibold text-chalk">
+                    {suggestName.trim()}
+                  </span>{" "}
+                  was submitted for review. We'll add it soon.
+                </p>
+                <Button
+                  className="w-full"
+                  onClick={() => setSuggestOpen(false)}
+                >
+                  Done
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted">
+                  Tell us the gym and we'll add it
+                  {openState
+                    ? ` in ${STATE_NAME[openState] ?? openState}`
+                    : ""}
+                  .
+                </p>
+                <Input
+                  label="Gym name"
+                  value={suggestName}
+                  onChange={(event) => setSuggestName(event.target.value)}
+                  placeholder="e.g. Movement Englewood"
+                />
+                <Input
+                  label="City (optional)"
+                  value={suggestCity}
+                  onChange={(event) => setSuggestCity(event.target.value)}
+                  placeholder="e.g. Denver"
+                />
+                <Button
+                  className="mt-1 w-full"
+                  loading={suggestSaving}
+                  disabled={suggestName.trim().length < 2}
+                  onClick={submitGymSuggestion}
+                >
+                  Submit gym
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
