@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   Flag,
   NotebookPen,
+  Pencil,
   Trash2,
   Trophy,
 } from "lucide-react";
@@ -16,7 +17,7 @@ import { formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { DAY_MS } from "../lib/logstats";
 import { Button, CenterSpinner } from "../components/ui";
-import { Stars } from "../components/Stars";
+import { LogSheet } from "../components/LogSheet";
 
 // A project's home: the route, your history with it, and — the heart of it —
 // a private running journal. Notes are owner-only (RLS) and survive the send:
@@ -34,12 +35,11 @@ export function ProjectDetail() {
   const [sent, setSent] = useState(false);
   const [sendType, setSendType] = useState<string | null>(null);
   const [myGrade, setMyGrade] = useState<number | null>(null);
-  const [myStars, setMyStars] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [savedNote, setSavedNote] = useState("");
   const [noteUpdatedAt, setNoteUpdatedAt] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
-  const [finishOpen, setFinishOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [celebrating, setCelebrating] = useState<null | "send" | "topped">(
     null,
   );
@@ -47,7 +47,7 @@ export function ProjectDetail() {
   const load = useCallback(async () => {
     if (!routeId || !profile) return;
     setLoading(true);
-    const [r, { data: bm }, { data: send }, { data: grade }, { data: rating }, { data: pn }] =
+    const [r, { data: bm }, { data: send }, { data: grade }, { data: pn }] =
       await Promise.all([
         fetchRoute(routeId),
         supabase
@@ -70,12 +70,6 @@ export function ProjectDetail() {
           .eq("route_id", routeId)
           .maybeSingle(),
         supabase
-          .from("route_ratings")
-          .select("stars")
-          .eq("user_id", profile.id)
-          .eq("route_id", routeId)
-          .maybeSingle(),
-        supabase
           .from("project_notes")
           .select("body, updated_at")
           .eq("user_id", profile.id)
@@ -87,7 +81,6 @@ export function ProjectDetail() {
     setSent(!!send && send.send_type !== "attempt");
     setSendType(send?.send_type ?? null);
     setMyGrade(grade?.grade ?? null);
-    setMyStars(rating?.stars ?? null);
     setNote(pn?.body ?? "");
     setSavedNote(pn?.body ?? "");
     setNoteUpdatedAt(pn?.updated_at ?? null);
@@ -148,7 +141,6 @@ export function ProjectDetail() {
   // is the only outcome that graduates a project out of this space.
   async function completeProject(outcome: "send" | "topped") {
     if (!routeId || !profile) return;
-    setFinishOpen(false);
     setCelebrating(outcome);
     await supabase.from("sends").upsert(
       {
@@ -165,11 +157,15 @@ export function ProjectDetail() {
         .eq("user_id", profile.id)
         .eq("route_id", routeId)
         .eq("kind", "project");
+      window.setTimeout(
+        () => navigate(`/route/${routeId}`, { replace: true }),
+        1400,
+      );
+    } else {
+      setSent(true);
+      setSendType("topped");
+      window.setTimeout(() => setCelebrating(null), 1150);
     }
-    window.setTimeout(
-      () => navigate(`/route/${routeId}`, { replace: true }),
-      1600,
-    );
   }
 
   if (loading) {
@@ -220,7 +216,8 @@ export function ProjectDetail() {
           <Trash2 size={20} />
         </button>
         <span className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-bg/80 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-accent backdrop-blur">
-          <Bookmark size={12} /> Project
+          {sendType === "topped" ? <Flag size={12} /> : <Bookmark size={12} />}
+          {sendType === "topped" ? "Topped" : "In progress"}
         </span>
       </div>
 
@@ -240,18 +237,28 @@ export function ProjectDetail() {
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-3xl font-extrabold leading-none tabular-nums text-accent">
-                {fmt(grade)}
-              </p>
-              <p className="mt-1 text-xs text-faint">
-                {myGrade !== null ? "your grade" : "gym grade"}
-              </p>
+            <div className="flex items-start gap-2">
+              <div className="text-right">
+                <p className="text-3xl font-extrabold leading-none tabular-nums text-accent">
+                  {fmt(grade)}
+                </p>
+                <p className="mt-1 text-xs text-faint">
+                  {grade === null ? "Not graded" : myGrade !== null ? "your grade" : "gym grade"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                aria-label="Edit project details"
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface text-muted transition hover:text-chalk"
+              >
+                <Pencil size={15} />
+              </button>
             </div>
           </div>
 
           {/* The fight so far */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-surface px-4 py-3 shadow-card">
+          <div className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 shadow-card">
             {daysOpen !== null ? (
               <span className="text-sm text-muted">
                 <span className="font-bold tabular-nums text-chalk">
@@ -260,8 +267,12 @@ export function ProjectDetail() {
                 day{daysOpen === 1 ? "" : "s"} open
               </span>
             ) : null}
-            <span className="flex items-center gap-1.5">
-              <Stars value={myStars} size={15} />
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+              sendType === "topped"
+                ? "bg-accent/15 text-accent"
+                : "bg-surface-2 text-muted"
+            }`}>
+              {sendType === "topped" ? "Topped" : "Not topped"}
             </span>
           </div>
 
@@ -305,8 +316,7 @@ export function ProjectDetail() {
             sendType === "topped" ? (
               <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-semibold text-accent">
                 <Flag size={15} className="mr-1.5 inline" />
-                You topped this one — made the anchor, with falls. Get the
-                clean run and upgrade it to Sent below.
+                Topped. This project stays open until you complete it clean.
               </p>
             ) : (
               <p className="rounded-2xl bg-accent/10 px-4 py-3 text-sm font-semibold text-accent">
@@ -319,72 +329,43 @@ export function ProjectDetail() {
         </div>
       </div>
 
-      {/* Sticky actions — completing the project, or upgrading a topped
-          climb to the clean send. */}
+      {/* Project actions stay explicit: topped records progress; complete
+          project closes it and moves it into Sends. */}
       {!sent || sendType === "topped" ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto max-w-app p-4 pb-6">
-          <div className="pointer-events-auto">
-            {sendType === "topped" ? (
-              <Button className="w-full" onClick={() => completeProject("send")}>
-                <Check size={16} className="mr-1.5" /> Sent it clean
-              </Button>
-            ) : (
+          <div className={`pointer-events-auto grid gap-2 ${
+            sendType !== "topped" && route.climbing_type !== "boulder"
+              ? "grid-cols-2"
+              : "grid-cols-1"
+          }`}>
+            <Button className="w-full" onClick={() => completeProject("send")}>
+                <Trophy size={16} className="mr-1.5" /> Complete project
+            </Button>
+            {sendType !== "topped" && route.climbing_type !== "boulder" ? (
               <Button
                 className="w-full"
-                onClick={() =>
-                  // Bouldering has no "topped with falls" — you either stick the
-                  // whole problem or you don't, so there's nothing to choose.
-                  // Top rope keeps the Sent/Topped chooser.
-                  route.climbing_type === "boulder"
-                    ? completeProject("send")
-                    : setFinishOpen(true)
-                }
+                variant="secondary"
+                onClick={() => completeProject("topped")}
               >
-                <Trophy size={16} className="mr-1.5" /> Complete project
+                <Flag size={16} className="mr-1.5" /> Topped
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
       ) : null}
 
-      {/* How'd you finish? — Sent (clean) or Topped (with falls). Top rope
-          only; bouldering skips straight to Sent. Completes right here, no
-          extra page. No flash — you've been working this one. */}
-      {finishOpen ? (
-        <div
-          className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4 backdrop-blur-[2px]"
-          onClick={() => setFinishOpen(false)}
-        >
-          <div
-            className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-lg font-extrabold text-chalk">
-              Nice — how'd you finish?
-            </p>
-            <p className="mt-1 text-sm text-muted">
-              Topped keeps this project open. A clean send marks it complete.
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => completeProject("send")}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-5 text-chalk transition active:scale-[0.98] hover:border-accent"
-              >
-                <Check size={24} className="text-accent" />
-                <span className="text-sm font-bold">Sent</span>
-                <span className="text-[11px] text-faint">Clean, no falls</span>
-              </button>
-              <button
-                onClick={() => completeProject("topped")}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-surface-2 py-5 text-chalk transition active:scale-[0.98] hover:border-accent"
-              >
-                <Flag size={24} className="text-accent" />
-                <span className="text-sm font-bold">Topped</span>
-                <span className="text-[11px] text-faint">Made it, with falls</span>
-              </button>
-            </div>
-          </div>
-        </div>
+      {editOpen ? (
+        <LogSheet
+          route={route}
+          initialOutcome={sendType === "topped" ? "topped" : "project"}
+          initialFeltGrade={myGrade}
+          editing
+          onClose={() => setEditOpen(false)}
+          onSaved={async () => {
+            setEditOpen(false);
+            await load();
+          }}
+        />
       ) : null}
 
       {/* Satisfying finish moment */}

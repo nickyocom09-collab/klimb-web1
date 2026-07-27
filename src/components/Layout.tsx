@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { IntroTutorial, INTRO_SEEN_KEY } from "./IntroTutorial";
 import { BarChart3, BookOpen, MapPin, Plus, User } from "lucide-react";
@@ -24,6 +24,7 @@ const tabs = [
 
 export function Layout() {
   const { profile } = useAuth();
+  const { pathname } = useLocation();
   // First launch only: a quick "how Klimb works" carousel. The seen_intro
   // flag lives on the profile so it never reappears, on any device. We also
   // skip it if it already played locally before sign-up (guest tutorial), so a
@@ -33,6 +34,15 @@ export function Layout() {
     profile.onboarded &&
     !profile.seen_intro &&
     !introAlreadySeenLocally();
+  const activeTab = pathname.startsWith("/map") || pathname.startsWith("/gyms")
+    ? 1
+    : pathname.startsWith("/log")
+      ? 2
+      : pathname.startsWith("/stats")
+        ? 3
+        : pathname.startsWith("/profile") || pathname.startsWith("/settings")
+          ? 4
+          : 0;
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
@@ -51,7 +61,12 @@ export function Layout() {
         {/* Near-opaque bar. It floats over the content, so it has to actually
             hide what scrolls beneath it — a translucent version let page
             content and map pins read through and looked broken. */}
-        <div className="flex items-center justify-between gap-1 rounded-full border border-border bg-surface/95 px-2 py-2 shadow-lg backdrop-blur">
+        <div className="relative flex items-center justify-between rounded-full border border-border bg-surface/95 px-2 py-2 shadow-lg backdrop-blur">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute bottom-2 top-2 left-2 w-[calc((100%-1rem)/5)] rounded-full bg-surface-2 transition-transform duration-300 ease-out"
+            style={{ transform: `translateX(${activeTab * 100}%)` }}
+          />
           {tabs.map(({ to, label, Icon, end, hero }) =>
             hero ? (
               <NavLink
@@ -59,7 +74,7 @@ export function Layout() {
                 to={to}
                 end={end}
                 aria-label={label}
-                className="flex flex-1 flex-col items-center gap-1 text-[11px] font-semibold"
+                className="relative z-10 flex flex-1 flex-col items-center gap-1 text-[11px] font-semibold"
               >
                 {({ isActive }) => (
                   <>
@@ -80,9 +95,9 @@ export function Layout() {
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `flex flex-1 flex-col items-center gap-1 rounded-full py-1.5 text-[11px] font-semibold transition ${
+                  `relative z-10 flex flex-1 flex-col items-center gap-1 rounded-full py-1.5 text-[11px] font-semibold transition ${
                     isActive
-                      ? "bg-surface-2 text-accent"
+                      ? "text-accent"
                       : "text-faint hover:text-muted"
                   }`
                 }

@@ -288,7 +288,7 @@ export function Onboarding() {
                   // Keep the username suggestion in sync until they edit it.
                   if (!unameTouched) setUname(suggestUsername(e.target.value));
                 }}
-                placeholder="e.g. Nick Yocom"
+                placeholder="e.g. John Doe"
                 maxLength={30}
               />
               <p className="ml-1 mt-2 text-xs text-faint">
@@ -304,7 +304,7 @@ export function Onboarding() {
                   setUnameTouched(true);
                   setUnameErr(null);
                 }}
-                placeholder="nickyocom"
+                placeholder="supperdopeclimber"
                 autoCapitalize="none"
                 autoCorrect="off"
                 maxLength={20}

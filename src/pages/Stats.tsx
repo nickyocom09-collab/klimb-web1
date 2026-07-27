@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
   Clapperboard,
@@ -43,6 +44,7 @@ export function Stats() {
   const [recaps, setRecaps] = useState<RecapRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [story, setStory] = useState<RecapRow | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (!profile) return;
@@ -81,6 +83,17 @@ export function Stats() {
       );
     }
   }
+
+  useEffect(() => {
+    if (loading || recaps.length === 0) return;
+    const recapId = searchParams.get("recap");
+    if (!recapId) return;
+    const requested = recaps.find((r) => r.id === recapId);
+    if (requested) openStory(requested);
+    setSearchParams({}, { replace: true });
+    // openStory is intentionally driven once by the URL after recaps load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, recaps, searchParams, setSearchParams]);
 
   return (
     <div>
@@ -145,33 +158,33 @@ export function Stats() {
             </div>
           ) : (
             <>
-          {/* ---- ONE headline moment ---- */}
-          <div className="rounded-3xl bg-surface px-6 py-8 text-center shadow-card">
-            <p className="text-6xl font-extrabold leading-none tabular-nums text-accent">
-              {logged.length}
+          {/* Headline totals stay scannable instead of competing for space. */}
+          <div className="rounded-3xl bg-surface p-5 shadow-card">
+            <p className="text-xs font-semibold uppercase tracking-wide text-faint">
+              All-time activity
             </p>
-            <p className="mt-2 text-base font-semibold text-chalk">
-              climb{logged.length === 1 ? "" : "s"} logged
-            </p>
-            <p className="mt-1 text-sm text-muted">
-              {stats.total} send{stats.total === 1 ? "" : "s"} ·{" "}
-              {stats.flashes} flash{stats.flashes === 1 ? "" : "es"}
-              {stats.flashRate !== null
-                ? ` · ${stats.flashRate}% first try`
-                : ""}
-            </p>
+            <div className="mt-4 grid grid-cols-3 divide-x divide-border/60">
+              <Metric value={logged.length} label="Klimbs" accent />
+              <Metric value={stats.total} label="Sends" />
+              <Metric value={stats.flashes} label="Flashes" />
+            </div>
+            {stats.flashRate !== null ? (
+              <p className="mt-4 border-t border-border/50 pt-3 text-center text-xs text-muted">
+                {stats.flashRate}% of your sends happened first try
+              </p>
+            ) : null}
           </div>
 
           {/* ---- Streak: an animated flame, counted in days ---- */}
-          <div className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-card">
-            <StreakFire streak={stats.streakWeeks} size={68} />
+          <div className="flex items-center gap-4 rounded-3xl bg-surface p-4 shadow-card">
+            <StreakFire streak={stats.streakWeeks} size={52} />
             <div className="min-w-0">
-              <p className="text-3xl font-extrabold leading-none tabular-nums text-chalk">
+              <p className="text-2xl font-extrabold leading-none tabular-nums text-chalk">
                 {stats.streakWeeks > 0
                   ? `${stats.streakDays} day${stats.streakDays === 1 ? "" : "s"}`
                   : "No streak"}
               </p>
-              <p className="mt-1.5 text-sm text-muted">
+              <p className="mt-1 text-xs leading-relaxed text-muted">
                 {stats.streakWeeks > 0
                   ? "Streak's alive — just one log a week keeps it burning."
                   : "Log a Klimb this week to spark your streak."}
@@ -184,8 +197,8 @@ export function Stats() {
             <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-faint">
               Personal bests
             </h2>
-            <div className="flex flex-col divide-y divide-border/50">
-              <div className="flex items-center justify-between gap-3 py-3">
+            <div className="mt-2 flex flex-col divide-y divide-border/50">
+              <div className="py-3">
                 <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
                   <Trophy size={16} className="text-accent" /> Hardest send
                 </span>
@@ -194,7 +207,7 @@ export function Stats() {
                   tone="text-accent"
                 />
               </div>
-              <div className="flex items-center justify-between gap-3 py-3">
+              <div className="py-3">
                 <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
                   <Zap size={16} className="text-accent" /> Hardest flash
                 </span>
@@ -332,20 +345,41 @@ function HardestValue({
     parts.lead ? { g: parts.lead, t: "Lead" } : null,
   ].filter(Boolean) as { g: string; t: string }[];
   if (items.length === 0) {
-    return <span className={`text-2xl font-extrabold ${tone}`}>—</span>;
+    return <span className={`mt-3 block text-2xl font-extrabold ${tone}`}>—</span>;
   }
   return (
-    <div className="flex items-start gap-4">
+    <div className="mt-3 grid grid-cols-3 gap-2">
       {items.map((it) => (
-        <div key={it.t} className="text-right leading-none">
-          <p className={`text-2xl font-extrabold tabular-nums ${tone}`}>
+        <div key={it.t} className="rounded-xl bg-surface-2 px-3 py-2.5 text-left leading-none">
+          <p className={`text-xl font-extrabold tabular-nums ${tone}`}>
             {it.g}
           </p>
-          <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-faint">
+          <p className="mt-1.5 truncate text-[9px] font-semibold uppercase tracking-wide text-faint">
             {it.t}
           </p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function Metric({
+  value,
+  label,
+  accent = false,
+}: {
+  value: number;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="text-center">
+      <p className={`text-3xl font-extrabold leading-none tabular-nums ${accent ? "text-accent" : "text-chalk"}`}>
+        {value}
+      </p>
+      <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+        {label}
+      </p>
     </div>
   );
 }

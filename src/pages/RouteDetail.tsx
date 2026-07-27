@@ -245,22 +245,33 @@ export function RouteDetail() {
                   : "what they felt"}
               </p>
             </div>
-            {route.gym_grade !== null && route.gym_grade !== undefined ? (
-              <div className="flex-1 rounded-2xl bg-surface px-4 py-3 shadow-card">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                  Gym says
-                </p>
-                <p className="mt-0.5 text-4xl font-extrabold leading-none tabular-nums text-chalk">
-                  {formatGymGrade(
-                    route.gym_grade,
-                    route.climbing_type,
-                    system,
-                    route.gradingStyle,
-                  )}
-                </p>
-                <p className="mt-1.5 text-xs text-faint">official grade</p>
-              </div>
-            ) : null}
+            <button
+              type="button"
+              disabled={!isMine}
+              onClick={() => isMine && setLogOpen(true)}
+              className="flex-1 rounded-2xl bg-surface px-4 py-3 text-left shadow-card transition active:scale-[0.99] disabled:active:scale-100"
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+                Gym says
+              </p>
+              <p className="mt-0.5 text-4xl font-extrabold leading-none tabular-nums text-chalk">
+                {route.gym_grade !== null && route.gym_grade !== undefined
+                  ? formatGymGrade(
+                      route.gym_grade,
+                      route.climbing_type,
+                      system,
+                      route.gradingStyle,
+                    )
+                  : "—"}
+              </p>
+              <p className="mt-1.5 text-xs text-faint">
+                {route.gym_grade !== null && route.gym_grade !== undefined
+                  ? "official grade"
+                  : isMine
+                    ? "Not graded · tap to add"
+                    : "Not graded"}
+              </p>
+            </button>
           </div>
 
           {/* Someone else's climb — read-only, no logging onto their route. */}
@@ -356,6 +367,9 @@ export function RouteDetail() {
           initialOutcome={
             hasSent ? mySendType : isProject ? "project" : null
           }
+          initialFeltGrade={myGrade}
+          initialNote={myNote ?? ""}
+          editing={hasSent || isProject}
           onClose={() => setLogOpen(false)}
           onSaved={async () => {
             setLogOpen(false);

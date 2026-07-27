@@ -1,4 +1,4 @@
-import { Bookmark, Check, Flag, Zap } from "lucide-react";
+import { Bookmark, Check, Zap } from "lucide-react";
 import { REWARD, type Outcome } from "../../lib/useLogClimb";
 
 /** The celebratory flash that fires on a successful log — shared by both the
@@ -13,8 +13,6 @@ export function RewardOverlay({ reward }: { reward: Outcome }) {
             <Zap size={30} strokeWidth={2.5} />
           ) : reward === "project" ? (
             <Bookmark size={28} strokeWidth={2.5} />
-          ) : reward === "topped" ? (
-            <Flag size={28} strokeWidth={2.5} />
           ) : (
             <Check size={32} strokeWidth={3} />
           )}

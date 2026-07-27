@@ -40,8 +40,8 @@ const Friends = lazy(() =>
 function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
   if (loading) return <Splash />;
-  // Signed-out users land on the friendly welcome screen — not a login form.
-  // The login prompt is one tap away from there (or wherever they try to act).
+  // First launch plays the walkthrough; returning signed-out users go straight
+  // to login. GuestHome owns that one-time routing decision.
   if (!session) return <Navigate to="/welcome" replace />;
   return <>{children}</>;
 }

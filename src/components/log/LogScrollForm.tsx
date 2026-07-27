@@ -23,9 +23,7 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
         <p className="mb-2 ml-1 text-sm text-muted">How'd it go?</p>
         <div
           key={s.climbingType}
-          className={`grid gap-2 ${
-            s.outcomeOptions.length === 4 ? "grid-cols-2" : "grid-cols-3"
-          }`}
+          className="grid grid-cols-3 gap-2"
         >
           {s.outcomeOptions.map(({ value, label, hint }) => {
             const Icon = OUTCOME_ICON[value];

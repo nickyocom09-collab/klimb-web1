@@ -345,7 +345,7 @@ export function Sends() {
                   system={system}
                   index={i}
                   to={`/project/${p.route.id}`}
-                  badge={p.topped ? <Badge tone="accent"><Check size={12} /> Topped · still open</Badge> : <Badge tone="muted"><Bookmark size={12} /> Projecting</Badge>}
+                  badge={p.topped ? <Badge tone="accent"><Check size={12} /> Topped</Badge> : <Badge tone="muted"><Bookmark size={12} /> In progress</Badge>}
                   sub={daysOpen(p.since)}
                   note={p.notePeek}
                 />
@@ -468,7 +468,9 @@ function RowLink({
             {formatGradeStyled(grade, route.climbing_type, system, route.gradingStyle)}
           </p>
           <p className="mt-0.5 text-[10px] text-faint">
-            {climbTypeLabel(route.climbing_type)}
+            {grade === null || grade === undefined
+              ? "Not graded"
+              : climbTypeLabel(route.climbing_type)}
           </p>
         </div>
       </Link>

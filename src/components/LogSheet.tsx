@@ -36,7 +36,7 @@ function outcomesFor(type: ClimbingType): OutcomeOption[] {
     hint: "Working it",
     Icon: Bookmark,
   };
-  if (type === "toprope") {
+  if (type !== "boulder") {
     return [
       flash,
       { value: "send", label: "Sent", hint: "No falls", Icon: Check },
@@ -68,6 +68,9 @@ export function LogSheet({
   onClose,
   onSaved,
   initialOutcome = null,
+  initialFeltGrade = null,
+  initialNote = "",
+  editing = false,
 }: {
   route: RouteWithStats;
   onClose: () => void;
@@ -75,15 +78,18 @@ export function LogSheet({
   onSaved: (outcome: LogOutcome) => void;
   /** Pre-select an outcome — used when editing a log or moving its status. */
   initialOutcome?: LogOutcome | null;
+  initialFeltGrade?: number | null;
+  initialNote?: string;
+  editing?: boolean;
 }) {
   const { profile } = useAuth();
   const system = profile?.grade_system ?? "american";
   const outcomeOptions = outcomesFor(route.climbing_type);
 
   const [outcome, setOutcome] = useState<LogOutcome | null>(initialOutcome);
-  const [feltGrade, setFeltGrade] = useState<number | null>(null);
-  const [gymGrade, setGymGrade] = useState<number | null>(null);
-  const [note, setNote] = useState("");
+  const [feltGrade, setFeltGrade] = useState<number | null>(initialFeltGrade);
+  const [gymGrade, setGymGrade] = useState<number | null>(route.gym_grade);
+  const [note, setNote] = useState(initialNote);
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState<LogOutcome | null>(null);
 
@@ -150,10 +156,7 @@ export function LogSheet({
         { onConflict: "route_id,user_id" },
       );
     }
-    if (
-      gymGrade !== null &&
-      (route.gym_grade === null || route.gym_grade === undefined)
-    ) {
+    if (gymGrade !== null && gymGrade !== route.gym_grade) {
       await supabase.rpc("set_gym_grade", {
         p_route_id: route.id,
         p_grade: gymGrade,
@@ -300,22 +303,18 @@ export function LogSheet({
               (what does the tag say?)
             </span>
           </h3>
+          <GradePicker
+            value={gymGrade}
+            onChange={setGymGrade}
+            climbingType={route.climbing_type}
+            system={system}
+            options={gymGradeOptions(route.climbing_type, system, "classic")}
+          />
           {route.gym_grade !== null && route.gym_grade !== undefined ? (
-            <p className="text-sm text-muted">
-              Gym says{" "}
-              <span className="font-bold text-chalk">
-                {formatGradeStyled(route.gym_grade, route.climbing_type, system)}
-              </span>
+            <p className="mt-1 text-xs text-faint">
+              Currently {formatGradeStyled(route.gym_grade, route.climbing_type, system)}
             </p>
-          ) : (
-            <GradePicker
-              value={gymGrade}
-              onChange={setGymGrade}
-              climbingType={route.climbing_type}
-              system={system}
-              options={gymGradeOptions(route.climbing_type, system, "classic")}
-            />
-          )}
+          ) : null}
         </div>
 
         {/* Note */}
@@ -335,7 +334,7 @@ export function LogSheet({
           loading={saving}
           onClick={save}
         >
-          {outcome === "project" ? "Save to projects" : "Log it"}
+          {editing ? "Save" : outcome === "project" ? "Save to projects" : "Log it"}
         </Button>
 
         {/* Reward moment */}
@@ -356,10 +355,10 @@ export function LogSheet({
               </span>
             </span>
             <p className="animate-fade-up text-2xl font-extrabold text-chalk [animation-delay:120ms]">
-              {REWARD[reward].title}
+              {editing ? "Saved" : REWARD[reward].title}
             </p>
             <p className="animate-fade-up text-sm text-muted [animation-delay:200ms]">
-              {REWARD[reward].sub}
+              {editing ? "Your changes are up to date." : REWARD[reward].sub}
             </p>
           </div>
         ) : null}

@@ -4,7 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
 import { pickPhotoNative } from "./photo";
-import { isRopeType, type ClimbType } from "./constants";
+import type { ClimbType } from "./constants";
 import { assertNearGym } from "./location";
 import {
   gymGradeOptions,
@@ -15,7 +15,7 @@ import {
 export const NOT_SET = "Not set";
 export const OTHER = "Other…";
 
-export type Outcome = "flash" | "send" | "topped" | "project";
+export type Outcome = "flash" | "send" | "project";
 
 export type OutcomeOption = {
   value: Outcome;
@@ -23,26 +23,19 @@ export type OutcomeOption = {
   hint: string;
 };
 
-// Rope climbs get the extra "Topped" state (reached the anchor, but with
-// falls) between Sent and Project; boulders just top out or don't.
 export function outcomesFor(type: ClimbType): OutcomeOption[] {
   const flash: OutcomeOption = { value: "flash", label: "Flash", hint: "First try" };
   const project: OutcomeOption = { value: "project", label: "Project", hint: "Working it" };
-  if (isRopeType(type)) {
-    return [
-      flash,
-      { value: "send", label: "Sent", hint: "No falls" },
-      { value: "topped", label: "Topped", hint: "With falls" },
-      project,
-    ];
-  }
-  return [flash, { value: "send", label: "Sent", hint: "Clean" }, project];
+  return [
+    flash,
+    { value: "send", label: "Sent", hint: type === "boulder" ? "Clean" : "No falls" },
+    project,
+  ];
 }
 
 export const REWARD: Record<Outcome, { title: string; sub: string }> = {
   flash: { title: "Flashed!", sub: "First try. Filthy." },
   send: { title: "Sent!", sub: "Another one for the book." },
-  topped: { title: "Topped!", sub: "Made the anchor — go back for the clean send." },
   project: { title: "On the board", sub: "Saved to your projects." },
 };
 
@@ -143,8 +136,6 @@ export function useLogClimb() {
     setClimbingType(t);
     setFeltGrade(null);
     setGymGrade(null);
-    // "Topped" only exists for rope climbs — drop it if switching to boulder.
-    if (!isRopeType(t) && outcome === "topped") setOutcome(null);
   }
 
   async function save() {
@@ -221,8 +212,7 @@ export function useLogClimb() {
         );
       }
 
-      // 3) A topped rope route is still in progress, so it gets both the
-      // progress log and a project bookmark. Only a clean send is finished.
+      // 3) Projects stay open; sends and flashes go into the permanent logbook.
       const trimmed = note.trim();
       if (outcome === "project") {
         writes.push(
@@ -249,13 +239,6 @@ export function useLogClimb() {
             note: trimmed || null,
           }),
         );
-        if (outcome === "topped") {
-          writes.push(
-            supabase
-              .from("bookmarks")
-              .insert({ user_id: profile.id, route_id: route.id, kind: "project" }),
-          );
-        }
       }
       await Promise.all(writes);
 

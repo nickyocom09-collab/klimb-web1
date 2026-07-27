@@ -223,17 +223,27 @@ export function GymSelect() {
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       <header className="px-5 py-4">
-        <div className="flex items-center gap-2">
-          {openState || openCountry || profile?.home_gym_id ? (
-            <button
-              onClick={goBack}
-              aria-label="Back"
-              className="-ml-2 rounded-full p-1 text-muted transition hover:text-chalk"
-            >
-              <ChevronLeft size={24} />
-            </button>
-          ) : null}
-          <h1 className="text-2xl font-extrabold text-chalk">{title}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            {openState || openCountry || profile?.home_gym_id ? (
+              <button
+                onClick={goBack}
+                aria-label="Back"
+                className="-ml-2 rounded-full p-1 text-muted transition hover:text-chalk"
+              >
+                <ChevronLeft size={24} />
+              </button>
+            ) : null}
+            <h1 className="truncate text-2xl font-extrabold text-chalk">{title}</h1>
+          </div>
+          <button
+            type="button"
+            onClick={openSuggest}
+            className="shrink-0 text-right text-xs font-bold leading-tight text-accent"
+          >
+            Don't see it?
+            <span className="block font-semibold">Add your gym</span>
+          </button>
         </div>
         <p className="mt-1 text-sm text-muted">{subtitle}</p>
       </header>

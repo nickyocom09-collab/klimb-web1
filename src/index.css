@@ -92,6 +92,14 @@
   }
 }
 
+/* Klimb's display voice is deliberately narrow and old-world. It is used only
+   beside the custom K mark, so the rest of the product stays effortlessly legible. */
+.klimb-gothic-wordmark {
+  font-family: "UnifrakturCook", Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.055em;
+}
+
 /* ---- 2D gym map ------------------------------------------------------------
    Labeled pins: a glowing green dot with the gym name on a pill underneath,
    so you always know which gym you're tapping. The home gym gets a green

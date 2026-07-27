@@ -105,7 +105,7 @@ export async function fetchNotifications(
       id: `recap-${r.id}`,
       kind: "recap",
       text: "Your weekly recap is ready 🎬",
-      link: "/",
+      link: `/stats?recap=${encodeURIComponent(r.id)}`,
       createdAt: r.generated_at,
       // Unread until you've actually watched it.
       unread: !r.seen_at,

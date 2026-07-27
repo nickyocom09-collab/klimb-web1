@@ -300,7 +300,7 @@ export function Settings() {
               label="Display name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Nick Yocom"
+              placeholder="e.g. John Doe"
             />
             <div>
               <Input
@@ -310,7 +310,7 @@ export function Settings() {
                   setUname(e.target.value);
                   setUMsg(null);
                 }}
-                placeholder="nickyocom"
+                placeholder="supperdopeclimber"
                 autoCapitalize="none"
                 autoCorrect="off"
               />
