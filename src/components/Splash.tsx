@@ -6,7 +6,7 @@
 export function Splash() {
   return (
     <div className="klimb-splash">
-      <img className="klimb-splash__mark" src="/klimb-k-white.png" alt="Klimb" />
+      <img className="klimb-splash__mark" src="/klimb-k.svg" alt="Klimb" />
     </div>
   );
 }

@@ -566,6 +566,20 @@ export interface Database {
       };
     };
     Functions: {
+      log_climb: {
+        Args: {
+          p_gym_id: string;
+          p_photo_url: string;
+          p_hold_color: string;
+          p_climbing_type: string;
+          p_gym_grade: number | null;
+          p_felt_grade: number | null;
+          p_stars: number | null;
+          p_outcome: string;
+          p_note: string;
+        };
+        Returns: string;
+      };
       report_route_gone: {
         Args: { p_route_id: string };
         Returns: number;

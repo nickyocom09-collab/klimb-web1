@@ -13,6 +13,7 @@ export function GradePicker({
   system = "american",
   gradeStyle = "classic",
   options: customOptions,
+  emptyLabel = "Not set",
 }: {
   value: number | null;
   onChange: (g: number | null) => void;
@@ -22,6 +23,8 @@ export function GradePicker({
   gradeStyle?: GradeStyle;
   /** Override the option set (e.g. top-rope gym +/- grades). */
   options?: { value: number; label: string }[];
+  /** Copy for the optional empty choice. */
+  emptyLabel?: string;
 }) {
   const options = customOptions ?? pickerOptions(climbingType, system, gradeStyle);
   const selected = options.find((option) => option.value === value);
@@ -38,7 +41,7 @@ export function GradePicker({
           selected ? "border-accent/60 text-accent" : "border-border text-muted"
         }`}
       >
-        <option value="">Not set</option>
+        <option value="">{emptyLabel}</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

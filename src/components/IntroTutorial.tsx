@@ -124,7 +124,7 @@ export function IntroTutorial({ onDone }: { onDone?: () => void }) {
             <Icon size={44} className="text-accent" strokeWidth={1.8} />
           ) : (
             <img
-              src="/klimb-k-white.png"
+              src="/klimb-k.svg"
               alt="Klimb"
               className="h-12 w-12 object-contain"
             />

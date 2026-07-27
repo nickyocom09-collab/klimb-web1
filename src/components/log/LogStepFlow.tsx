@@ -165,6 +165,7 @@ const STEPS: Step[] = [
             onChange={s.setFeltGrade}
             climbingType={s.climbingType}
             system={s.system}
+            emptyLabel="Not sure"
           />
         </div>
         <div className="flex items-center justify-between">

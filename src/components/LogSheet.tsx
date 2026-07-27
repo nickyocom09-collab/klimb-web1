@@ -316,6 +316,7 @@ export function LogSheet({
             onChange={setFeltGrade}
             climbingType={route.climbing_type}
             system={system}
+            emptyLabel="Not sure"
           />
         </div>
 

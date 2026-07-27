@@ -6,7 +6,6 @@ import { supabase } from "../lib/supabase";
 import {
   HOLD_COLORS,
   holdHex,
-  MAX_ROUTES_PER_DAY,
   type ClimbType,
 } from "../lib/constants";
 import { pickerOptions, type GradeStyle } from "../lib/grades";
@@ -153,19 +152,6 @@ export function AddRoute() {
         throw new Error(near.error ?? "Get within range of the gym to add a route.");
       }
 
-      const since = new Date();
-      since.setHours(0, 0, 0, 0);
-      const { count } = await supabase
-        .from("routes")
-        .select("id", { count: "exact", head: true })
-        .eq("created_by", profile!.id)
-        .gte("created_at", since.toISOString());
-      if ((count ?? 0) >= MAX_ROUTES_PER_DAY) {
-        throw new Error(
-          `You've hit the limit of ${MAX_ROUTES_PER_DAY} routes per day. Try again tomorrow.`,
-        );
-      }
-
       const photoUrl = photo ? await uploadFile(photo, "photo") : NO_PHOTO;
 
       const { data: route, error: insErr } = await supabase
@@ -183,11 +169,6 @@ export function AddRoute() {
         .select("id")
         .single();
       if (insErr) {
-        if (insErr.message.includes("rate_limit")) {
-          throw new Error(
-            `You've hit the limit of ${MAX_ROUTES_PER_DAY} routes per day. Try again tomorrow.`,
-          );
-        }
         throw insErr;
       }
 

@@ -128,6 +128,13 @@ type WeekData = {
   periodWord: string;
 };
 
+type MixItem = {
+  key: "boulder" | "toprope" | "lead";
+  label: string;
+  n: number;
+  hue: string;
+};
+
 /* ------- Falling rocks: 3 parallax layers, natural boulders, dust ------- */
 type Rock = {
   x: number;
@@ -354,96 +361,119 @@ function drawSpaced(
   ctx.textAlign = "center";
 }
 
-function buildStoryCanvas(arch: Archetype, w: WeekData) {
+/** The final on-screen recap card is also the thing that gets shared. */
+function buildWrapCanvas(w: WeekData, mix: MixItem[]) {
   const c = document.createElement("canvas");
   c.width = 1080;
   c.height = 1920;
   const ctx = c.getContext("2d")!;
-  // bg
-  ctx.fillStyle = "#080B0A";
-  ctx.fillRect(0, 0, 1080, 1920);
-  const glow = ctx.createRadialGradient(540, 520, 40, 540, 520, 900);
-  glow.addColorStop(0, arch.hue + "22");
-  glow.addColorStop(1, "#080B0A00");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, 1080, 1920);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
 
-  // wordmark
+  ctx.fillStyle = "#07100B";
+  ctx.fillRect(0, 0, c.width, c.height);
+  const glow = ctx.createRadialGradient(540, 380, 20, 540, 380, 980);
+  glow.addColorStop(0, "#4ADE8038");
+  glow.addColorStop(0.48, "#16322218");
+  glow.addColorStop(1, "#07100B00");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.textAlign = "center";
+
   ctx.fillStyle = "#E8F0EB";
   ctx.font = "700 58px Georgia, serif";
-  drawSpaced(ctx, "KLIMB", 540, 190, 16);
-  ctx.strokeStyle = arch.hue;
-  ctx.lineWidth = 3;
+  drawSpaced(ctx, "KLIMB", 540, 155, 16);
+
   ctx.beginPath();
-  ctx.moveTo(490, 220);
-  ctx.lineTo(590, 220);
+  ctx.arc(540, 330, 66, 0, Math.PI * 2);
+  ctx.fillStyle = "#82F0A7";
+  ctx.shadowColor = "#82F0A766";
+  ctx.shadowBlur = 45;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#07100B";
+  ctx.lineWidth = 13;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(508, 331);
+  ctx.lineTo(532, 355);
+  ctx.lineTo(576, 307);
   ctx.stroke();
 
-  // kicker
-  ctx.fillStyle = "#7C8C84";
-  ctx.font = "600 30px system-ui, sans-serif";
-  drawSpaced(ctx, `THIS ${w.periodWord.toUpperCase()} YOU WERE`, 540, 560, 8);
-
-  // archetype label (shrink for long names)
-  const fs = arch.label.length > 13 ? 96 : 118;
-  ctx.fillStyle = arch.hue;
-  ctx.font = `700 ${fs}px Georgia, serif`;
-  ctx.shadowColor = arch.hue + "66";
-  ctx.shadowBlur = 40;
-  ctx.fillText(arch.label, 540, 680);
-  ctx.shadowBlur = 0;
-
-  // subtitle (wrap)
-  ctx.fillStyle = "#B8C4BD";
-  ctx.font = "34px system-ui, sans-serif";
-  const words = arch.sub.split(" ");
-  let line = "",
-    ly = 760;
-  for (const word of words) {
-    if (ctx.measureText(line + word).width > 820) {
-      ctx.fillText(line.trim(), 540, ly);
-      line = "";
-      ly += 48;
-    }
-    line += word + " ";
-  }
-  ctx.fillText(line.trim(), 540, ly);
-
-  // stats row
-  const stats: [string, string][] = [
-    [String(w.climbs), "climbs"],
-    [String(w.sends), "sends"],
-    [String(w.sessions), "sessions"],
-    [String(w.streak), `${w.periodWord} streak`],
-  ];
-  const cols = [202, 427, 652, 877];
-  const sy = 1120;
-  stats.forEach((s, k) => {
-    ctx.fillStyle = "#E8F0EB";
-    ctx.font = "700 68px Georgia, serif";
-    ctx.fillText(s[0], cols[k], sy);
-    ctx.fillStyle = "#7C8C84";
-    ctx.font = "24px system-ui, sans-serif";
-    ctx.fillText(s[1], cols[k], sy + 44);
-  });
-
-  // hardest send
   ctx.fillStyle = "#7C8C84";
   ctx.font = "600 28px system-ui, sans-serif";
-  drawSpaced(ctx, "HARDEST SEND", 540, 1400, 8);
-  ctx.fillStyle = "#E4B363";
-  ctx.font = '800 200px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  ctx.shadowColor = "#E4B36355";
-  ctx.shadowBlur = 50;
-  ctx.fillText(w.grade, 540, 1600);
-  ctx.shadowBlur = 0;
+  drawSpaced(ctx, "THAT'S A WRAP", 540, 475, 9);
 
-  // footer
-  ctx.fillStyle = "#4a564f";
-  ctx.font = "26px system-ui, sans-serif";
-  drawSpaced(ctx, "TRACK YOUR CLIMBS  ·  KLIMB", 540, 1820, 4);
+  ctx.fillStyle = "#F1F8F2";
+  ctx.font = "700 92px Georgia, serif";
+  ctx.fillText(`Your ${w.periodWord},`, 540, 610);
+  ctx.fillText("well spent.", 540, 710);
+  ctx.fillStyle = "#B8CFC0";
+  ctx.font = "32px system-ui, sans-serif";
+  ctx.fillText(`${w.climbs} climbs logged · ${w.sends} sends earned`, 540, 785);
+
+  const stats: [string, string][] = [
+    [String(w.climbs), "KLIMBS"],
+    [String(w.sends), "SENDS"],
+    [String(w.flashes), "FLASHES"],
+  ];
+  const statX = [245, 540, 835];
+  stats.forEach(([value, label], index) => {
+    ctx.fillStyle = "#101A14";
+    ctx.beginPath();
+    ctx.roundRect(statX[index] - 125, 890, 250, 205, 28);
+    ctx.fill();
+    ctx.fillStyle = "#F1F8F2";
+    ctx.font = "700 64px system-ui, sans-serif";
+    ctx.fillText(value, statX[index], 985);
+    ctx.fillStyle = "#7C8C84";
+    ctx.font = "600 23px system-ui, sans-serif";
+    drawSpaced(ctx, label, statX[index], 1045, 3);
+  });
+
+  if (mix.length > 0) {
+    const total = mix.reduce((sum, item) => sum + item.n, 0);
+    ctx.fillStyle = "#7C8C84";
+    ctx.font = "600 25px system-ui, sans-serif";
+    drawSpaced(ctx, "WHAT YOU CLIMBED", 540, 1240, 7);
+
+    let x = 130;
+    const barWidth = 820;
+    mix.forEach((item, index) => {
+      const width =
+        index === mix.length - 1
+          ? 950 - x
+          : Math.max(18, (item.n / total) * barWidth);
+      ctx.fillStyle = item.hue;
+      ctx.beginPath();
+      ctx.roundRect(x, 1290, width, 34, 17);
+      ctx.fill();
+      x += width + 7;
+    });
+
+    const labelGap = 820 / mix.length;
+    mix.forEach((item, index) => {
+      const cx = 130 + labelGap * index + labelGap / 2;
+      ctx.fillStyle = item.hue;
+      ctx.font = "700 38px system-ui, sans-serif";
+      ctx.fillText(`${Math.round((item.n / total) * 100)}%`, cx, 1415);
+      ctx.fillStyle = "#B8C4BD";
+      ctx.font = "27px system-ui, sans-serif";
+      ctx.fillText(item.label, cx, 1460);
+    });
+  }
+
+  if (w.grade !== "—") {
+    ctx.fillStyle = "#7C8C84";
+    ctx.font = "600 24px system-ui, sans-serif";
+    drawSpaced(ctx, "HARDEST SEND", 540, 1610, 7);
+    ctx.fillStyle = "#E4B363";
+    ctx.font =
+      '800 108px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillText(w.grade, 540, 1720);
+  }
+
+  ctx.fillStyle = "#4A564F";
+  ctx.font = "24px system-ui, sans-serif";
+  drawSpaced(ctx, "TRACK YOUR KLIMBS  ·  KLIMB", 540, 1850, 4);
   return c;
 }
 
@@ -478,15 +508,26 @@ export function WeeklyRecap({
       .filter(Boolean)
       .join("  ·  ") || "—";
 
-  // "What you climb" mix — share of sends by discipline this period.
-  const mix = p.type_counts
-    ? (["boulder", "toprope", "lead"] as const)
-        .map((k) => ({
-          label: k === "toprope" ? "Top Rope" : k === "lead" ? "Lead" : "Boulder",
-          n: p.type_counts![k],
-        }))
-        .filter((m) => m.n > 0)
-    : [];
+  // "What you climb" mix — use the direct recap counts when available and
+  // gracefully derive them from the pyramid for older generated recaps.
+  const derivedTypeCounts = p.pyramid.reduce(
+    (counts, row) => {
+      counts[row.type] += row.count;
+      return counts;
+    },
+    { boulder: 0, toprope: 0, lead: 0 },
+  );
+  const typeCounts = p.type_counts ?? derivedTypeCounts;
+  const mix: MixItem[] = (
+    [
+      { key: "boulder", label: "Boulder", hue: "#4ADE80" },
+      { key: "toprope", label: "Top Rope", hue: "#60A5FA" },
+      { key: "lead", label: "Lead", hue: "#E4B363" },
+    ] as const
+  )
+    .map((item) => ({ ...item, n: typeCounts[item.key] ?? 0 }))
+    .filter((item) => item.n > 0);
+  const mixTotal = mix.reduce((sum, item) => sum + item.n, 0);
 
   const arch = useMemo(
     () => archetypeFor(p, `${recap.period}:${recap.period_start}`),
@@ -507,9 +548,10 @@ export function WeeklyRecap({
     const list = ["arch", "numbers"];
     if (hardestPrimary !== "—") list.push("hardest");
     if (p.streak >= 2) list.push("streak");
+    if (mixTotal > 0) list.push("mix");
     list.push("share");
     return list;
-  }, [hardestPrimary, p.streak]);
+  }, [hardestPrimary, mixTotal, p.streak]);
 
   const [i, setI] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
@@ -589,10 +631,10 @@ export function WeeklyRecap({
   // One native share surface, like Photos/YouTube: iOS shows every compatible
   // installed destination together (Instagram, Messages, WhatsApp, etc.).
   const shareRecap = async () => {
-    const canvas = buildStoryCanvas(arch, week);
+    const canvas = buildWrapCanvas(week, mix);
     await shareViaSheet(
       canvas,
-      "This week I was " + arch.label + " 🧗 — check out Klimb",
+      `${week.climbs} Klimbs, ${week.sends} sends — my ${periodWord} on Klimb 🧗`,
     );
   };
 
@@ -636,35 +678,6 @@ export function WeeklyRecap({
                 <Num icon={Zap} v={week.flashes} l="flashes" />
                 <Num icon={TrendingUp} v={week.sessions} l="sessions" />
               </div>
-              {mix.length > 0 ? (
-                <>
-                  <div style={{ marginTop: 22, ...S.kicker }}>WHAT YOU CLIMBED</div>
-                  <div
-                    style={{
-                      marginTop: 10,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      justifyContent: "center",
-                      gap: 10,
-                    }}
-                  >
-                    {mix.map((m) => (
-                      <span
-                        key={m.label}
-                        style={{
-                          fontSize: 13,
-                          color: "rgba(255,255,255,0.7)",
-                          background: "rgba(255,255,255,0.06)",
-                          borderRadius: 999,
-                          padding: "6px 13px",
-                        }}
-                      >
-                        <b style={{ color: "#fff" }}>{m.n}</b> {m.label}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              ) : null}
             </div>
           </div>
         )}
@@ -704,6 +717,66 @@ export function WeeklyRecap({
           </div>
         )}
 
+        {card === "mix" && (
+          <div
+            style={{
+              ...S.card,
+              background:
+                "radial-gradient(circle at 50% 35%, #13271c 0%, #0a100d 48%, #080B0A 100%)",
+            }}
+          >
+            <div style={S.cardInner}>
+              <div style={S.kicker}>HOW YOU SPENT YOUR {periodWord.toUpperCase()}</div>
+              <h2 style={S.mixTitle}>Your climbing mix</h2>
+              <p style={S.mixSub}>
+                {mixTotal} {mixTotal === 1 ? "send" : "sends"} across{" "}
+                {mix.length} {mix.length === 1 ? "discipline" : "disciplines"}
+              </p>
+              <div style={S.mixList}>
+                {mix.map((item) => {
+                  const percent = Math.round((item.n / mixTotal) * 100);
+                  return (
+                    <div key={item.key} style={S.mixRow}>
+                      <div style={S.mixRowHead}>
+                        <span style={S.mixLabel}>
+                          <i
+                            style={{
+                              ...S.mixDot,
+                              background: item.hue,
+                              boxShadow: `0 0 16px ${item.hue}55`,
+                            }}
+                          />
+                          {item.label}
+                        </span>
+                        <span style={S.mixCount}>
+                          {item.n} <small style={S.mixPercent}>{percent}%</small>
+                        </span>
+                      </div>
+                      <div style={S.mixTrack}>
+                        <div
+                          style={{
+                            ...S.mixFill,
+                            width: `${percent}%`,
+                            background: item.hue,
+                            boxShadow: `0 0 20px ${item.hue}33`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p style={S.mixNote}>
+                {mix.length === 1
+                  ? `${mix[0].label} owned the wall.`
+                  : mix[0].n === Math.max(...mix.map((item) => item.n))
+                    ? `${mix[0].label} led the way.`
+                    : `${mix.reduce((best, item) => item.n > best.n ? item : best).label} led the way.`}
+              </p>
+            </div>
+          </div>
+        )}
+
         {card === "share" && (
           <div style={{ ...S.card, background: "radial-gradient(circle at 50% 14%, #1c4430 0%, #0b1510 42%, #080B0A 100%)" }}>
             <div style={S.cardInner}>
@@ -711,7 +784,23 @@ export function WeeklyRecap({
               <div style={{ ...S.kicker, marginTop: 16 }}>THAT'S A WRAP</div>
               <h2 style={S.wrapTitle}>Your {periodWord},<br />well spent.</h2>
               <p style={S.wrapSub}>{week.climbs} climbs logged · {week.sends} sends earned</p>
-              <div style={S.finishRule} />
+              <div style={S.finishStats}>
+                <FinishStat value={week.climbs} label="Klimbs" />
+                <FinishStat value={week.sends} label="Sends" />
+                <FinishStat value={week.flashes} label="Flashes" />
+              </div>
+              {mix.length > 0 ? (
+                <div style={S.finishMix}>
+                  {mix.map((item) => (
+                    <span key={item.key} style={S.finishMixItem}>
+                      <i style={{ ...S.finishMixDot, background: item.hue }} />
+                      {item.n} {item.label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div style={S.finishRule} />
+              )}
               <button
                 style={S.shareBtn}
                 onClick={(e) => {
@@ -763,6 +852,21 @@ function Num({
   );
 }
 
+function FinishStat({
+  value,
+  label,
+}: {
+  value: number;
+  label: string;
+}) {
+  return (
+    <div style={S.finishStat}>
+      <strong style={S.finishStatValue}>{value}</strong>
+      <span style={S.finishStatLabel}>{label}</span>
+    </div>
+  );
+}
+
 const serif = 'Cambria, Georgia, "Times New Roman", serif';
 const sans = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const S: Record<string, React.CSSProperties> = {
@@ -787,10 +891,29 @@ const S: Record<string, React.CSSProperties> = {
   streakDays: { fontFamily: serif, fontSize: 26, color: "#B8C4BD", fontWeight: 600 },
   streakDivider: { width: 44, height: 3, borderRadius: 3, background: "rgba(251,146,60,0.45)", margin: "22px 0 16px" },
   streakNote: { fontSize: 14.5, color: "#B8C4BD", lineHeight: 1.5, maxWidth: 240, margin: 0 },
+  mixTitle: { fontFamily: serif, fontSize: 40, lineHeight: 1.06, fontWeight: 700, color: "#F1F8F2", margin: "2px 0 8px", letterSpacing: -1 },
+  mixSub: { color: "#8FA096", fontSize: 13.5, lineHeight: 1.45, margin: 0 },
+  mixList: { width: "100%", maxWidth: 330, display: "flex", flexDirection: "column", gap: 24, marginTop: 34 },
+  mixRow: { width: "100%" },
+  mixRowHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 9 },
+  mixLabel: { display: "inline-flex", alignItems: "center", gap: 9, color: "#E8F0EB", fontSize: 15, fontWeight: 700 },
+  mixDot: { display: "inline-block", width: 9, height: 9, borderRadius: 999 },
+  mixCount: { color: "#F1F8F2", fontSize: 17, fontWeight: 800, fontVariantNumeric: "tabular-nums" },
+  mixPercent: { color: "#7C8C84", fontSize: 11, fontWeight: 650, marginLeft: 4 },
+  mixTrack: { width: "100%", height: 8, borderRadius: 999, background: "rgba(255,255,255,0.07)", overflow: "hidden" },
+  mixFill: { height: "100%", borderRadius: 999, minWidth: 8 },
+  mixNote: { margin: "30px 0 0", color: "#B8C4BD", fontFamily: serif, fontSize: 16, fontStyle: "italic" },
   finishMark: { width: 50, height: 50, borderRadius: 25, display: "flex", alignItems: "center", justifyContent: "center", color: "#07110B", background: "#82F0A7", boxShadow: "0 0 0 6px rgba(130,240,167,0.1), 0 0 34px rgba(130,240,167,0.28)" },
   wrapTitle: { fontFamily: serif, fontSize: 38, lineHeight: 1.05, fontWeight: 700, color: "#F1F8F2", margin: "6px 0 10px", letterSpacing: -1.1 },
   wrapSub: { color: "#B8CFC0", fontSize: 14, margin: 0 },
   finishRule: { width: 42, height: 1, background: "rgba(130,240,167,0.55)", margin: "22px 0" },
+  finishStats: { width: "100%", maxWidth: 330, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 24 },
+  finishStat: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "13px 6px 12px", borderRadius: 14, background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.07)" },
+  finishStatValue: { color: "#F1F8F2", fontFamily: serif, fontSize: 24, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
+  finishStatLabel: { color: "#7C8C84", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" },
+  finishMix: { width: "100%", maxWidth: 330, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "8px 14px", margin: "18px 0 22px" },
+  finishMixItem: { display: "inline-flex", alignItems: "center", gap: 6, color: "#AAB9B0", fontSize: 11.5, fontWeight: 650 },
+  finishMixDot: { display: "inline-block", width: 6, height: 6, borderRadius: 999 },
   shareBtn: { width: "100%", maxWidth: 330, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 15, fontWeight: 750, color: "#080B0A", background: "#4ADE80", border: "none", padding: "16px 18px", borderRadius: 16, boxShadow: "0 10px 30px rgba(74,222,128,0.16)", cursor: "pointer" },
   overlay: { position: "fixed", inset: 0, background: "rgba(4,6,5,0.85)", backdropFilter: "blur(4px)", display: "grid", placeItems: "center", zIndex: 60, padding: 20 },
   previewCard: { width: "100%", maxWidth: 300, background: "#0E1512", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 18, padding: 14 },

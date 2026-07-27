@@ -145,6 +145,7 @@ export function useLogClimb() {
     if (!gymId || !profile) return setError("Pick a home gym first.");
     setError(null);
     setBusy(true);
+    let uploadedPhotoPath: string | null = null;
     try {
       // Anti-cheat: you must actually be at the gym to log a climb there.
       const near = await assertNearGym({
@@ -172,75 +173,26 @@ export function useLogClimb() {
           .from("route-photos")
           .upload(path, photo, { contentType: photo.type });
         if (upErr) throw upErr;
+        uploadedPhotoPath = path;
         photoUrl = supabase.storage
           .from("route-photos")
           .getPublicUrl(path).data.publicUrl;
       }
 
-      const { data: route, error: insErr } = await supabase
-        .from("routes")
-        .insert({
-          gym_id: gymId,
-          photo_url: photoUrl,
-          hold_color: holdColor,
-          climbing_type: climbingType,
-          gym_grade: gymGrade,
-          created_by: profile.id,
-        })
-        .select("id")
-        .single();
-      if (insErr || !route) throw insErr ?? new Error("Couldn't save the climb.");
-
-      // 2) Your take: felt grade + quality.
-      const writes: PromiseLike<unknown>[] = [];
-      if (feltGrade !== null) {
-        writes.push(
-          supabase.from("grades").insert({
-            route_id: route.id,
-            user_id: profile.id,
-            grade: feltGrade,
-          }),
-        );
-      }
-      if (stars !== null) {
-        writes.push(
-          supabase.from("route_ratings").insert({
-            route_id: route.id,
-            user_id: profile.id,
-            stars,
-          }),
-        );
-      }
-
-      // 3) Projects stay open; sends and flashes go into the permanent logbook.
-      const trimmed = note.trim();
-      if (outcome === "project") {
-        writes.push(
-          supabase
-            .from("bookmarks")
-            .insert({ user_id: profile.id, route_id: route.id, kind: "project" }),
-        );
-        if (trimmed) {
-          writes.push(
-            supabase.from("project_notes").insert({
-              user_id: profile.id,
-              route_id: route.id,
-              body: trimmed,
-            }),
-          );
-        }
-      } else {
-        writes.push(
-          supabase.from("sends").insert({
-            route_id: route.id,
-            user_id: profile.id,
-            send_type: outcome,
-            attempts: 1,
-            note: trimmed || null,
-          }),
-        );
-      }
-      await Promise.all(writes);
+      // Save every database row as one transaction. A failure in the grade,
+      // rating, send, bookmark, or project note rolls the new route back too.
+      const { error: logError } = await supabase.rpc("log_climb", {
+        p_gym_id: gymId,
+        p_photo_url: photoUrl,
+        p_hold_color: holdColor,
+        p_climbing_type: climbingType,
+        p_gym_grade: gymGrade,
+        p_felt_grade: feltGrade,
+        p_stars: stars,
+        p_outcome: outcome,
+        p_note: note,
+      });
+      if (logError) throw logError;
 
       // The reward moment lives HERE, on the initial log.
       setBusy(false);
@@ -250,8 +202,20 @@ export function useLogClimb() {
       // the project's Complete-it screen right after creating it.
       setTimeout(() => navigate("/", { replace: true }), 1200);
     } catch (err) {
+      if (uploadedPhotoPath) {
+        await supabase.storage
+          .from("route-photos")
+          .remove([uploadedPhotoPath])
+          .catch(() => undefined);
+      }
       setBusy(false);
-      setError(err instanceof Error ? err.message : "Couldn't save the climb.");
+      const message =
+        err instanceof Error ? err.message : "Couldn't save the climb.";
+      setError(
+        /invalid input value for enum climbing_type.*lead/i.test(message)
+          ? "Lead logging needs the latest Klimb database update."
+          : message,
+      );
     }
   }
 

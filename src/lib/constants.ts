@@ -81,7 +81,6 @@ export const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
 // Media uploads ------------------------------------------------------------
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
 export const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime"];
-export const MAX_ROUTES_PER_DAY = 10;
 
 // Route report reasons -----------------------------------------------------
 export type ReportReason = "wrong_gym" | "duplicate" | "inappropriate";
