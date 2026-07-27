@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
+import { pickPhotoNative } from "./photo";
 import { isRopeType, type ClimbType } from "./constants";
 import { assertNearGym } from "./location";
 import {
@@ -129,29 +129,13 @@ export function useLogClimb() {
     }
     setError(null);
     try {
-      const shot = await Camera.getPhoto({
-        quality: 80,
-        allowEditing: false,
-        resultType: CameraResultType.DataUrl,
-        // Prompt lets the user pick camera OR photo library from one sheet.
-        source: CameraSource.Prompt,
-        promptLabelHeader: "Add a photo",
-        promptLabelPhoto: "Choose from Library",
-        promptLabelPicture: "Take Photo",
-      });
-      if (!shot.dataUrl) return;
-      // Turn the data URL into a File so the existing upload path is unchanged.
-      const blob = await (await fetch(shot.dataUrl)).blob();
-      const ext = shot.format || "jpg";
-      const file = new File([blob], `photo.${ext}`, {
-        type: blob.type || `image/${ext}`,
-      });
-      setPhoto(file);
-      setPhotoPreview(shot.dataUrl);
+      const picked = await pickPhotoNative();
+      if (!picked) return;
+      setPhoto(picked.file);
+      setPhotoPreview(picked.previewUrl);
     } catch (err) {
-      // The plugin throws on cancel — treat that as a no-op, surface real errors.
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!/cancel/i.test(msg)) setError("Couldn't add that photo — try again.");
+      const message = err instanceof Error ? err.message : String(err);
+      setError(`Couldn't open the camera: ${message}`);
     }
   }
 

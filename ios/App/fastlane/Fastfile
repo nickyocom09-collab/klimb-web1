@@ -8,7 +8,7 @@ default_platform(:ios)
 
 APP_IDENTIFIER = "com.nickyocom.klimb"
 XCODEPROJ = "Klimb.xcodeproj"
-SCHEME = "App" # Capacitor's iOS scheme
+SCHEME = "Klimb"
 # Repo root (klimb-web) — four levels up from this Fastfile.
 REPO_ROOT = File.expand_path("../../../..", __FILE__)
 
@@ -24,7 +24,21 @@ platform :ios do
     )
 
     # 1) Build the web bundle and copy it into the native iOS project.
-    sh("cd '#{REPO_ROOT}' && npm run build && npx cap sync ios")
+    # Capacitor still looks for its default App.xcodeproj name when syncing
+    # Swift Package Manager plugins. The project was renamed to Klimb.xcodeproj,
+    # so provide a temporary compatibility link while sync runs.
+    compatibility_project = File.join(REPO_ROOT, "ios/App/App.xcodeproj")
+    created_compatibility_project = false
+    unless File.exist?(compatibility_project) || File.symlink?(compatibility_project)
+      File.symlink("Klimb.xcodeproj", compatibility_project)
+      created_compatibility_project = true
+    end
+
+    begin
+      sh("cd '#{REPO_ROOT}' && npm run build && npx cap sync ios")
+    ensure
+      File.unlink(compatibility_project) if created_compatibility_project
+    end
 
     # 2) Bump the build number to one past whatever TestFlight already has,
     #    so every upload is unique without you tracking numbers by hand.

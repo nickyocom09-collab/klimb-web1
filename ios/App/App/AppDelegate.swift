@@ -6,12 +6,13 @@ import Capacitor
 // Capacitor's automatic plugin discovery can miss plugins defined in the app
 // target (as ours are, below), which surfaces in JS as
 // "<Plugin> not implemented on iOS". Registering each instance explicitly in
-// capacitorDidLoad() guarantees AppleSignIn, InstagramStories, and
-// MessageCompose are always available. The Main storyboard points its bridge
-// scene at this class (customClass="MainViewController", module "App").
+// capacitorDidLoad() guarantees the app-local native plugins are always
+// available. The Main storyboard points its bridge scene at this class
+// (customClass="MainViewController", module "App").
 class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(AppleSignInPlugin())
+        bridge?.registerPluginInstance(WebAuthenticationPlugin())
         bridge?.registerPluginInstance(InstagramStoriesPlugin())
         bridge?.registerPluginInstance(MessageComposePlugin())
     }
@@ -151,6 +152,81 @@ public class InstagramStoriesPlugin: CAPPlugin, CAPBridgedPlugin {
 // exchanges them with Supabase via `signInWithIdToken`.
 import AuthenticationServices
 import CryptoKit
+
+// MARK: - In-app web authentication
+//
+// Runs Google/Supabase OAuth in Apple's secure authentication sheet. Unlike
+// opening Safari and waiting for an appUrlOpen event, ASWebAuthenticationSession
+// returns the callback URL directly to this app process. It is also the
+// system-owned browser surface required by Google's OAuth security policy.
+@objc(WebAuthenticationPlugin)
+public class WebAuthenticationPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticationPresentationContextProviding {
+    public let identifier = "WebAuthenticationPlugin"
+    public let jsName = "WebAuthentication"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "authenticate", returnType: CAPPluginReturnPromise),
+    ]
+
+    private var authenticationSession: ASWebAuthenticationSession?
+    private var pendingCall: CAPPluginCall?
+
+    @objc func authenticate(_ call: CAPPluginCall) {
+        guard let urlString = call.getString("url"),
+              let url = URL(string: urlString),
+              let callbackScheme = call.getString("callbackScheme"),
+              !callbackScheme.isEmpty else {
+            call.reject("Missing or invalid authentication URL")
+            return
+        }
+
+        if let existingCall = pendingCall {
+            existingCall.reject("A new sign-in attempt was started")
+            authenticationSession?.cancel()
+        }
+        pendingCall = call
+
+        let session = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: callbackScheme
+        ) { [weak self] callbackURL, error in
+            guard let self else { return }
+            defer {
+                self.pendingCall = nil
+                self.authenticationSession = nil
+            }
+
+            if let callbackURL {
+                self.pendingCall?.resolve(["callbackUrl": callbackURL.absoluteString])
+                return
+            }
+
+            if let authError = error as? ASWebAuthenticationSessionError,
+               authError.code == .canceledLogin {
+                self.pendingCall?.reject("CANCELED")
+            } else {
+                self.pendingCall?.reject(error?.localizedDescription ?? "Google sign-in failed")
+            }
+        }
+
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        authenticationSession = session
+
+        DispatchQueue.main.async {
+            if !session.start() {
+                self.pendingCall?.reject("Could not present Google sign-in")
+                self.pendingCall = nil
+                self.authenticationSession = nil
+            }
+        }
+    }
+
+    public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        return bridge?.viewController?.view.window
+            ?? UIApplication.shared.windows.first { $0.isKeyWindow }
+            ?? UIWindow()
+    }
+}
 
 @objc(AppleSignInPlugin)
 public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {

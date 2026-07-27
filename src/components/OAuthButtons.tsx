@@ -48,10 +48,16 @@ export function OAuthButtons() {
   async function go(provider: "google" | "apple") {
     setError(null);
     setBusy(provider);
-    const { error } = await signInWithProvider(provider);
-    // On success the browser redirects away, so we only land here on failure.
-    if (error) {
-      setError(error);
+    try {
+      const { error } = await signInWithProvider(provider);
+      if (error) setError(error);
+    } catch (authError) {
+      setError(
+        authError instanceof Error
+          ? authError.message
+          : "Sign-in could not be completed.",
+      );
+    } finally {
       setBusy(null);
     }
   }

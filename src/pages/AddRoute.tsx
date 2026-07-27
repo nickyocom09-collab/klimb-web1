@@ -11,6 +11,7 @@ import {
 } from "../lib/constants";
 import { pickerOptions, type GradeStyle } from "../lib/grades";
 import { assertNearGym } from "../lib/location";
+import { pickPhotoNative } from "../lib/photo";
 import { AppHeader } from "../components/Layout";
 import { Button, ErrorText, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
@@ -82,6 +83,24 @@ export function AddRoute() {
     setError(null);
     setPhoto(f);
     setPhotoPreview(URL.createObjectURL(f));
+  }
+
+  async function choosePhoto() {
+    setError(null);
+    try {
+      const picked = await pickPhotoNative();
+      if (picked === undefined) {
+        photoRef.current?.click();
+        return;
+      }
+      if (!picked) return;
+      setPhoto(picked.file);
+      setPhotoPreview(picked.previewUrl);
+    } catch (photoError) {
+      const message =
+        photoError instanceof Error ? photoError.message : String(photoError);
+      setError(`Couldn't open the camera: ${message}`);
+    }
   }
 
   function changeType(t: ClimbType) {
@@ -209,7 +228,7 @@ export function AddRoute() {
           />
           <button
             type="button"
-            onClick={() => photoRef.current?.click()}
+            onClick={choosePhoto}
             className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-3xl bg-surface-2 text-faint"
           >
             {photoPreview ? (
@@ -228,7 +247,7 @@ export function AddRoute() {
           {photoPreview ? (
             <button
               type="button"
-              onClick={() => photoRef.current?.click()}
+              onClick={choosePhoto}
               className="mt-2 flex items-center gap-1 text-sm text-accent"
             >
               <Camera size={15} /> Change photo

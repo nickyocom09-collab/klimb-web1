@@ -9,12 +9,15 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
 import { supabase } from "./supabase";
 import type { Database, UserRow } from "./database.types";
 import { applyTheme } from "./theme";
 import { authRedirectUrl } from "./deeplink";
 import { AppleSignIn, canUseNativeAppleSignIn } from "./appleSignIn";
+import {
+  WebAuthentication,
+  canUseNativeWebAuthentication,
+} from "./webAuthentication";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -243,13 +246,13 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
             }
           }
         }
-        // Google, plus Apple when the native plugin is unavailable.
-        if (Capacitor.isNativePlatform()) {
-          // On device, DON'T let Supabase navigate the WebView to Google —
-          // that kicks the user out to Safari. Instead get the URL and open it
-          // in an in-app browser (SFSafariViewController). The klimb://
-          // deep-link handler catches the ?code= return, exchanges it for a
-          // session, and closes this browser.
+        // Google, plus Apple when the native Apple plugin is unavailable.
+        // iOS uses ASWebAuthenticationSession: a secure system login sheet
+        // presented over Klimb that returns the callback URL directly here.
+        if (
+          Capacitor.isNativePlatform() &&
+          canUseNativeWebAuthentication()
+        ) {
           const { data, error } = await supabase.auth.signInWithOAuth({
             provider,
             options: {
@@ -258,8 +261,30 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
             },
           });
           if (error) return { error: error.message };
-          if (data?.url) await Browser.open({ url: data.url });
-          return { error: null };
+          if (!data?.url) return { error: "Google did not provide a sign-in URL." };
+
+          try {
+            const { callbackUrl } = await WebAuthentication.authenticate({
+              url: data.url,
+              callbackScheme: "klimb",
+            });
+            const callback = new URL(callbackUrl);
+            const providerError =
+              callback.searchParams.get("error_description") ??
+              callback.searchParams.get("error");
+            if (providerError) return { error: providerError };
+
+            const code = callback.searchParams.get("code");
+            if (!code) return { error: "Google returned without a sign-in code." };
+            const { error: exchangeError } =
+              await supabase.auth.exchangeCodeForSession(code);
+            return { error: exchangeError ? exchangeError.message : null };
+          } catch (authError) {
+            const message =
+              authError instanceof Error ? authError.message : String(authError);
+            if (message === "CANCELED") return { error: null };
+            return { error: message };
+          }
         }
         // Web: a normal full-page redirect; onAuthStateChange picks up the
         // session on return.

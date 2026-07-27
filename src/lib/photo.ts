@@ -19,22 +19,29 @@ export async function pickPhotoNative(): Promise<
   try {
     const photo = await Camera.getPhoto({
       source: CameraSource.Prompt, // "Take Photo" or "Choose from Library"
-      resultType: CameraResultType.DataUrl,
+      // URI avoids holding a full-resolution photo as a huge base64 string in
+      // the WKWebView. Capacitor exposes webPath specifically for fetch/upload.
+      resultType: CameraResultType.Uri,
       quality: 82,
       allowEditing: false,
       promptLabelHeader: "Add a photo",
       promptLabelPhoto: "Choose from Library",
       promptLabelPicture: "Take Photo",
     });
-    if (!photo.dataUrl) return null;
-    const blob = await (await fetch(photo.dataUrl)).blob();
+    if (!photo.webPath) throw new Error("Camera returned no photo path.");
+    const response = await fetch(photo.webPath);
+    if (!response.ok) throw new Error("Could not read the selected photo.");
+    const blob = await response.blob();
     const ext = photo.format || "jpeg";
     const file = new File([blob], `climb-${Date.now()}.${ext}`, {
       type: blob.type || `image/${ext}`,
     });
-    return { file, previewUrl: photo.dataUrl };
-  } catch {
-    // User cancelled the prompt, or camera/library unavailable — treat as no-op.
-    return null;
+    return { file, previewUrl: URL.createObjectURL(blob) };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Closing the native picker is expected. Real plugin/permission/read errors
+    // must reach the UI instead of silently looking like a cancelled picker.
+    if (/cancel|user cancelled|no image picked/i.test(message)) return null;
+    throw error;
   }
 }

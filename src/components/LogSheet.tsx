@@ -90,11 +90,13 @@ export function LogSheet({
   // Add / change the climb's photo, independent of logging an outcome.
   const [photoUrl, setPhotoUrl] = useState(route.photo_url);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   async function uploadPhoto(file: File) {
     if (!profile) return;
     setPhotoBusy(true);
+    setPhotoError(null);
     try {
       const ext = file.name.split(".").pop() || "jpg";
       const path = `${profile.id}/${Date.now()}-photo.${ext}`;
@@ -106,19 +108,26 @@ export function LogSheet({
         .publicUrl;
       await supabase.from("routes").update({ photo_url: url }).eq("id", route.id);
       setPhotoUrl(url);
-    } catch {
-      /* leave the old photo in place on failure */
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setPhotoError(`Couldn't save the photo: ${message}`);
     }
     setPhotoBusy(false);
   }
 
   async function changePhoto() {
-    const picked = await pickPhotoNative();
-    if (picked === undefined) {
-      photoInputRef.current?.click(); // web fallback
-      return;
+    setPhotoError(null);
+    try {
+      const picked = await pickPhotoNative();
+      if (picked === undefined) {
+        photoInputRef.current?.click(); // web fallback
+        return;
+      }
+      if (picked) await uploadPhoto(picked.file);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setPhotoError(`Couldn't open the camera: ${message}`);
     }
-    if (picked) await uploadPhoto(picked.file);
   }
 
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -235,6 +244,9 @@ export function LogSheet({
             <X size={20} />
           </button>
         </div>
+        {photoError ? (
+          <p className="-mt-2 mb-4 text-sm text-wide">{photoError}</p>
+        ) : null}
 
         {/* Outcome — 2×2 when there's a Topped option, else a tidy row of 3 */}
         <div
