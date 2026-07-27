@@ -12,6 +12,30 @@ SCHEME = "Klimb"
 # Repo root (klimb-web) — four levels up from this Fastfile.
 REPO_ROOT = File.expand_path("../../../..", __FILE__)
 
+# App Store Connect occasionally returns a temporary 5xx response even when
+# the API key and request are valid. Retry only those server-side failures;
+# credential, configuration, and validation errors still fail immediately.
+def with_app_store_retry(label, max_attempts: 4)
+  attempt = 1
+  begin
+    yield
+  rescue => error
+    transient_server_error = error.message.match?(
+      /server error got 5\d\d|status(?: code)?[=: ]+5\d\d|service unavailable|temporarily unavailable/i
+    )
+    raise unless transient_server_error && attempt < max_attempts
+
+    wait_seconds = attempt * 10
+    UI.important(
+      "Apple returned a temporary server error during #{label}. " \
+      "Retrying in #{wait_seconds}s (attempt #{attempt + 1}/#{max_attempts})..."
+    )
+    sleep(wait_seconds)
+    attempt += 1
+    retry
+  end
+end
+
 platform :ios do
   desc "Build the web app, sync Capacitor, and upload a new build to TestFlight"
   lane :beta do
@@ -42,11 +66,13 @@ platform :ios do
 
     # 2) Bump the build number to one past whatever TestFlight already has,
     #    so every upload is unique without you tracking numbers by hand.
-    latest = latest_testflight_build_number(
-      api_key: api_key,
-      app_identifier: APP_IDENTIFIER,
-      initial_build_number: 0,
-    )
+    latest = with_app_store_retry("the TestFlight build-number check") do
+      latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: APP_IDENTIFIER,
+        initial_build_number: 0,
+      )
+    end
     increment_build_number(
       xcodeproj: XCODEPROJ,
       build_number: latest + 1,
@@ -75,11 +101,13 @@ platform :ios do
 
     # 4) Upload to TestFlight. Doesn't wait for Apple's processing — the build
     #    shows up in the TestFlight tab a few minutes later.
-    upload_to_testflight(
-      api_key: api_key,
-      app_identifier: APP_IDENTIFIER,
-      skip_waiting_for_build_processing: true,
-    )
+    with_app_store_retry("the TestFlight upload") do
+      upload_to_testflight(
+        api_key: api_key,
+        app_identifier: APP_IDENTIFIER,
+        skip_waiting_for_build_processing: true,
+      )
+    end
 
     UI.success("Uploaded build #{latest + 1} to TestFlight 🚀")
   end
