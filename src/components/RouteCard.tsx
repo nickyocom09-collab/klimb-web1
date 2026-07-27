@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, Plus, Video } from "lucide-react";
-import { formatGradeStyled, formatGymGrade, type GradeSystem } from "../lib/grades";
+import { formatGradeStyled, type GradeSystem } from "../lib/grades";
 import { holdHex } from "../lib/constants";
 import type { RouteWithStats } from "../lib/routes";
+import { RouteGradeStack } from "./RouteGradeStack";
 
 export function RouteCard({
   route,
@@ -26,15 +27,6 @@ export function RouteCard({
   // to the gym's grade — no crowd aggregation.
   const fmt = (g: number | null) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
-  const hasOfficialGrade =
-    route.gym_grade !== null && route.gym_grade !== undefined;
-  const displayGrade = hasOfficialGrade ? route.gym_grade : myGrade;
-  const gradeLabel = hasOfficialGrade
-    ? "Official grade"
-    : myGrade !== null
-      ? `${gradePerspective ?? authorName ?? "Climber"} says`
-      : "Not graded";
-
   return (
     <div
       style={{ animationDelay: `${Math.min(index * 45, 270)}ms` }}
@@ -74,26 +66,16 @@ export function RouteCard({
 
         <div className="p-4">
           <div className="rounded-2xl bg-surface-2 px-4 py-3">
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                {gradeLabel}
+                Grade
               </p>
-              {displayGrade !== null ? (
-                <p
-                  className={`klimb-grade text-3xl font-extrabold leading-none ${
-                    hasOfficialGrade ? "text-chalk" : "text-accent"
-                  }`}
-                >
-                  {hasOfficialGrade
-                    ? formatGymGrade(
-                        displayGrade,
-                        route.climbing_type,
-                        system,
-                        route.gradingStyle,
-                      )
-                    : fmt(displayGrade)}
-                </p>
-              ) : null}
+              <RouteGradeStack
+                route={route}
+                system={system}
+                userGrade={myGrade}
+                perspective={gradePerspective === "They" ? "They" : "You"}
+              />
             </div>
           </div>
         </div>

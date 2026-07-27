@@ -4,9 +4,9 @@ import { Check, ChevronLeft, Flag, MapPin, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchLogbook, DAY_MS, type LoggedItem } from "../lib/logstats";
-import { formatGradeStyled } from "../lib/grades";
-import { climbTypeLabel, holdHex } from "../lib/constants";
+import { holdHex } from "../lib/constants";
 import { CenterSpinner } from "../components/ui";
+import { RouteGradeStack } from "../components/RouteGradeStack";
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -108,10 +108,6 @@ export function FullLogbook() {
                 </h2>
                 <ul className="flex flex-col gap-2">
                   {g.items.map((item) => {
-                    const grade = item.ordinal;
-                    const hasOfficialGrade =
-                      item.route.gym_grade !== null &&
-                      item.route.gym_grade !== undefined;
                     const gym = gymNames.get(item.route.gym_id);
                     return (
                       <li key={`${item.route.id}-${item.date}`}>
@@ -162,39 +158,11 @@ export function FullLogbook() {
                               </span>
                             </div>
                           </div>
-                          <div className="shrink-0 text-right">
-                            {grade !== null && !hasOfficialGrade ? (
-                              <p className="flex items-baseline justify-end gap-1 leading-none">
-                                <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
-                                  You say
-                                </span>
-                                <span className="klimb-grade text-lg font-extrabold text-accent">
-                                  {formatGradeStyled(
-                                    grade,
-                                    item.route.climbing_type,
-                                    system,
-                                    item.route.gradingStyle,
-                                  )}
-                                </span>
-                              </p>
-                            ) : grade !== null ? (
-                              <p className="klimb-grade text-lg font-extrabold leading-none text-accent">
-                                {formatGradeStyled(
-                                  grade,
-                                  item.route.climbing_type,
-                                  system,
-                                  item.route.gradingStyle,
-                                )}
-                              </p>
-                            ) : (
-                              <p className="text-xs font-bold leading-none text-muted">
-                                Not graded
-                              </p>
-                            )}
-                            <p className="mt-0.5 text-[10px] text-faint">
-                              {climbTypeLabel(item.route.climbing_type)}
-                            </p>
-                          </div>
+                          <RouteGradeStack
+                            route={item.route}
+                            system={system}
+                            userGrade={item.userGrade}
+                          />
                         </Link>
                       </li>
                     );

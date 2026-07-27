@@ -27,10 +27,10 @@ import {
   recapCountdownLabel,
   type RecapRow,
 } from "../lib/recaps";
-import { formatGradeStyled } from "../lib/grades";
-import { climbTypeLabel, holdHex } from "../lib/constants";
+import { holdHex } from "../lib/constants";
 import { fetchNotifications } from "../lib/notifications";
 import { AppHeader } from "../components/Layout";
+import { RouteGradeStack } from "../components/RouteGradeStack";
 import { WeeklyRecap } from "../components/WeeklyRecap";
 import { Button, CenterSpinner } from "../components/ui";
 import type { RouteWithStats } from "../lib/routes";
@@ -434,9 +434,6 @@ function RowLink({
   /** Override destination (projects open their journal, not the route). */
   to?: string;
 }) {
-  const grade = route.gym_grade;
-  const hasOfficialGrade = grade !== null && grade !== undefined;
-  const fallbackGrade = !hasOfficialGrade ? userGrade : null;
   return (
     <li className="relative" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
       <Link
@@ -469,39 +466,11 @@ function RowLink({
             <p className="mt-1 truncate text-xs italic text-faint">"{note}"</p>
           ) : null}
         </div>
-        <div className="shrink-0 text-right">
-          {hasOfficialGrade ? (
-            <p className="klimb-grade text-lg font-extrabold leading-none text-accent">
-              {formatGradeStyled(
-                grade,
-                route.climbing_type,
-                system,
-                route.gradingStyle,
-              )}
-            </p>
-          ) : fallbackGrade !== null && fallbackGrade !== undefined ? (
-            <p className="flex items-baseline justify-end gap-1 leading-none">
-              <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
-                You say
-              </span>
-              <span className="klimb-grade text-lg font-extrabold text-accent">
-                {formatGradeStyled(
-                  fallbackGrade,
-                  route.climbing_type,
-                  system,
-                  route.gradingStyle,
-                )}
-              </span>
-            </p>
-          ) : (
-            <p className="text-xs font-bold leading-none text-muted">
-              Not graded
-            </p>
-          )}
-          <p className="mt-0.5 text-[10px] text-faint">
-            {climbTypeLabel(route.climbing_type)}
-          </p>
-        </div>
+        <RouteGradeStack
+          route={route}
+          system={system}
+          userGrade={userGrade}
+        />
       </Link>
     </li>
   );

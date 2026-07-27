@@ -21,7 +21,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>28</string>
+	<string>29</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -39,6 +39,14 @@
 			</array>
 			<key>CFBundleURLName</key>
 			<string>com.facebook.app</string>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.941755937-4idiugslvi6hcje2avpo75dma5cifhij</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>Google Sign-In</string>
 		</dict>
 	</array>
 	<key>FacebookAppID</key>

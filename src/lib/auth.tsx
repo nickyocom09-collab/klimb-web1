@@ -15,6 +15,10 @@ import { applyTheme } from "./theme";
 import { authRedirectUrl } from "./deeplink";
 import { AppleSignIn, canUseNativeAppleSignIn } from "./appleSignIn";
 import {
+  canUseNativeGoogleSignIn,
+  nativeGoogleSignIn,
+} from "./googleSignIn";
+import {
   WebAuthentication,
   canUseNativeWebAuthentication,
 } from "./webAuthentication";
@@ -223,6 +227,31 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         return { error: error ? error.message : null };
       },
       async signInWithProvider(provider) {
+        // Google on iOS: use Google's native SDK so the button opens the real
+        // device account picker. Supabase verifies the resulting Google token
+        // and creates/restores the Klimb session without a browser callback.
+        if (provider === "google" && canUseNativeGoogleSignIn()) {
+          try {
+            const { idToken, accessToken } = await nativeGoogleSignIn();
+            const { error } = await supabase.auth.signInWithIdToken({
+              provider: "google",
+              token: idToken,
+              access_token: accessToken,
+            });
+            return { error: error ? error.message : null };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (/cancel|canceled|cancelled|user_cancelled/i.test(message)) {
+              return { error: null };
+            }
+            // An older binary without the native plugin should still fall
+            // through to the secure browser flow instead of dead-ending.
+            if (!/not implemented|unimplemented|not available/i.test(message)) {
+              return { error: message };
+            }
+          }
+        }
+
         // Apple on iOS: run the whole flow in the native system sheet (no
         // browser bounce) and hand the identity token straight to Supabase.
         if (provider === "apple" && canUseNativeAppleSignIn()) {

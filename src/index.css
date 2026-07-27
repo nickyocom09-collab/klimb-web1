@@ -92,14 +92,6 @@
   }
 }
 
-/* Klimb's display voice is deliberately narrow and old-world. It is used only
-   beside the custom K mark, so the rest of the product stays effortlessly legible. */
-.klimb-gothic-wordmark {
-  font-family: "UnifrakturCook", Georgia, serif;
-  font-weight: 700;
-  letter-spacing: -0.055em;
-}
-
 /* Grade labels are technical data, not display copy. Keep every character on
    one optical baseline so V5 never looks like a superscript/subscript pair. */
 .klimb-grade {

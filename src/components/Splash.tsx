@@ -1,5 +1,3 @@
-import { KMark } from "./KMark";
-
 /**
  * Branded loading splash — a small white Klimb "K" centered on a flat dark
  * background, with a single very smooth fade-in. Mirrors the pre-JS splash in
@@ -8,7 +6,7 @@ import { KMark } from "./KMark";
 export function Splash() {
   return (
     <div className="klimb-splash">
-      <KMark className="klimb-splash__mark" />
+      <img className="klimb-splash__mark" src="/klimb-k-white.png" alt="Klimb" />
     </div>
   );
 }

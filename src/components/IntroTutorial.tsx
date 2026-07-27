@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { Button } from "./ui";
-import { KMark } from "./KMark";
 
 type Slide = {
   Icon: LucideIcon | null;
@@ -124,7 +123,11 @@ export function IntroTutorial({ onDone }: { onDone?: () => void }) {
           {Icon ? (
             <Icon size={44} className="text-accent" strokeWidth={1.8} />
           ) : (
-            <KMark className="h-14 w-14 text-chalk" />
+            <img
+              src="/klimb-k-white.png"
+              alt="Klimb"
+              className="h-12 w-12 object-contain"
+            />
           )}
         </span>
         {slide === 0 ? (

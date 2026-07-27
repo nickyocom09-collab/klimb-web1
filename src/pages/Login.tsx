@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { Button, ErrorText, Input, PasswordInput } from "../components/ui";
 import { OAuthButtons } from "../components/OAuthButtons";
-import { KMark } from "../components/KMark";
 
 export function Login() {
   const { signIn } = useAuth();
@@ -24,10 +23,9 @@ export function Login() {
   return (
     <div className="relative mx-auto flex h-full max-w-app flex-col justify-center overflow-hidden bg-bg px-6">
       <div className="relative mb-8 animate-fade-up">
-        <div className="flex items-center gap-3 text-accent">
-          <KMark className="h-14 w-12 shrink-0" />
-          <h1 className="klimb-gothic-wordmark text-5xl leading-none">Klimb</h1>
-        </div>
+        <h1 className="text-6xl font-extrabold tracking-tight text-accent">
+          Klimb
+        </h1>
         <p className="mt-2 text-muted">
           Your sends, your stats, all in one place.
         </p>

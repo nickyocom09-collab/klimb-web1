@@ -353,24 +353,16 @@ export function ProjectDetail() {
               onClick={() => completeProject("send")}
             >
               <Trophy size={19} className="mr-2 shrink-0" />
-              <span className="flex flex-col items-start leading-none">
-                <span className="whitespace-nowrap">Complete project</span>
-                <span className="mt-1 text-[10px] font-semibold opacity-65">
-                  Sent clean
-                </span>
-              </span>
+              <span className="whitespace-nowrap">Complete project</span>
             </Button>
             {sendType !== "topped" && route.climbing_type !== "boulder" ? (
               <Button
-                className="mt-2 h-12 w-full rounded-[1.15rem]"
+                className="mt-2 h-14 w-full rounded-[1.25rem]"
                 variant="secondary"
                 onClick={() => completeProject("topped")}
               >
                 <Flag size={17} className="mr-2 shrink-0 text-accent" />
-                <span>Mark as topped</span>
-                <span className="ml-1.5 text-[10px] font-normal text-faint">
-                  Reached the top with falls
-                </span>
+                <span className="whitespace-nowrap">Mark as topped</span>
               </Button>
             ) : null}
           </div>
