@@ -134,6 +134,7 @@ const STEPS: Step[] = [
           onChange={s.setGymGrade}
           climbingType={s.climbingType}
           system={s.system}
+          emptyLabel="Not set"
           options={s.gymGradeOpts}
         />
         <button

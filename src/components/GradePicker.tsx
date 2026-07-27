@@ -13,7 +13,7 @@ export function GradePicker({
   system = "american",
   gradeStyle = "classic",
   options: customOptions,
-  emptyLabel = "Not set",
+  emptyLabel = "Not sure",
 }: {
   value: number | null;
   onChange: (g: number | null) => void;

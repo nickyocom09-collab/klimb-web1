@@ -332,6 +332,7 @@ export function LogSheet({
             climbingType={route.climbing_type}
             system={system}
             gradeStyle={route.gradingStyle}
+            emptyLabel="Not set"
             options={gymGradeOptions(
               route.climbing_type,
               system,
