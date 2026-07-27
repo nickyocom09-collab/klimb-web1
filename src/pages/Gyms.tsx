@@ -15,6 +15,7 @@ import { AppHeader } from "../components/Layout";
 import { CenterSpinner, Spinner } from "../components/ui";
 import { US_STATES, STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
+import { matchesGymSearch } from "../lib/gymSearch";
 
 export function Gyms() {
   const { profile, refreshProfile } = useAuth();
@@ -66,14 +67,10 @@ export function Gyms() {
     navigate("/");
   }
 
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   const searchResults = useMemo(() => {
     if (!q) return [];
-    return gyms.filter((g) =>
-      [g.name, g.city, g.state, g.brand]
-        .filter(Boolean)
-        .some((field) => field!.toLowerCase().includes(q)),
-    );
+    return gyms.filter((g) => matchesGymSearch(g, q));
   }, [gyms, q]);
 
   const stateCounts = useMemo(() => {

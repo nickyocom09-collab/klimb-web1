@@ -21,6 +21,7 @@ import {
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { assertNearGym } from "../lib/location";
+import { matchesGymSearch } from "../lib/gymSearch";
 import { formatGradeStyled } from "../lib/grades";
 import {
   fetchOsmGyms,
@@ -552,14 +553,10 @@ export function GymMap() {
   }
 
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) return [];
     return gyms
-      .filter((g) =>
-        [g.name, g.city, g.state, g.brand]
-          .filter(Boolean)
-          .some((f) => f!.toLowerCase().includes(q)),
-      )
+      .filter((g) => matchesGymSearch(g, q))
       .slice(0, 6);
   }, [gyms, query]);
 

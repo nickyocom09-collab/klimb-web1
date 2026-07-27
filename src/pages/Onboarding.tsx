@@ -15,6 +15,7 @@ import { Button, CenterSpinner, Input } from "../components/ui";
 import { STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 import type { LogStylePref } from "../lib/constants";
+import { matchesGymSearch } from "../lib/gymSearch";
 
 type Step = "name" | "gym" | "logStyle";
 
@@ -94,14 +95,10 @@ export function Onboarding() {
     };
   }, []);
 
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   const searchResults = useMemo(() => {
     if (!q) return [];
-    return gyms.filter((g) =>
-      [g.name, g.city, g.state, g.brand]
-        .filter(Boolean)
-        .some((f) => f!.toLowerCase().includes(q)),
-    );
+    return gyms.filter((g) => matchesGymSearch(g, q));
   }, [gyms, q]);
 
   const stateGyms = useMemo(

@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner, Input, Spinner } from "../components/ui";
 import { STATE_NAME } from "../lib/states";
 import { assertNearGym } from "../lib/location";
+import { matchesGymSearch } from "../lib/gymSearch";
 import type { GymRow } from "../lib/database.types";
 
 /** ISO alpha-2 -> emoji flag. */
@@ -79,14 +80,10 @@ export function GymSelect() {
     navigate("/", { replace: true });
   }
 
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
   const searchResults = useMemo(() => {
     if (!q) return [];
-    return gyms.filter((g) =>
-      [g.name, g.city, g.state, g.country]
-        .filter(Boolean)
-        .some((field) => field!.toLowerCase().includes(q)),
-    );
+    return gyms.filter((g) => matchesGymSearch(g, q));
   }, [gyms, q]);
 
   // Country → state → gym.
