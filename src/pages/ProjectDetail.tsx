@@ -187,7 +187,9 @@ export function ProjectDetail() {
 
   const fmt = (g: number | null | undefined) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
-  const grade = myGrade ?? route.gym_grade;
+  const hasOfficialGrade =
+    route.gym_grade !== null && route.gym_grade !== undefined;
+  const grade = route.gym_grade ?? myGrade;
   const daysOpen = since
     ? Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / DAY_MS))
     : null;
@@ -221,7 +223,15 @@ export function ProjectDetail() {
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-28 pt-4">
+      <div
+        className={`flex-1 overflow-y-auto px-5 pt-4 ${
+          !sent &&
+          sendType !== "topped" &&
+          route.climbing_type !== "boulder"
+            ? "pb-52"
+            : "pb-36"
+        }`}
+      >
         <div className="flex flex-col gap-4">
           {/* Identity + grades */}
           <div className="flex items-start justify-between gap-3">
@@ -243,7 +253,11 @@ export function ProjectDetail() {
                   {fmt(grade)}
                 </p>
                 <p className="mt-1 text-xs text-faint">
-                  {grade === null ? "Not graded" : myGrade !== null ? "your grade" : "gym grade"}
+                  {grade === null
+                    ? "Not graded"
+                    : hasOfficialGrade
+                      ? "official grade"
+                      : "You say"}
                 </p>
               </div>
               <button
@@ -332,22 +346,31 @@ export function ProjectDetail() {
       {/* Project actions stay explicit: topped records progress; complete
           project closes it and moves it into Sends. */}
       {!sent || sendType === "topped" ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto max-w-app p-4 pb-6">
-          <div className={`pointer-events-auto grid gap-2 ${
-            sendType !== "topped" && route.climbing_type !== "boulder"
-              ? "grid-cols-2"
-              : "grid-cols-1"
-          }`}>
-            <Button className="w-full" onClick={() => completeProject("send")}>
-                <Trophy size={16} className="mr-1.5" /> Complete project
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto max-w-app bg-gradient-to-t from-bg via-bg/98 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8">
+          <div className="pointer-events-auto rounded-3xl border border-border bg-surface/95 p-2 shadow-card backdrop-blur">
+            <Button
+              className="h-14 w-full rounded-[1.25rem]"
+              onClick={() => completeProject("send")}
+            >
+              <Trophy size={19} className="mr-2 shrink-0" />
+              <span className="flex flex-col items-start leading-none">
+                <span className="whitespace-nowrap">Complete project</span>
+                <span className="mt-1 text-[10px] font-semibold opacity-65">
+                  Sent clean
+                </span>
+              </span>
             </Button>
             {sendType !== "topped" && route.climbing_type !== "boulder" ? (
               <Button
-                className="w-full"
+                className="mt-2 h-12 w-full rounded-[1.15rem]"
                 variant="secondary"
                 onClick={() => completeProject("topped")}
               >
-                <Flag size={16} className="mr-1.5" /> Topped
+                <Flag size={17} className="mr-2 shrink-0 text-accent" />
+                <span>Mark as topped</span>
+                <span className="ml-1.5 text-[10px] font-normal text-faint">
+                  Reached the top with falls
+                </span>
               </Button>
             ) : null}
           </div>

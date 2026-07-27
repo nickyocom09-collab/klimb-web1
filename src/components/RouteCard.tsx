@@ -11,6 +11,7 @@ export function RouteCard({
   index = 0,
   myGrade = null,
   authorName = null,
+  gradePerspective,
   onGrade,
 }: {
   route: RouteWithStats;
@@ -18,14 +19,21 @@ export function RouteCard({
   index?: number;
   myGrade?: number | null;
   authorName?: string | null;
+  gradePerspective?: "You" | "They";
   onGrade?: (route: RouteWithStats) => void;
 }) {
   // The climber's own grade for this route (their logbook entry), shown next
   // to the gym's grade — no crowd aggregation.
-  const theirGrade = myGrade;
   const fmt = (g: number | null) =>
     formatGradeStyled(g, route.climbing_type, system, route.gradingStyle);
-  const saysLabel = authorName ? `${authorName} says` : "Grade";
+  const hasOfficialGrade =
+    route.gym_grade !== null && route.gym_grade !== undefined;
+  const displayGrade = hasOfficialGrade ? route.gym_grade : myGrade;
+  const gradeLabel = hasOfficialGrade
+    ? "Official grade"
+    : myGrade !== null
+      ? `${gradePerspective ?? authorName ?? "Climber"} says`
+      : "Not graded";
 
   return (
     <div
@@ -65,31 +73,28 @@ export function RouteCard({
         </div>
 
         <div className="p-4">
-          {/* Their grade (+ the gym's grade, when the gym set one) */}
-          <div className="flex gap-3">
-            <div className="flex-1 rounded-2xl bg-surface-2 px-4 py-3">
+          <div className="rounded-2xl bg-surface-2 px-4 py-3">
+            <div className="flex items-end justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                {saysLabel}
+                {gradeLabel}
               </p>
-              <p className="klimb-grade mt-0.5 text-3xl font-extrabold leading-none text-accent">
-                {fmt(theirGrade)}
-              </p>
+              {displayGrade !== null ? (
+                <p
+                  className={`klimb-grade text-3xl font-extrabold leading-none ${
+                    hasOfficialGrade ? "text-chalk" : "text-accent"
+                  }`}
+                >
+                  {hasOfficialGrade
+                    ? formatGymGrade(
+                        displayGrade,
+                        route.climbing_type,
+                        system,
+                        route.gradingStyle,
+                      )
+                    : fmt(displayGrade)}
+                </p>
+              ) : null}
             </div>
-            {route.gym_grade !== null && route.gym_grade !== undefined ? (
-              <div className="flex-1 rounded-2xl bg-surface-2 px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                  Gym says
-                </p>
-                <p className="klimb-grade mt-0.5 text-3xl font-extrabold leading-none text-chalk">
-                  {formatGymGrade(
-                    route.gym_grade,
-                    route.climbing_type,
-                    system,
-                    route.gradingStyle,
-                  )}
-                </p>
-              </div>
-            ) : null}
           </div>
         </div>
       </Link>

@@ -78,12 +78,10 @@ export function Layout() {
                 aria-label={label}
                 className="relative z-10 flex flex-1 flex-col items-center gap-1 text-[11px] font-semibold"
               >
-                {({ isActive }) => (
+                {() => (
                   <>
                     <span
-                      className={`-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-bg shadow-lg ring-4 ring-surface transition-transform ${
-                        isActive ? "scale-105" : ""
-                      }`}
+                      className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-bg shadow-lg ring-4 ring-surface"
                     >
                       <Icon size={26} strokeWidth={2.6} />
                     </span>
@@ -126,17 +124,24 @@ export function Layout() {
 export function AppHeader({
   title,
   subtitle,
+  reserveSubtitle = false,
   right,
 }: {
   title: string;
   subtitle?: string;
+  reserveSubtitle?: boolean;
   right?: React.ReactNode;
 }) {
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-bg/95 px-5 py-4 backdrop-blur">
       <div className="min-w-0">
-        {subtitle ? (
-          <p className="truncate text-xs text-muted">{subtitle}</p>
+        {subtitle || reserveSubtitle ? (
+          <p
+            aria-hidden={!subtitle}
+            className="truncate text-xs text-muted"
+          >
+            {subtitle ?? "\u00a0"}
+          </p>
         ) : null}
         <h1 className="text-2xl font-extrabold tracking-tight text-chalk">
           {title}

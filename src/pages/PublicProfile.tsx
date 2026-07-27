@@ -38,6 +38,9 @@ export function PublicProfile() {
   const [sends, setSends] = useState<RouteWithStats[]>([]);
   const [flashes, setFlashes] = useState<RouteWithStats[]>([]);
   const [projects, setProjects] = useState<RouteWithStats[]>([]);
+  const [personGrades, setPersonGrades] = useState<Map<string, number>>(
+    new Map(),
+  );
   const [tab, setTab] = useState<"sends" | "flashes" | "projects">("sends");
   const [status, setStatus] = useState<FriendStatus>("none");
   const [busy, setBusy] = useState(false);
@@ -60,6 +63,16 @@ export function PublicProfile() {
         .maybeSingle();
       if (!active) return;
       setPerson(data as PubProfile | null);
+
+      const { data: gradeRows } = await supabase
+        .from("grades")
+        .select("route_id, grade")
+        .eq("user_id", id);
+      if (active) {
+        setPersonGrades(
+          new Map((gradeRows ?? []).map((row) => [row.route_id, row.grade])),
+        );
+      }
 
       // Have I blocked this climber?
       if (me && me.id !== id) {
@@ -302,7 +315,13 @@ export function PublicProfile() {
                 ) : projects.length === 0 ? (
                   <EmptyNote text="No open projects." />
                 ) : (
-                  <RouteList routes={projects} system={system} />
+                  <RouteList
+                    routes={projects}
+                    system={system}
+                    grades={personGrades}
+                    authorName={person.display_name}
+                    gradePerspective={isMe ? "You" : "They"}
+                  />
                 )
               ) : !canSeeSends ? (
                 <PrivateNote text="This climber's logbook is private." />
@@ -310,12 +329,24 @@ export function PublicProfile() {
                 flashes.length === 0 ? (
                   <EmptyNote text="No flashes yet." />
                 ) : (
-                  <RouteList routes={flashes} system={system} />
+                  <RouteList
+                    routes={flashes}
+                    system={system}
+                    grades={personGrades}
+                    authorName={person.display_name}
+                    gradePerspective={isMe ? "You" : "They"}
+                  />
                 )
               ) : sends.length === 0 ? (
                 <EmptyNote text="No sends logged yet." />
               ) : (
-                <RouteList routes={sends} system={system} />
+                <RouteList
+                  routes={sends}
+                  system={system}
+                  grades={personGrades}
+                  authorName={person.display_name}
+                  gradePerspective={isMe ? "You" : "They"}
+                />
               )}
             </div>
 
@@ -386,14 +417,28 @@ function TabTile({
 function RouteList({
   routes,
   system,
+  grades,
+  authorName,
+  gradePerspective,
 }: {
   routes: RouteWithStats[];
   system: GradeSystem;
+  grades: Map<string, number>;
+  authorName: string;
+  gradePerspective: "You" | "They";
 }) {
   return (
     <div className="flex flex-col gap-4">
       {routes.map((route, i) => (
-        <RouteCard key={route.id} route={route} system={system} index={i} />
+        <RouteCard
+          key={route.id}
+          route={route}
+          system={system}
+          index={i}
+          myGrade={grades.get(route.id) ?? null}
+          authorName={authorName}
+          gradePerspective={gradePerspective}
+        />
       ))}
     </div>
   );

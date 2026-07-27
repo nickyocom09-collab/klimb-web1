@@ -12,8 +12,10 @@ export type LoggedItem = {
   note: string | null;
   attempts: number | null;
   date: string;
-  /** Best-known ordinal for this climb: your grade, else the gym's. */
+  /** Display/stat ordinal: the official gym grade, else this climber's grade. */
   ordinal: number | null;
+  /** This climber's felt grade, kept separate from the official gym grade. */
+  userGrade: number | null;
 };
 
 export type ProjectItem = {
@@ -25,6 +27,8 @@ export type ProjectItem = {
   attempts: number | null;
   /** A rope project can be topped and still remain open until it is sent clean. */
   topped: boolean;
+  /** This climber's felt grade, used while the gym grade is still unset. */
+  userGrade: number | null;
 };
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -76,7 +80,10 @@ export async function fetchLogbook(profileId: string): Promise<{
         note: s.note,
         attempts: s.attempts,
         date: s.created_at,
-        ordinal: myGrades.get(s.route_id) ?? route.gym_grade ?? null,
+        // Once the route receives an official gym grade, that is the grade
+        // shown and used in stats. The climber's take is only the fallback.
+        ordinal: route.gym_grade ?? myGrades.get(s.route_id) ?? null,
+        userGrade: myGrades.get(s.route_id) ?? null,
       };
     });
 
@@ -117,6 +124,7 @@ export async function fetchLogbook(profileId: string): Promise<{
     notePeek: noteMap.get(b.route_id) ?? null,
     attempts: attemptMap.get(b.route_id) ?? null,
     topped: toppedIds.has(b.route_id),
+    userGrade: myGrades.get(b.route_id) ?? null,
   }));
 
   return { logged, projects };

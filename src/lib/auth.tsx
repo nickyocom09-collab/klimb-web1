@@ -258,6 +258,13 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
             options: {
               redirectTo: authRedirectUrl(),
               skipBrowserRedirect: true,
+              // Never silently reuse one Google identity. Ask Google for its
+              // account chooser so every account signed into this auth
+              // session is available, plus the option to use another one.
+              queryParams:
+                provider === "google"
+                  ? { prompt: "select_account" }
+                  : undefined,
             },
           });
           if (error) return { error: error.message };
@@ -290,7 +297,11 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         // session on return.
         const { error } = await supabase.auth.signInWithOAuth({
           provider,
-          options: { redirectTo: authRedirectUrl() },
+          options: {
+            redirectTo: authRedirectUrl(),
+            queryParams:
+              provider === "google" ? { prompt: "select_account" } : undefined,
+          },
         });
         return { error: error ? error.message : null };
       },

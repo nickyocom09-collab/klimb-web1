@@ -327,6 +327,7 @@ export function Sends() {
                           }
                           sub={fmt(item.date)}
                           note={item.note}
+                          userGrade={item.userGrade}
                         />
                       ))}
                     </ul>
@@ -348,6 +349,7 @@ export function Sends() {
                   badge={p.topped ? <Badge tone="accent"><Check size={12} /> Topped</Badge> : <Badge tone="muted"><Bookmark size={12} /> In progress</Badge>}
                   sub={daysOpen(p.since)}
                   note={p.notePeek}
+                  userGrade={p.userGrade}
                 />
               ))}
             </ul>
@@ -419,6 +421,7 @@ function RowLink({
   badge,
   sub,
   note,
+  userGrade,
   to,
 }: {
   route: RouteWithStats;
@@ -427,10 +430,13 @@ function RowLink({
   badge: React.ReactNode;
   sub: string;
   note?: string | null;
+  userGrade?: number | null;
   /** Override destination (projects open their journal, not the route). */
   to?: string;
 }) {
   const grade = route.gym_grade;
+  const hasOfficialGrade = grade !== null && grade !== undefined;
+  const fallbackGrade = !hasOfficialGrade ? userGrade : null;
   return (
     <li className="relative" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
       <Link
@@ -464,22 +470,34 @@ function RowLink({
           ) : null}
         </div>
         <div className="shrink-0 text-right">
-          <p
-            className={
-              grade === null || grade === undefined
-                ? "text-xs font-bold leading-none text-muted"
-                : "klimb-grade text-lg font-extrabold leading-none text-accent"
-            }
-          >
-            {grade === null || grade === undefined
-              ? "Not graded"
-              : formatGradeStyled(
-                  grade,
+          {hasOfficialGrade ? (
+            <p className="klimb-grade text-lg font-extrabold leading-none text-accent">
+              {formatGradeStyled(
+                grade,
+                route.climbing_type,
+                system,
+                route.gradingStyle,
+              )}
+            </p>
+          ) : fallbackGrade !== null && fallbackGrade !== undefined ? (
+            <p className="flex items-baseline justify-end gap-1 leading-none">
+              <span className="text-[9px] font-bold uppercase tracking-wide text-muted">
+                You say
+              </span>
+              <span className="klimb-grade text-lg font-extrabold text-accent">
+                {formatGradeStyled(
+                  fallbackGrade,
                   route.climbing_type,
                   system,
                   route.gradingStyle,
                 )}
-          </p>
+              </span>
+            </p>
+          ) : (
+            <p className="text-xs font-bold leading-none text-muted">
+              Not graded
+            </p>
+          )}
           <p className="mt-0.5 text-[10px] text-faint">
             {climbTypeLabel(route.climbing_type)}
           </p>

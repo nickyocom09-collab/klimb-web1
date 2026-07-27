@@ -59,7 +59,12 @@ function archetypeFor(p: RecapPayload, seedKey: string): Archetype {
     ARCHETYPES.find((a) => a.key === k) ?? ARCHETYPES[1];
   const wall = (p.top_wall ?? "").toLowerCase();
   const ratio = p.climbs > 0 ? p.attempts / p.climbs : 0;
-  const firstEver = p.prev.climbs === 0 && p.prev.sends === 0;
+  const noPreviousActivity = p.prev.climbs === 0 && p.prev.sends === 0;
+  const returningAfterGap =
+    noPreviousActivity &&
+    p.oldest_project_days !== null &&
+    p.oldest_project_days >= 7;
+  const firstActivePeriod = noPreviousActivity && !returningAfterGap;
   const flashRate = p.flash_rate ?? 0;
   const gradeBreadth = new Set(p.pyramid.map((r) => `${r.type}:${r.ordinal}`))
     .size;
@@ -68,17 +73,20 @@ function archetypeFor(p: RecapPayload, seedKey: string): Archetype {
 
   const scores: [string, number][] = [];
 
-  // Milestone weeks dominate: a new grade is the story of the week. If it
-  // came after a long-standing project, that's breaking a plateau instead.
-  if (p.new_grades.length > 0)
+  // A first active period should feel like a beginning, not claim everyone
+  // had the same breakthrough. Returning weeks can earn Breakthrough, but it
+  // competes with the rest of that person's actual pattern instead of
+  // automatically overpowering every other archetype.
+  if (firstActivePeriod && p.climbs > 0) scores.push(["fresh", 88]);
+  if (returningAfterGap && p.climbs > 0) scores.push(["comeback", 82]);
+  if (!firstActivePeriod && p.new_grades.length > 0)
     scores.push([
       p.oldest_project_days !== null && p.oldest_project_days >= 21
         ? "plateau"
         : "breakthrough",
-      90 + p.new_grades.length * 4,
+      (p.oldest_project_days !== null && p.oldest_project_days >= 21 ? 76 : 62) +
+        Math.min(p.new_grades.length * 3, 9),
     ]);
-  if (firstEver && p.climbs > 0) scores.push(["fresh", 85]);
-  else if (p.prev.climbs === 0 && p.climbs > 0) scores.push(["comeback", 70]);
 
   // Style of the week — each keyed off a real field, scored by strength.
   if (flashRate >= 50 && p.flashes >= 3)

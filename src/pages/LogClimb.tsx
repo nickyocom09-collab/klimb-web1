@@ -44,7 +44,11 @@ export function LogClimb() {
   // the button off the bottom (the scroll glitch). min-h-full fixes it.
   return (
     <div className={`relative flex flex-col ${style === "steps" ? "h-full" : "min-h-full"}`}>
-      <AppHeader title="Log a Klimb" subtitle={s.gymName ?? undefined} />
+      <AppHeader
+        title="Log a Klimb"
+        subtitle={s.gymName ?? undefined}
+        reserveSubtitle
+      />
       {style === "steps" ? <LogStepFlow s={s} /> : <LogScrollForm s={s} />}
       <PhotoSourceSheet
         open={s.photoSourceOpen}

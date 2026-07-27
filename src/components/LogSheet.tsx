@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bookmark, Camera, Check, Flag, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -98,6 +98,20 @@ export function LogSheet({
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // Keep the project/detail screen perfectly still behind the editor. The
+  // sheet itself owns scrolling, including when the iOS keyboard reduces the
+  // visual viewport.
+  useEffect(() => {
+    const bodyOverflow = document.body.style.overflow;
+    const htmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = bodyOverflow;
+      document.documentElement.style.overflow = htmlOverflow;
+    };
+  }, []);
 
   async function uploadPhoto(file: File) {
     if (!profile) return;
@@ -201,8 +215,17 @@ export function LogSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-30 mx-auto flex max-w-app animate-fade-in items-end bg-black/60 p-4 backdrop-blur-[2px]">
-      <div className="relative w-full animate-fade-up overflow-hidden rounded-3xl border border-border bg-surface p-5 shadow-card">
+    <div
+      className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={editing ? "Edit Klimb" : "Log Klimb"}
+        className="relative max-h-[calc(100dvh-2rem)] w-full animate-fade-up overflow-y-auto overscroll-contain rounded-3xl border border-border bg-surface p-5 shadow-card"
+        onClick={(event) => event.stopPropagation()}
+      >
         {/* Route header */}
         <div className="mb-4 flex items-center gap-3">
           <input
