@@ -1,3 +1,6 @@
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
+
 // Anti-cheat: you have to actually be near a gym to make it your home gym, so
 // people can't swap to a far-away gym and pad their logbook there.
 export const MAX_HOME_GYM_MILES = 25;
@@ -21,9 +24,31 @@ export function milesBetween(
 
 export type Coords = { lat: number; lng: number };
 
+async function nativeCoords(): Promise<Coords> {
+  const position = await Geolocation.getCurrentPosition({
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 60000,
+  });
+  return {
+    lat: position.coords.latitude,
+    lng: position.coords.longitude,
+  };
+}
+
 /** Get the device's current position. Rejects with a friendly message if
  *  location is unavailable or the user denied permission. */
-export function getCurrentCoords(): Promise<Coords> {
+export async function getCurrentCoords(): Promise<Coords> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      return await nativeCoords();
+    } catch {
+      throw new Error(
+        "Turn on location for Klimb in Settings so we can confirm you're near the gym.",
+      );
+    }
+  }
+
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error("Location isn't available on this device."));
@@ -41,6 +66,43 @@ export function getCurrentCoords(): Promise<Coords> {
         );
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  });
+}
+
+/** Read location only when permission is already granted. Used for the map's
+ * distance hints so merely opening Map never triggers a permission popup. */
+export async function getCurrentCoordsIfAuthorized(): Promise<Coords | null> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const permission = await Geolocation.checkPermissions();
+      if (
+        permission.location !== "granted" &&
+        permission.coarseLocation !== "granted"
+      ) {
+        return null;
+      }
+      return await nativeCoords();
+    } catch {
+      return null;
+    }
+  }
+
+  if (!navigator.geolocation || !navigator.permissions) return null;
+  try {
+    const permission = await navigator.permissions.query({
+      name: "geolocation",
+    });
+    if (permission.state !== "granted") return null;
+  } catch {
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
     );
   });
 }

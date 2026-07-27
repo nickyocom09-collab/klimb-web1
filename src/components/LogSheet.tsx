@@ -330,7 +330,12 @@ export function LogSheet({
             onChange={setGymGrade}
             climbingType={route.climbing_type}
             system={system}
-            options={gymGradeOptions(route.climbing_type, system, "classic")}
+            gradeStyle={route.gradingStyle}
+            options={gymGradeOptions(
+              route.climbing_type,
+              system,
+              route.gradingStyle,
+            )}
           />
           {route.gym_grade !== null && route.gym_grade !== undefined ? (
             <p className="mt-1 text-xs text-faint">

@@ -236,11 +236,11 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         // and creates/restores the Klimb session without a browser callback.
         if (provider === "google" && canUseNativeGoogleSignIn()) {
           try {
-            const { idToken, accessToken } = await nativeGoogleSignIn();
+            const { idToken, nonce } = await nativeGoogleSignIn();
             const { error } = await supabase.auth.signInWithIdToken({
               provider: "google",
               token: idToken,
-              access_token: accessToken,
+              nonce,
             });
             return { error: error ? error.message : null };
           } catch (err) {

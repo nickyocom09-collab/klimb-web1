@@ -18,7 +18,7 @@ export function canUseNativeGoogleSignIn(): boolean {
 
 export async function nativeGoogleSignIn(): Promise<{
   idToken: string;
-  accessToken?: string;
+  nonce: string;
 }> {
   if (!GOOGLE_IOS_CLIENT_ID) {
     throw new Error("Native Google Sign-In is missing its iOS client ID.");
@@ -36,10 +36,24 @@ export async function nativeGoogleSignIn(): Promise<{
     initializedFor = GOOGLE_IOS_CLIENT_ID;
   }
 
+  // Supabase requires the raw nonce while Google receives its SHA-256 hash.
+  // Supplying the matched pair prevents the "passed nonce and nonce in
+  // id_token should either both exist or not" rejection.
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+  const nonce = Array.from(nonceBytes, (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const encodedNonce = new TextEncoder().encode(nonce);
+  const hash = await crypto.subtle.digest("SHA-256", encodedNonce);
+  const hashedNonce = Array.from(new Uint8Array(hash), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+
   const login = await SocialLogin.login({
     provider: "google",
     options: {
       scopes: ["email", "profile"],
+      nonce: hashedNonce,
       // Force Google's native account selection surface on every tap.
       forcePrompt: true,
     },
@@ -50,6 +64,6 @@ export async function nativeGoogleSignIn(): Promise<{
   }
   return {
     idToken: result.idToken,
-    accessToken: result.accessToken?.token,
+    nonce,
   };
 }

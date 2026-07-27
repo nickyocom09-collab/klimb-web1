@@ -20,7 +20,11 @@ import {
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { assertNearGym } from "../lib/location";
+import {
+  assertNearGym,
+  getCurrentCoords,
+  getCurrentCoordsIfAuthorized,
+} from "../lib/location";
 import { matchesGymSearch } from "../lib/gymSearch";
 import { formatGradeStyled } from "../lib/grades";
 import {
@@ -527,29 +531,23 @@ export function GymMap() {
   }
 
   // "Recenter on me" — fly to the device's location.
-  function recenterOnMe() {
-    if (!navigator.geolocation) {
-      window.alert("Location isn't available on this device.");
-      return;
-    }
+  async function recenterOnMe() {
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        mapRef.current?.flyTo(
-          [pos.coords.latitude, pos.coords.longitude],
-          11,
-          { duration: 0.9, easeLinearity: 0.22 },
-        );
-      },
-      () => {
-        setLocating(false);
-        window.alert(
-          "Couldn't get your location — check location permissions for this app.",
-        );
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
-    );
+    try {
+      const position = await getCurrentCoords();
+      mapRef.current?.flyTo([position.lat, position.lng], 11, {
+        duration: 0.9,
+        easeLinearity: 0.22,
+      });
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Couldn't get your location — check location permissions for Klimb.",
+      );
+    } finally {
+      setLocating(false);
+    }
   }
 
   const matches = useMemo(() => {
@@ -563,12 +561,13 @@ export function GymMap() {
   // Best-effort device location, so we can gate logging to gyms you're at.
   const [myLoc, setMyLoc] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (p) => setMyLoc({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => {},
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 },
-    );
+    let active = true;
+    getCurrentCoordsIfAuthorized().then((position) => {
+      if (active && position) setMyLoc(position);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   function milesAway(gym: GymWithCount): number | null {

@@ -193,14 +193,19 @@ export function RouteDetail() {
 
       {photoOpen && route.photo_url ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 px-4 pb-24 pt-4"
           onClick={() => setPhotoOpen(false)}
           role="dialog"
           aria-modal="true"
           aria-label="Full route photo"
         >
           <img src={route.photo_url} alt={`${route.hold_color} route`} className="max-h-full max-w-full rounded-xl object-contain shadow-2xl" />
-          <button className="absolute right-4 top-4 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white" onClick={() => setPhotoOpen(false)}>Done</button>
+          <button
+            className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 min-w-28 -translate-x-1/2 rounded-full bg-white px-6 py-3 text-sm font-bold text-black shadow-2xl"
+            onClick={() => setPhotoOpen(false)}
+          >
+            Done
+          </button>
         </div>
       ) : null}
 
