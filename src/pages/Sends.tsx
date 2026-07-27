@@ -55,7 +55,7 @@ function groupLabel(iso: string): string {
 function daysOpen(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / DAY_MS);
   if (days <= 0) return "Opened today";
-  return `Open ${days} day${days === 1 ? "" : "s"}`;
+  return `${days} day${days === 1 ? "" : "s"} open`;
 }
 
 // The Logbook IS the home tab — the app's front door and its soul. Every
@@ -399,7 +399,7 @@ function Badge({
 }) {
   return (
     <span
-      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+      className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
         tone === "accent"
           ? "bg-accent/15 text-accent"
           : "bg-surface-2 text-muted"
@@ -458,9 +458,11 @@ function RowLink({
               </span>
             ) : null}
           </p>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex min-w-0 items-center gap-2">
             {badge}
-            <span className="truncate text-xs text-muted">{sub}</span>
+            <span className="min-w-0 truncate whitespace-nowrap text-xs text-muted">
+              {sub}
+            </span>
           </div>
           {note ? (
             <p className="mt-1 truncate text-xs italic text-faint">"{note}"</p>

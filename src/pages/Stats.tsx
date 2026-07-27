@@ -164,7 +164,7 @@ export function Stats() {
               All-time activity
             </p>
             <div className="mt-4 grid grid-cols-3 divide-x divide-border/60">
-              <Metric value={logged.length} label="Klimbs" accent />
+              <Metric value={logged.length} label="Klimbs logged" accent />
               <Metric value={stats.total} label="Sends" />
               <Metric value={stats.flashes} label="Flashes" />
             </div>
@@ -219,43 +219,27 @@ export function Stats() {
             </div>
           </div>
 
-          {/* Grade pyramid — one chart, one takeaway */}
-          {stats.pyramid.length > 0 ? (
+          {/* Boulder and rope grades live on different scales. Keep them in
+              one card, but never blend them into a misleading chart. */}
+          {stats.pyramids.boulder.length > 0 ||
+          stats.pyramids.rope.length > 0 ? (
             <div className="rounded-3xl bg-surface p-5 shadow-card">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
                 <TrendingUp size={14} className="text-accent" /> Grade pyramid
               </h2>
               <p className="mb-4 mt-1 text-sm text-muted">
-                {(() => {
-                  const top = stats.pyramid.reduce((a, b) =>
-                    b.count > a.count ? b : a,
-                  );
-                  return `Most of your sends land at ${top.label}.`;
-                })()}
+                Your sends by grade, with Boulder and Rope kept separate.
               </p>
-              <div className="flex flex-col gap-2">
-                {stats.pyramid.map((b) => {
-                  const max = Math.max(...stats.pyramid.map((x) => x.count));
-                  return (
-                    <div key={b.label} className="flex items-center gap-2">
-                      <span className="w-14 shrink-0 text-right text-xs font-semibold text-muted">
-                        {b.label}
-                      </span>
-                      <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-2">
-                        <div
-                          className="h-full rounded-full bg-accent transition-all"
-                          style={{
-                            width: `${(b.count / max) * 100}%`,
-                            minWidth: "0.5rem",
-                          }}
-                        />
-                      </div>
-                      <span className="w-5 shrink-0 text-xs tabular-nums text-faint">
-                        {b.count}
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="flex flex-col gap-5">
+                {stats.pyramids.boulder.length > 0 ? (
+                  <PyramidChart
+                    label="Boulder"
+                    rows={stats.pyramids.boulder}
+                  />
+                ) : null}
+                {stats.pyramids.rope.length > 0 ? (
+                  <PyramidChart label="Rope" rows={stats.pyramids.rope} />
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -377,9 +361,51 @@ function Metric({
       <p className={`text-3xl font-extrabold leading-none tabular-nums ${accent ? "text-accent" : "text-chalk"}`}>
         {value}
       </p>
-      <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+      <p className="mx-auto mt-1.5 max-w-[5.5rem] text-[9px] font-semibold uppercase leading-tight tracking-[0.08em] text-muted">
         {label}
       </p>
     </div>
+  );
+}
+
+function PyramidChart({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: { label: string; count: number; sort: number }[];
+}) {
+  const max = Math.max(...rows.map((row) => row.count));
+  const mostCommon = rows.reduce((a, b) => (b.count > a.count ? b : a));
+
+  return (
+    <section>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-chalk">
+          {label}
+        </h3>
+        <p className="text-[11px] text-faint">
+          Most at <span className="klimb-grade text-muted">{mostCommon.label}</span>
+        </p>
+      </div>
+      <div className="flex flex-col gap-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center gap-2">
+            <span className="klimb-grade w-14 shrink-0 text-right text-xs font-semibold text-muted">
+              {row.label}
+            </span>
+            <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-2">
+              <div
+                className="h-full min-w-2 rounded-full bg-accent transition-all"
+                style={{ width: `${(row.count / max) * 100}%` }}
+              />
+            </div>
+            <span className="w-5 shrink-0 text-xs tabular-nums text-faint">
+              {row.count}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

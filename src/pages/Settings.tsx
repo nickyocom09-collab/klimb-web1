@@ -28,6 +28,7 @@ import {
 import { AppHeader } from "../components/Layout";
 import { Button, Card, ConfirmDialog, Input, Textarea } from "../components/ui";
 import type { Database } from "../lib/database.types";
+import { profileNameError } from "../lib/nameModeration";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -172,6 +173,11 @@ export function Settings() {
   async function saveAccount() {
     if (!accountDirty) return;
     setUMsg(null);
+    const moderationError = profileNameError(trimmedName, normUname);
+    if (moderationError) {
+      setUMsg(moderationError);
+      return;
+    }
     // Username is the only field with rules — validate before touching anything.
     if (normUname !== (profile?.username ?? "")) {
       if (normUname.length < 3) {

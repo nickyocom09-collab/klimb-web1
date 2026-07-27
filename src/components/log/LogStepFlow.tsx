@@ -129,25 +129,13 @@ const STEPS: Step[] = [
     ready: () => true,
     render: (s) => (
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-4 gap-2">
-          {s.gymGradeOpts.map((o) => {
-            const on = s.gymGrade === o.value;
-            return (
-              <button
-                key={o.value}
-                type="button"
-                onClick={() => s.setGymGrade(on ? null : o.value)}
-                className={`h-11 rounded-xl border text-sm font-bold transition ${
-                  on
-                    ? "border-accent bg-accent text-bg"
-                    : "border-border bg-surface-2 text-muted hover:text-chalk"
-                }`}
-              >
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
+        <GradePicker
+          value={s.gymGrade}
+          onChange={s.setGymGrade}
+          climbingType={s.climbingType}
+          system={s.system}
+          options={s.gymGradeOpts}
+        />
         <button
           type="button"
           onClick={() => s.setGymGrade(null)}

@@ -22,6 +22,7 @@ import {
   WebAuthentication,
   canUseNativeWebAuthentication,
 } from "./webAuthentication";
+import { containsProfanity } from "./nameModeration";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -141,11 +142,14 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         (meta.name as string) ||
         (meta.user_name as string) ||
         null;
-      const display =
+      const proposedDisplay =
         pendingName.current ??
         metaName ??
         user.email?.split("@")[0] ??
         "Climber";
+      const display = containsProfanity(proposedDisplay)
+        ? "Climber"
+        : proposedDisplay;
       const avatar =
         (meta.avatar_url as string) || (meta.picture as string) || null;
       await supabase

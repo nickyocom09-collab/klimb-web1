@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { Button, ErrorText, Input, PasswordInput } from "../components/ui";
 import { OAuthButtons } from "../components/OAuthButtons";
+import { profileNameError } from "../lib/nameModeration";
 
 export function Signup() {
   const { signUp } = useAuth();
@@ -20,6 +21,11 @@ export function Signup() {
     setNotice(null);
     if (displayName.trim().length < 2) {
       setError("Pick a display name (at least 2 characters).");
+      return;
+    }
+    const moderationError = profileNameError(displayName);
+    if (moderationError) {
+      setError(moderationError);
       return;
     }
     if (password.length < 6) {

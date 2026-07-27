@@ -216,14 +216,14 @@ export function LogSheet({
 
   return (
     <div
-      className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-[2px]"
+      className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(4.5rem,env(safe-area-inset-top))] backdrop-blur-[2px]"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={editing ? "Edit Klimb" : "Log Klimb"}
-        className="relative max-h-[calc(100dvh-2rem)] w-full animate-fade-up overflow-y-auto overscroll-contain rounded-3xl border border-border bg-surface p-5 shadow-card"
+        className="relative max-h-full w-full animate-fade-up overflow-y-auto overscroll-contain rounded-3xl border border-border bg-surface p-5 shadow-card"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Route header */}
@@ -274,7 +274,10 @@ export function LogSheet({
           <p className="-mt-2 mb-4 text-sm text-wide">{photoError}</p>
         ) : null}
 
-        {/* Outcome — 2×2 when there's a Topped option, else a tidy row of 3 */}
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-faint">
+          Result
+        </p>
+        {/* Outcome — compact and thumb-friendly without crowding the status bar. */}
         <div
           className={`grid gap-2 ${
             outcomeOptions.length === 4 ? "grid-cols-2" : "grid-cols-3"
@@ -286,7 +289,7 @@ export function LogSheet({
               <button
                 key={value}
                 onClick={() => setOutcome(value)}
-                className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-3.5 text-center transition ${
+                className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-3 text-center transition ${
                   on
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border bg-surface-2 text-muted hover:text-chalk"
@@ -304,12 +307,10 @@ export function LogSheet({
 
         {/* Your grade */}
         <div className="mt-4">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
-            Your grade
-            <span className="ml-1 font-normal normal-case text-faint">
-              (what did it feel like?)
-            </span>
-          </h3>
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-semibold text-chalk">Your grade</h3>
+            <span className="text-xs text-faint">How it felt</span>
+          </div>
           <GradePicker
             value={feltGrade}
             onChange={setFeltGrade}
@@ -320,12 +321,10 @@ export function LogSheet({
 
         {/* Gym's grade */}
         <div className="mt-4">
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
-            Gym's grade
-            <span className="ml-1 font-normal normal-case text-faint">
-              (what does the tag say?)
-            </span>
-          </h3>
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <h3 className="text-sm font-semibold text-chalk">Gym's grade</h3>
+            <span className="text-xs text-faint">What the tag says</span>
+          </div>
           <GradePicker
             value={gymGrade}
             onChange={setGymGrade}

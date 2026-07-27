@@ -142,7 +142,10 @@ export type LogStats = {
   /** Consecutive weeks with at least one saved log. Opening the app never
    * affects this value. Weekly on purpose — nobody climbs every day. */
   streakWeeks: number;
-  pyramid: { label: string; count: number; sort: number }[];
+  pyramids: {
+    boulder: { label: string; count: number; sort: number }[];
+    rope: { label: string; count: number; sort: number }[];
+  };
   hardestSend: {
     boulder: LoggedItem | null;
     toprope: LoggedItem | null;
@@ -180,8 +183,13 @@ export function computeLogStats(
     return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
   };
 
-  // Grade pyramid: sends bucketed by display label, easy→hard.
-  const buckets = new Map<string, { count: number; sort: number }>();
+  // Boulder and rope grades are different scales, so each gets its own
+  // pyramid instead of being mixed into a misleading combined chart.
+  const boulderBuckets = new Map<
+    string,
+    { count: number; sort: number }
+  >();
+  const ropeBuckets = new Map<string, { count: number; sort: number }>();
   for (const l of sent) {
     if (l.ordinal === null) continue;
     const label = formatGradeStyled(
@@ -190,14 +198,24 @@ export function computeLogStats(
       system,
       l.route.gradingStyle,
     );
-    const sort = (isRope(l.route.climbing_type) ? 100 : 0) + l.ordinal;
+    const buckets = isRope(l.route.climbing_type)
+      ? ropeBuckets
+      : boulderBuckets;
+    const sort = l.ordinal;
     const cur = buckets.get(label) ?? { count: 0, sort };
     cur.count += 1;
     buckets.set(label, cur);
   }
-  const pyramid = [...buckets.entries()]
-    .map(([label, v]) => ({ label, ...v }))
-    .sort((a, b) => a.sort - b.sort);
+  const toPyramid = (
+    buckets: Map<string, { count: number; sort: number }>,
+  ) =>
+    [...buckets.entries()]
+      .map(([label, value]) => ({ label, ...value }))
+      .sort((a, b) => a.sort - b.sort);
+  const pyramids = {
+    boulder: toPyramid(boulderBuckets),
+    rope: toPyramid(ropeBuckets),
+  };
 
   const hardest = (items: LoggedItem[]) => {
     let boulder: LoggedItem | null = null;
@@ -257,7 +275,7 @@ export function computeLogStats(
     lastWeek,
     topColor: mode(logged.map((l) => l.route.hold_color)),
     streakWeeks,
-    pyramid,
+    pyramids,
     hardestSend: hardest(sent),
     hardestFlash: hardest(flashes),
     typeCounts,

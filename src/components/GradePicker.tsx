@@ -4,6 +4,7 @@ import {
   type GradeStyle,
   type GradeSystem,
 } from "../lib/grades";
+import { ChevronDown } from "lucide-react";
 
 export function GradePicker({
   value,
@@ -23,30 +24,32 @@ export function GradePicker({
   options?: { value: number; label: string }[];
 }) {
   const options = customOptions ?? pickerOptions(climbingType, system, gradeStyle);
-  // Bentonville boulder bands are only 4 wide — give them room to breathe.
-  const cols =
-    gradeStyle === "bands" && climbingType === "boulder"
-      ? "grid-cols-4"
-      : "grid-cols-6";
+  const selected = options.find((option) => option.value === value);
+
   return (
-    <div className={`grid ${cols} gap-2`}>
-      {options.map((o) => {
-        const selected = value === o.value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onChange(selected ? null : o.value)}
-            className={`klimb-grade h-11 rounded-xl border text-sm font-bold transition ${
-              selected
-                ? "border-accent bg-accent text-bg"
-                : "border-border bg-surface-2 text-muted hover:text-chalk"
-            }`}
-          >
-            {o.label}
-          </button>
-        );
-      })}
+    <div className="relative">
+      <select
+        value={value ?? ""}
+        onChange={(event) =>
+          onChange(event.target.value === "" ? null : Number(event.target.value))
+        }
+        aria-label="Select grade"
+        className={`klimb-grade h-12 w-full appearance-none rounded-2xl border bg-surface-2 px-4 pr-11 text-base font-bold outline-none transition focus:border-accent ${
+          selected ? "border-accent/60 text-accent" : "border-border text-muted"
+        }`}
+      >
+        <option value="">Not set</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden
+        size={18}
+        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-faint"
+      />
     </div>
   );
 }

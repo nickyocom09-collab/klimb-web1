@@ -6,7 +6,6 @@ import {
   Settings as SettingsIcon,
   Stamp,
   Trophy,
-  UserPlus,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -169,7 +168,7 @@ export function Profile() {
           className="mt-4 px-6"
           onClick={() => navigate("/friends")}
         >
-          <UserPlus size={16} className="mr-1.5" /> Friends
+          Friends
         </Button>
       </div>
 

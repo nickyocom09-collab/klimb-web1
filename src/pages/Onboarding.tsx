@@ -18,6 +18,7 @@ import { STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 import type { LogStylePref } from "../lib/constants";
 import { matchesGymSearch } from "../lib/gymSearch";
+import { profileNameError } from "../lib/nameModeration";
 
 type Step = "name" | "gym" | "logStyle";
 
@@ -205,6 +206,11 @@ export function Onboarding() {
   // Validate + availability-check the username, then move on to gym picking.
   async function submitIdentity() {
     setUnameErr(null);
+    const moderationError = profileNameError(name, normalizedUname);
+    if (moderationError) {
+      setUnameErr(moderationError);
+      return;
+    }
     if (normalizedUname.length < 3) {
       setUnameErr("Usernames need at least 3 characters.");
       return;
