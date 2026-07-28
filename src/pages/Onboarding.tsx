@@ -18,7 +18,7 @@ import { STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 import type { LogStylePref } from "../lib/constants";
 import { matchesGymSearch } from "../lib/gymSearch";
-import { fetchApprovedGyms } from "../lib/gyms";
+import { fetchApprovedGyms, gymLocationLabel } from "../lib/gyms";
 import { profileNameError } from "../lib/nameModeration";
 
 type Step = "name" | "gym" | "logStyle";
@@ -185,12 +185,10 @@ export function Onboarding() {
         >
           <div>
             <p className="font-semibold text-chalk">{gym.name}</p>
-            {gym.city || gym.state ? (
-              <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
-                <MapPin size={13} />
-                {[gym.city, gym.state].filter(Boolean).join(", ")}
-              </p>
-            ) : null}
+            <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
+              <MapPin size={13} />
+              {gymLocationLabel(gym)}
+            </p>
           </div>
           {selected ? (
             <Check size={20} className="text-accent" />

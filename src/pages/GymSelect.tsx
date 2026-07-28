@@ -7,7 +7,7 @@ import { Button, CenterSpinner, Input, Spinner } from "../components/ui";
 import { STATE_NAME } from "../lib/states";
 import { assertNearGym } from "../lib/location";
 import { matchesGymSearch } from "../lib/gymSearch";
-import { fetchApprovedGyms } from "../lib/gyms";
+import { fetchApprovedGyms, gymLocationLabel } from "../lib/gyms";
 import type { GymRow } from "../lib/database.types";
 
 /** ISO alpha-2 -> emoji flag. */
@@ -155,12 +155,10 @@ export function GymSelect() {
         >
           <div>
             <p className="font-semibold text-chalk">{gym.name}</p>
-            {gym.city || gym.state ? (
-              <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
-                <MapPin size={13} />
-                {[gym.city, gym.state].filter(Boolean).join(", ")}
-              </p>
-            ) : null}
+            <p className="mt-0.5 flex items-center gap-1 text-sm text-muted">
+              <MapPin size={13} />
+              {gymLocationLabel(gym)}
+            </p>
           </div>
           {saving === gym.id ? (
             <Spinner className="text-accent" />

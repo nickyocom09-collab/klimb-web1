@@ -26,7 +26,7 @@ import {
   getCurrentCoordsIfAuthorized,
 } from "../lib/location";
 import { matchesGymSearch } from "../lib/gymSearch";
-import { fetchApprovedGyms } from "../lib/gyms";
+import { fetchApprovedGyms, gymLocationLabel } from "../lib/gyms";
 import { routeLabel } from "../lib/routeLabel";
 import { formatGradeStyled } from "../lib/grades";
 import {
@@ -710,7 +710,7 @@ export function GymMap() {
                         {g.name}
                       </span>
                       <span className="block truncate text-xs text-muted">
-                        {[g.city, g.state].filter(Boolean).join(", ")}
+                        {gymLocationLabel(g)}
                       </span>
                     </span>
                   </button>
@@ -795,17 +795,15 @@ export function GymMap() {
                     </span>
                   ) : null}
                 </p>
-                {selected.city || selected.state || selected.country ? (
-                  <p className="mt-1 flex items-center gap-1 text-sm text-muted">
-                    <MapPin size={13} />
-                    {[selected.city, selected.state].filter(Boolean).join(", ")}
-                    {selected.cc ? (
-                      <span className="ml-1 text-base leading-none">
-                        {flagEmoji(selected.cc)}
-                      </span>
-                    ) : null}
-                  </p>
-                ) : null}
+                <p className="mt-1 flex items-center gap-1 text-sm text-muted">
+                  <MapPin size={13} />
+                  {gymLocationLabel(selected)}
+                  {selected.cc ? (
+                    <span className="ml-1 text-base leading-none">
+                      {flagEmoji(selected.cc)}
+                    </span>
+                  ) : null}
+                </p>
               </div>
               <button
                 onClick={() => setSelected(null)}
