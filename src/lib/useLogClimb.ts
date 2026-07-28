@@ -49,6 +49,7 @@ export function useLogClimb() {
   const navigate = useNavigate();
   const photoRef = useRef<HTMLInputElement>(null);
   const system = profile?.grade_system ?? "american";
+  const routeNamesEnabled = profile?.route_names_enabled ?? false;
   // Log at the gym you're actually at — a "visiting" gym wins over home.
   const gymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
 
@@ -63,6 +64,7 @@ export function useLogClimb() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
+  const [routeName, setRouteName] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [feltGrade, setFeltGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
@@ -191,6 +193,7 @@ export function useLogClimb() {
         p_stars: stars,
         p_outcome: outcome,
         p_note: note,
+        p_name: routeName.trim() || null,
       });
       if (logError) throw logError;
 
@@ -226,12 +229,14 @@ export function useLogClimb() {
     gymId,
     gymName,
     system,
+    routeNamesEnabled,
     photoRef,
     // state
     photo,
     photoPreview,
     climbingType,
     holdColor,
+    routeName,
     outcome,
     feltGrade,
     gymGrade,
@@ -243,6 +248,7 @@ export function useLogClimb() {
     photoSourceOpen,
     // setters
     setHoldColor,
+    setRouteName,
     setOutcome,
     setFeltGrade,
     setGymGrade,

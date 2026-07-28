@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Check, Plus, Video } from "lucide-react";
 import { formatGradeStyled, type GradeSystem } from "../lib/grades";
 import { holdHex } from "../lib/constants";
+import { routeLabel } from "../lib/routeLabel";
 import type { RouteWithStats } from "../lib/routes";
 import { RouteGradeStack } from "./RouteGradeStack";
 
@@ -47,7 +48,7 @@ export function RouteCard({
                 className="h-2.5 w-2.5 rounded-full border border-white/10"
                 style={{ backgroundColor: holdHex(route.hold_color) }}
               />
-              {route.hold_color}
+              {routeLabel(route)}
             </p>
           </div>
         </div>
@@ -55,7 +56,7 @@ export function RouteCard({
         <div className="relative aspect-[4/3] w-full bg-surface-2">
           <FadeImg
             src={route.photo_url}
-            alt={`${route.hold_color} route`}
+            alt={routeLabel(route)}
           />
           {route.video_url ? (
             <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-bg/80 px-2 py-1 backdrop-blur">

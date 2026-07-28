@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchLogbook, DAY_MS, type LoggedItem } from "../lib/logstats";
 import { holdHex } from "../lib/constants";
+import { routeLabel } from "../lib/routeLabel";
 import { CenterSpinner } from "../components/ui";
 import { RouteGradeStack } from "../components/RouteGradeStack";
 
@@ -129,7 +130,7 @@ export function FullLogbook() {
                                 }}
                               />
                               <span className="truncate">
-                                {item.route.hold_color}
+                                {routeLabel(item.route)}
                               </span>
                             </p>
                             {gym ? (

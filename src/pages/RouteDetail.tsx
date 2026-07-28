@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
 import { formatGrade, formatGymGrade } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
+import { routeLabel } from "../lib/routeLabel";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
 import type { SendType } from "../lib/database.types";
@@ -175,7 +176,7 @@ export function RouteDetail() {
           >
             <img
               src={route.photo_url}
-              alt={`${route.hold_color} route`}
+              alt={routeLabel(route)}
               className="aspect-[4/3] w-full object-cover"
             />
           </button>
@@ -199,7 +200,7 @@ export function RouteDetail() {
           aria-modal="true"
           aria-label="Full route photo"
         >
-          <img src={route.photo_url} alt={`${route.hold_color} route`} className="max-h-full max-w-full rounded-xl object-contain shadow-2xl" />
+          <img src={route.photo_url} alt={routeLabel(route)} className="max-h-full max-w-full rounded-xl object-contain shadow-2xl" />
           <button
             className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 min-w-28 -translate-x-1/2 rounded-full bg-white px-6 py-3 text-sm font-bold text-black shadow-2xl"
             onClick={() => setPhotoOpen(false)}
@@ -219,9 +220,9 @@ export function RouteDetail() {
                 style={{ backgroundColor: holdHex(route.hold_color) }}
               />
               <div>
-                <p className="text-lg font-bold text-chalk">{route.hold_color}</p>
+                <p className="text-lg font-bold text-chalk">{routeLabel(route)}</p>
                 <p className="text-sm text-muted">
-                  {climbTypeLabel(route.climbing_type)}
+                  {route.name ? `${route.hold_color} · ` : ""}{climbTypeLabel(route.climbing_type)}
                 </p>
               </div>
             </div>

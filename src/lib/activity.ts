@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import type { ClimbingTypeEnum } from "./database.types";
+import { routeLabel } from "./routeLabel";
 
 export type ActivityKind = "send" | "grade" | "comment" | "new_route";
 
@@ -16,6 +17,7 @@ export type ActivityEvent = {
 };
 
 type RouteMeta = {
+  name: string | null;
   hold_color: string;
   climbing_type: ClimbingTypeEnum;
   created_by: string | null;
@@ -34,7 +36,7 @@ export async function fetchGymActivity(
 ): Promise<ActivityEvent[]> {
   const { data: routes } = await supabase
     .from("routes")
-    .select("id, hold_color, climbing_type, created_by, created_at")
+    .select("id, name, hold_color, climbing_type, created_by, created_at")
     .eq("gym_id", gymId);
 
   if (!routes || routes.length === 0) return [];
@@ -44,6 +46,7 @@ export async function fetchGymActivity(
   for (const r of routes) {
     routeIds.push(r.id);
     routeMeta.set(r.id, {
+      name: r.name,
       hold_color: r.hold_color,
       climbing_type: r.climbing_type,
       created_by: r.created_by,
@@ -91,7 +94,7 @@ export async function fetchGymActivity(
 
   const label = (rid: string) => {
     const m = routeMeta.get(rid);
-    return m ? `${m.hold_color}` : "a route";
+    return m ? routeLabel(m) : "a route";
   };
 
   const events: ActivityEvent[] = [];

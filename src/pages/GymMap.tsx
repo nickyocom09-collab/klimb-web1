@@ -26,6 +26,8 @@ import {
   getCurrentCoordsIfAuthorized,
 } from "../lib/location";
 import { matchesGymSearch } from "../lib/gymSearch";
+import { fetchApprovedGyms } from "../lib/gyms";
+import { routeLabel } from "../lib/routeLabel";
 import { formatGradeStyled } from "../lib/grades";
 import {
   fetchOsmGyms,
@@ -342,24 +344,30 @@ export function GymMap() {
     let active = true;
     setLoading(true);
     Promise.all([
-      supabase.from("gyms").select("*").eq("status", "approved"),
+      fetchApprovedGyms(),
       supabase
         .from("routes")
         .select("gym_id")
         .eq("status", "active")
         .eq("hidden", false),
-    ]).then(([{ data: g }, { data: r }]) => {
-      if (!active) return;
-      const counts = new Map<string, number>();
-      for (const row of r ?? [])
-        counts.set(row.gym_id, (counts.get(row.gym_id) ?? 0) + 1);
-      setGyms(
-        (g ?? [])
-          .filter((x) => x.latitude != null && x.longitude != null)
-          .map((x) => ({ ...x, routeCount: counts.get(x.id) ?? 0 })),
-      );
-      setLoading(false);
-    });
+    ])
+      .then(([g, { data: r }]) => {
+        if (!active) return;
+        const counts = new Map<string, number>();
+        for (const row of r ?? [])
+          counts.set(row.gym_id, (counts.get(row.gym_id) ?? 0) + 1);
+        setGyms(
+          g
+            .filter((x) => x.latitude != null && x.longitude != null)
+            .map((x) => ({ ...x, routeCount: counts.get(x.id) ?? 0 })),
+        );
+      })
+      .catch((error: unknown) => {
+        console.error("Could not load gym map", error);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -407,12 +415,13 @@ export function GymMap() {
       const { data: routeRows } = await supabase
         .from("routes")
         .select(
-          "id, gym_id, hold_color, climbing_type, gym_grade, gyms(grading_style)",
+          "id, gym_id, name, hold_color, climbing_type, gym_grade, gyms(grading_style)",
         )
         .in("id", allRouteIds);
       type RR = {
         id: string;
         gym_id: string;
+        name: string | null;
         hold_color: string;
         climbing_type: "boulder" | "toprope" | "lead";
         gym_grade: number | null;
@@ -482,7 +491,7 @@ export function GymMap() {
         const r = routeMap.get(b.route_id);
         if (!r) continue;
         const list = projects.get(r.gym_id) ?? [];
-        list.push(`${r.hold_color}`);
+        list.push(routeLabel(r));
         projects.set(r.gym_id, list);
       }
 

@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { Check, ChevronLeft, QrCode, UserPlus, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
+import { routeLabel } from "../lib/routeLabel";
 import {
   acceptFriendRequest,
   addFriendByUsername,
@@ -61,10 +62,10 @@ export function Friends() {
     if (routeIds.length > 0) {
       const { data: rs } = await supabase
         .from("routes")
-        .select("id, hold_color")
+        .select("id, hold_color, name")
         .in("id", routeIds);
       for (const r of rs ?? [])
-        labelMap.set(r.id, `${r.hold_color}`);
+        labelMap.set(r.id, routeLabel(r));
     }
     const out = new Map<string, string>();
     for (const f of list) {

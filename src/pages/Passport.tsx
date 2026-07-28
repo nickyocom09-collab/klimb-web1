@@ -4,6 +4,7 @@ import { Check, Globe, Lock, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner } from "../components/ui";
+import { fetchApprovedGyms } from "../lib/gyms";
 
 const flag = (cc: string) =>
   cc.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
@@ -21,7 +22,9 @@ const CONTINENT: Record<string, string> = {
   au: "Oceania", nz: "Oceania",
   za: "Africa", ma: "Africa", eg: "Africa", ke: "Africa", ng: "Africa",
 };
-const CONTINENT_ORDER = ["North America", "South America", "Europe", "Asia", "Oceania", "Africa"];
+// Keep unknown ISO codes visible rather than silently omitting a newly seeded
+// country from the passport while its continent mapping is added.
+const CONTINENT_ORDER = ["North America", "South America", "Europe", "Asia", "Oceania", "Africa", "Elsewhere"];
 
 type Country = { cc: string; name: string; continent: string; gyms: number };
 
@@ -58,10 +61,7 @@ export function Passport() {
         }
       }
       // All countries that have gyms + a total gym count each.
-      const { data: gyms } = await supabase
-        .from("gyms")
-        .select("id, cc, country")
-        .eq("status", "approved");
+      const gyms = await fetchApprovedGyms();
       const byCc = new Map<string, { name: string; gyms: number }>();
       const gymCc = new Map<string, string>();
       for (const g of gyms ?? []) {

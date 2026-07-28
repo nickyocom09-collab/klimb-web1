@@ -63,6 +63,7 @@ export interface Database {
           theme: ThemeEnum;
           default_climb_filter: ClimbFilterEnum;
           log_style: LogStyleEnum;
+          route_names_enabled: boolean;
           onboarded: boolean;
           seen_intro: boolean;
           notifications_seen_at: string;
@@ -83,6 +84,7 @@ export interface Database {
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
           log_style?: LogStyleEnum;
+          route_names_enabled?: boolean;
           onboarded?: boolean;
           seen_intro?: boolean;
           notifications_seen_at?: string;
@@ -102,6 +104,7 @@ export interface Database {
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
           log_style?: LogStyleEnum;
+          route_names_enabled?: boolean;
           onboarded?: boolean;
           seen_intro?: boolean;
           notifications_seen_at?: string;
@@ -185,6 +188,7 @@ export interface Database {
           climbing_type: ClimbingTypeEnum;
           description: string | null;
           gym_grade: number | null;
+          name: string | null;
           status: RouteStatus;
           hidden: boolean;
           report_count: number;
@@ -204,6 +208,7 @@ export interface Database {
           climbing_type?: ClimbingTypeEnum;
           description?: string | null;
           gym_grade?: number | null;
+          name?: string | null;
           status?: RouteStatus;
           hidden?: boolean;
           report_count?: number;
@@ -220,6 +225,7 @@ export interface Database {
           climbing_type?: ClimbingTypeEnum;
           description?: string | null;
           gym_grade?: number | null;
+          name?: string | null;
           status?: RouteStatus;
           hidden?: boolean;
           report_count?: number;
@@ -577,6 +583,7 @@ export interface Database {
           p_stars: number | null;
           p_outcome: string;
           p_note: string;
+          p_name?: string | null;
         };
         Returns: string;
       };

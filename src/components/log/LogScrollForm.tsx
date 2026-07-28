@@ -1,7 +1,7 @@
 import { Camera, ImagePlus } from "lucide-react";
 import { HOLD_COLORS, holdHex } from "../../lib/constants";
 import { NOT_SET, type LogClimbState } from "../../lib/useLogClimb";
-import { Button, ErrorText, Textarea } from "../ui";
+import { Button, ErrorText, Input, Textarea } from "../ui";
 import { Dropdown } from "../Dropdown";
 import { GradePicker } from "../GradePicker";
 import { Stars } from "../Stars";
@@ -105,6 +105,15 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
             />
             {s.holdColor} holds
           </div>
+        ) : null}
+        {s.routeNamesEnabled ? (
+          <Input
+            label="Route name (optional)"
+            value={s.routeName}
+            onChange={(event) => s.setRouteName(event.target.value)}
+            placeholder="e.g. The Green Mile"
+            maxLength={80}
+          />
         ) : null}
         <Row label="Gym's grade">
           <Dropdown

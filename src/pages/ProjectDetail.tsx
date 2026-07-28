@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
 import { formatGradeStyled } from "../lib/grades";
 import { climbTypeLabel, holdHex } from "../lib/constants";
+import { routeLabel } from "../lib/routeLabel";
 import { DAY_MS } from "../lib/logstats";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
@@ -200,7 +201,7 @@ export function ProjectDetail() {
       <div className="relative">
         <img
           src={route.photo_url}
-          alt={`${route.hold_color} route`}
+          alt={routeLabel(route)}
           className="aspect-[16/10] w-full object-cover"
         />
         <button
@@ -241,9 +242,9 @@ export function ProjectDetail() {
                 style={{ backgroundColor: holdHex(route.hold_color) }}
               />
               <div>
-                <p className="text-lg font-bold text-chalk">{route.hold_color}</p>
+                <p className="text-lg font-bold text-chalk">{routeLabel(route)}</p>
                 <p className="text-sm text-muted">
-                  {climbTypeLabel(route.climbing_type)}
+                  {route.name ? `${route.hold_color} · ` : ""}{climbTypeLabel(route.climbing_type)}
                 </p>
               </div>
             </div>

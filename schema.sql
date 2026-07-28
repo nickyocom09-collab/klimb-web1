@@ -55,6 +55,7 @@ create table if not exists public.routes (
   hold_color       text not null,
   wall_section     text not null,
   description      text,
+  name             text check (name is null or char_length(name) <= 80),
   status           route_status not null default 'active',
   gone_reports     integer not null default 0,
   created_by       uuid references public.users (id) on delete set null,

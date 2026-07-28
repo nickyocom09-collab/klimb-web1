@@ -28,6 +28,7 @@ import {
   type RecapRow,
 } from "../lib/recaps";
 import { holdHex } from "../lib/constants";
+import { routeLabel } from "../lib/routeLabel";
 import { fetchNotifications } from "../lib/notifications";
 import { AppHeader } from "../components/Layout";
 import { RouteGradeStack } from "../components/RouteGradeStack";
@@ -451,7 +452,7 @@ function RowLink({
               className="h-3 w-3 shrink-0 rounded-full border border-white/10"
               style={{ backgroundColor: holdHex(route.hold_color) }}
             />
-            <span className="truncate">{route.hold_color}</span>
+            <span className="truncate">{routeLabel(route)}</span>
             {route.status === "archived" ? (
               <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-faint">
                 Archived

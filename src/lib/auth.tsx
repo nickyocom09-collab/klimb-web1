@@ -74,6 +74,7 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     theme: "dark",
     default_climb_filter: "all",
     log_style: "steps",
+    route_names_enabled: false,
     onboarded: true,
     seen_intro: true,
     notifications_seen_at: new Date().toISOString(),

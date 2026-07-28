@@ -7,6 +7,7 @@ import { Button, CenterSpinner, Input, Spinner } from "../components/ui";
 import { STATE_NAME } from "../lib/states";
 import { assertNearGym } from "../lib/location";
 import { matchesGymSearch } from "../lib/gymSearch";
+import { fetchApprovedGyms } from "../lib/gyms";
 import type { GymRow } from "../lib/database.types";
 
 /** ISO alpha-2 -> emoji flag. */
@@ -45,15 +46,15 @@ export function GymSelect() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    supabase
-      .from("gyms")
-      .select("*")
-      .order("name")
-      .then(({ data }) => {
-        if (active) {
-          setGyms(data ?? []);
-          setLoading(false);
-        }
+    fetchApprovedGyms()
+      .then((data) => {
+        if (active) setGyms(data);
+      })
+      .catch((error: unknown) => {
+        console.error("Could not load gym directory", error);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
@@ -129,8 +130,15 @@ export function GymSelect() {
   );
 
   const stateGyms = useMemo(
-    () => (openState ? gyms.filter((g) => g.state?.trim() === openState) : []),
-    [gyms, openState],
+    () =>
+      openState
+        ? gyms.filter(
+            (g) =>
+              g.state?.trim() === openState &&
+              (g.cc ?? "xx").toLowerCase() === openCountry,
+          )
+        : [],
+    [gyms, openCountry, openState],
   );
 
   function renderGym(gym: GymRow) {
@@ -347,6 +355,19 @@ export function GymSelect() {
             <Plus size={16} /> Don't see your gym? Add it
           </button>
         ) : null}
+
+        <p className="pb-5 text-center text-[11px] text-faint">
+          Gym locations include{" "}
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-faint/60 underline-offset-2 transition hover:text-muted"
+          >
+            © OpenStreetMap contributors
+          </a>
+          .
+        </p>
       </div>
 
       {/* Suggest-a-gym sheet */}

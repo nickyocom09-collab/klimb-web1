@@ -158,6 +158,12 @@ export function Settings() {
 
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
   const logStyle = (profile?.log_style ?? "steps") as LogStylePref;
+  const routeNamesEnabled = profile?.route_names_enabled ?? false;
+
+  async function setRouteNamesEnabled(next: boolean) {
+    const { error } = await updateProfile({ route_names_enabled: next });
+    if (error) window.alert("Couldn't save that setting. Please try again.");
+  }
 
   // --- One "Save changes" for the whole account card -----------------------
   // Three separate save buttons made the page feel like a form graveyard.
@@ -243,6 +249,42 @@ export function Settings() {
           <p className="ml-1 text-xs text-faint">
             Log a Klimb on one scrollable screen, or step through it one
             question at a time.
+          </p>
+        </Section>
+
+        <Section title="Route names">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={routeNamesEnabled}
+            onClick={() => void setRouteNamesEnabled(!routeNamesEnabled)}
+            className="flex w-full items-center justify-between gap-4 rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span>
+              <span className="block text-sm font-semibold text-chalk">
+                Add route names
+              </span>
+              <span className="mt-1 block text-xs leading-relaxed text-faint">
+                Show an optional name field when you log a Klimb. Named routes
+                replace the hold color in your logbook.
+              </span>
+            </span>
+            <span
+              aria-hidden="true"
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                routeNamesEnabled ? "bg-accent" : "bg-surface-2 ring-1 ring-border"
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                  routeNamesEnabled ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </span>
+          </button>
+          <p className="ml-1 text-xs text-faint">
+            Turning this off hides the field; names you already saved stay on
+            their routes and can still be edited.
           </p>
         </Section>
 

@@ -16,6 +16,7 @@ import { fetchFriends, type FriendProfile } from "../lib/friends";
 import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
 import type { SendType } from "../lib/database.types";
 import { holdHex } from "../lib/constants";
+import { routeLabel } from "../lib/routeLabel";
 import { Avatar } from "../components/Avatar";
 import { CenterSpinner } from "../components/ui";
 import { RouteGradeStack } from "../components/RouteGradeStack";
@@ -202,6 +203,10 @@ export function FriendsFeed() {
 
 function ActivityCard({ activity, system }: { activity: FriendActivity; system: "american" | "european" }) {
   const { label, sentence, Icon } = activityCopy(activity.kind, activity.sendType);
+  const labelForRoute = routeLabel(activity.route);
+  const activityLine = activity.route.name
+    ? `${sentence} ${labelForRoute}`
+    : `${sentence} a ${labelForRoute.toLowerCase()} route`;
   return (
     <article className="overflow-hidden rounded-[1.6rem] bg-surface shadow-card">
       <div className="flex items-center gap-3 px-4 py-3.5">
@@ -210,18 +215,18 @@ function ActivityCard({ activity, system }: { activity: FriendActivity; system: 
         </Link>
         <Link to={`/u/${activity.friend.id}`} className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-chalk">{activity.friend.display_name}</p>
-          <p className="truncate text-xs text-muted">{sentence} a {activity.route.hold_color.toLowerCase()} route</p>
+          <p className="truncate text-xs text-muted">{activityLine}</p>
         </Link>
         <span className="flex items-center gap-1 text-xs font-medium text-faint"><Clock3 size={13} /> {relativeTime(activity.createdAt)}</span>
       </div>
       <Link to={`/route/${activity.route.id}`} className="group relative block aspect-[16/10] overflow-hidden bg-surface-2">
-        <img src={activity.route.photo_url} alt={`${activity.route.hold_color} route`} loading="lazy" className="h-full w-full object-cover transition duration-500 group-active:scale-[1.02]" />
+        <img src={activity.route.photo_url} alt={labelForRoute} loading="lazy" className="h-full w-full object-cover transition duration-500 group-active:scale-[1.02]" />
         <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-chalk backdrop-blur">
           <Icon size={14} className="text-accent" /> {label}
         </span>
         <span className="absolute bottom-3 left-3 flex items-center gap-2 rounded-full bg-bg/85 px-3 py-1.5 text-sm font-bold text-chalk backdrop-blur">
           <span className="h-2.5 w-2.5 rounded-full ring-1 ring-white/15" style={{ backgroundColor: holdHex(activity.route.hold_color) }} />
-          {activity.route.hold_color}
+          {labelForRoute}
         </span>
       </Link>
       <Link to={`/route/${activity.route.id}`} className="flex items-center justify-between gap-3 px-4 py-3.5 transition active:bg-surface-2/70">

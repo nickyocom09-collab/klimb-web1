@@ -12,7 +12,7 @@ import { pickerOptions, type GradeStyle } from "../lib/grades";
 import { assertNearGym } from "../lib/location";
 import { pickPhotoNative } from "../lib/photo";
 import { AppHeader } from "../components/Layout";
-import { Button, ErrorText, Textarea } from "../components/ui";
+import { Button, ErrorText, Input, Textarea } from "../components/ui";
 import { Dropdown } from "../components/Dropdown";
 import { ClimbTypePicker } from "../components/log/ClimbTypePicker";
 
@@ -44,6 +44,7 @@ export function AddRoute() {
 
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
+  const [routeName, setRouteName] = useState("");
   const [grade, setGrade] = useState<number | null>(null);
   const [gymGrade, setGymGrade] = useState<number | null>(null);
   const [description, setDescription] = useState("");
@@ -163,6 +164,7 @@ export function AddRoute() {
           hold_color: holdColor!,
           climbing_type: climbingType,
           gym_grade: gymGrade,
+          name: routeName.trim() || null,
           description: description.trim() || null,
           created_by: profile!.id,
         })
@@ -254,6 +256,15 @@ export function AddRoute() {
               />
               {holdColor} holds
             </div>
+          ) : null}
+          {profile?.route_names_enabled ? (
+            <Input
+              label="Route name (optional)"
+              value={routeName}
+              onChange={(event) => setRouteName(event.target.value)}
+              placeholder="e.g. The Green Mile"
+              maxLength={80}
+            />
           ) : null}
 
           <Row label="Your grade guess">

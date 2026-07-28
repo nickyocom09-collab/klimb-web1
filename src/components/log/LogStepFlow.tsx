@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, ImagePlus } from "lucide-react";
 import { HOLD_COLORS, holdHex } from "../../lib/constants";
 import { type LogClimbState } from "../../lib/useLogClimb";
-import { Button, ErrorText, Textarea } from "../ui";
+import { Button, ErrorText, Input, Textarea } from "../ui";
 import { GradePicker } from "../GradePicker";
 import { Stars } from "../Stars";
 import { ClimbTypePicker } from "./ClimbTypePicker";
@@ -197,18 +197,38 @@ const STEPS: Step[] = [
   },
 ];
 
+const ROUTE_NAME_STEP: Step = {
+  key: "routeName",
+  title: "Does this route have a name?",
+  hint: "Optional — this will replace the hold color in your logbook.",
+  optional: true,
+  ready: () => true,
+  render: (s) => (
+    <Input
+      value={s.routeName}
+      onChange={(event) => s.setRouteName(event.target.value)}
+      placeholder="e.g. The Green Mile"
+      maxLength={80}
+      autoCapitalize="words"
+    />
+  ),
+};
+
 /** The stepped, one-question-at-a-time log flow. */
 export function LogStepFlow({ s }: { s: LogClimbState }) {
   const [i, setI] = useState(0);
-  const step = STEPS[i];
-  const last = i === STEPS.length - 1;
+  const steps = s.routeNamesEnabled
+    ? [...STEPS.slice(0, 4), ROUTE_NAME_STEP, ...STEPS.slice(4)]
+    : STEPS;
+  const step = steps[i];
+  const last = i === steps.length - 1;
   const canAdvance = useMemo(() => step.ready(s), [step, s]);
 
   const back = () => setI((v) => Math.max(0, v - 1));
   const next = () => {
     if (!canAdvance) return;
     if (last) s.save();
-    else setI((v) => Math.min(STEPS.length - 1, v + 1));
+    else setI((v) => Math.min(steps.length - 1, v + 1));
   };
 
   return (
@@ -216,7 +236,7 @@ export function LogStepFlow({ s }: { s: LogClimbState }) {
       {/* Progress segments — outside the scrollable middle so it never scrolls
           out of view, even if a step's content needs to scroll internally. */}
       <div className="mb-6 flex shrink-0 gap-1.5">
-        {STEPS.map((_, k) => (
+        {steps.map((_, k) => (
           <div key={k} className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
             <div
               className="h-full rounded-full bg-accent transition-all"
@@ -233,7 +253,7 @@ export function LogStepFlow({ s }: { s: LogClimbState }) {
         className="flex flex-1 flex-col justify-center overflow-y-auto text-center animate-fade-up"
       >
         <div className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-faint">
-          Step {i + 1} of {STEPS.length}
+          Step {i + 1} of {steps.length}
         </div>
         <h2 className="mb-1 text-2xl font-extrabold text-chalk">{step.title}</h2>
         {step.hint ? <p className="mb-5 text-sm text-muted">{step.hint}</p> : <div className="mb-5" />}
@@ -280,6 +300,8 @@ function changed(key: string, s: LogClimbState): boolean {
       return !!s.photoPreview;
     case "gymGrade":
       return s.gymGrade !== null;
+    case "routeName":
+      return s.routeName.trim().length > 0;
     case "take":
       return s.feltGrade !== null || s.stars !== null;
     case "note":

@@ -9,7 +9,8 @@ import { formatGradeStyled, gymGradeOptions } from "../lib/grades";
 import type { RouteWithStats } from "../lib/routes";
 import type { SendType } from "../lib/database.types";
 import type { ClimbingType } from "../lib/grades";
-import { Button, Spinner } from "./ui";
+import { Button, Input, Spinner } from "./ui";
+import { routeLabel } from "../lib/routeLabel";
 import { GradePicker } from "./GradePicker";
 
 export type LogOutcome = "flash" | "send" | "topped" | "attempt" | "project";
@@ -89,9 +90,11 @@ export function LogSheet({
   const [outcome, setOutcome] = useState<LogOutcome | null>(initialOutcome);
   const [feltGrade, setFeltGrade] = useState<number | null>(initialFeltGrade);
   const [gymGrade, setGymGrade] = useState<number | null>(route.gym_grade);
+  const [routeName, setRouteName] = useState(route.name ?? "");
   const [note, setNote] = useState(initialNote);
   const [saving, setSaving] = useState(false);
   const [reward, setReward] = useState<LogOutcome | null>(null);
+  const canNameRoute = profile?.route_names_enabled || !!route.name;
 
   // Add / change the climb's photo, independent of logging an outcome.
   const [photoUrl, setPhotoUrl] = useState(route.photo_url);
@@ -176,6 +179,10 @@ export function LogSheet({
         p_grade: gymGrade,
       });
     }
+    const name = routeName.trim() || null;
+    if (name !== route.name) {
+      await supabase.from("routes").update({ name }).eq("id", route.id);
+    }
 
     if (outcome === "project") {
       // Moving to a project: drop any logged send so the states stay
@@ -256,7 +263,7 @@ export function LogSheet({
                 className="h-3 w-3 shrink-0 rounded-full border border-white/10"
                 style={{ backgroundColor: holdHex(route.hold_color) }}
               />
-              <span className="truncate">{route.hold_color}</span>
+              <span className="truncate">{routeLabel(route)}</span>
             </p>
             <p className="truncate text-sm text-muted">
               {climbTypeLabel(route.climbing_type)}
@@ -272,6 +279,18 @@ export function LogSheet({
         </div>
         {photoError ? (
           <p className="-mt-2 mb-4 text-sm text-wide">{photoError}</p>
+        ) : null}
+
+        {canNameRoute ? (
+          <div className="mb-4">
+            <Input
+              label="Route name (optional)"
+              value={routeName}
+              onChange={(event) => setRouteName(event.target.value)}
+              placeholder="e.g. The Green Mile"
+              maxLength={80}
+            />
+          </div>
         ) : null}
 
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-faint">

@@ -18,6 +18,7 @@ import { STATE_NAME } from "../lib/states";
 import type { GymRow } from "../lib/database.types";
 import type { LogStylePref } from "../lib/constants";
 import { matchesGymSearch } from "../lib/gymSearch";
+import { fetchApprovedGyms } from "../lib/gyms";
 import { profileNameError } from "../lib/nameModeration";
 
 type Step = "name" | "gym" | "logStyle";
@@ -88,15 +89,15 @@ export function Onboarding() {
 
   useEffect(() => {
     let active = true;
-    supabase
-      .from("gyms")
-      .select("*")
-      .eq("status", "approved")
-      .order("name")
-      .then(({ data }) => {
-        if (!active) return;
-        setGyms(data ?? []);
-        setGymsLoading(false);
+    fetchApprovedGyms()
+      .then((data) => {
+        if (active) setGyms(data);
+      })
+      .catch((error: unknown) => {
+        console.error("Could not load gym directory", error);
+      })
+      .finally(() => {
+        if (active) setGymsLoading(false);
       });
     return () => {
       active = false;
@@ -110,8 +111,15 @@ export function Onboarding() {
   }, [gyms, q]);
 
   const stateGyms = useMemo(
-    () => (openState ? gyms.filter((g) => g.state?.trim() === openState) : []),
-    [gyms, openState],
+    () =>
+      openState
+        ? gyms.filter(
+            (g) =>
+              g.state?.trim() === openState &&
+              (g.cc ?? "xx").toLowerCase() === openCountry,
+          )
+        : [],
+    [gyms, openCountry, openState],
   );
 
   // Country → state → gym. Group everything by country first now that gyms
@@ -119,7 +127,7 @@ export function Onboarding() {
   const countryList = useMemo(() => {
     const m = new Map<string, { name: string; count: number }>();
     for (const g of gyms) {
-      const cc = g.cc ?? "xx";
+      const cc = (g.cc ?? "xx").toLowerCase();
       const e = m.get(cc) ?? { name: g.country ?? "Other", count: 0 };
       e.count += 1;
       m.set(cc, e);
@@ -138,7 +146,7 @@ export function Onboarding() {
     if (!openCountry) return [];
     const m = new Map<string, number>();
     for (const g of gyms) {
-      if ((g.cc ?? "xx") !== openCountry) continue;
+      if ((g.cc ?? "xx").toLowerCase() !== openCountry) continue;
       const s = g.state?.trim();
       if (s) m.set(s, (m.get(s) ?? 0) + 1);
     }
@@ -151,7 +159,9 @@ export function Onboarding() {
 
   const countryGyms = useMemo(
     () =>
-      openCountry ? gyms.filter((g) => (g.cc ?? "xx") === openCountry) : [],
+      openCountry
+        ? gyms.filter((g) => (g.cc ?? "xx").toLowerCase() === openCountry)
+        : [],
     [gyms, openCountry],
   );
 
@@ -272,7 +282,7 @@ export function Onboarding() {
       city: suggestCity.trim() || null,
       state: openState,
       country,
-      cc: openCountry,
+      cc: openCountry?.toUpperCase() ?? null,
       status: "pending",
       created_by: profile.id,
     });
