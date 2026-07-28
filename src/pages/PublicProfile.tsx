@@ -290,7 +290,8 @@ export function PublicProfile() {
               <TabTile
                 label="Projects"
                 icon={Bookmark}
-                value={canSeeProjects ? projects.length : null}
+                value={projects.length}
+                locked={!canSeeProjects}
                 active={tab === "projects"}
                 onClick={() => setTab("projects")}
               />
@@ -389,12 +390,14 @@ function TabTile({
   label,
   icon: Icon,
   value,
+  locked = false,
   active,
   onClick,
 }: {
   label: string;
   icon: typeof Check;
-  value: number | null;
+  value: number;
+  locked?: boolean;
   active: boolean;
   onClick: () => void;
 }) {
@@ -407,7 +410,7 @@ function TabTile({
     >
       <Icon size={16} className={active ? "text-accent" : "text-faint"} />
       <span className={`text-2xl font-extrabold ${active ? "text-accent" : "text-chalk"}`}>
-        {value === null ? "—" : value}
+        {locked ? <Lock size={23} strokeWidth={2.4} aria-label="Private" /> : value}
       </span>
       <span className="text-xs text-muted">{label}</span>
     </button>

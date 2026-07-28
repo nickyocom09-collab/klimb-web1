@@ -162,20 +162,6 @@ export function FriendsFeed() {
         </Link>
       </header>
 
-      <div className="px-5 pb-4">
-        <div className="rounded-[1.7rem] border border-accent/20 bg-[radial-gradient(circle_at_84%_6%,rgba(57,255,136,0.18),transparent_45%),#161918] px-5 py-4 shadow-card">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/15 text-accent">
-              <UsersRound size={21} />
-            </span>
-            <div>
-              <p className="font-bold text-chalk">Fresh from your friends</p>
-              <p className="mt-0.5 text-sm text-muted">Sends and projects only. No comments, no noise.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="flex gap-2 overflow-x-auto px-5 pb-4 [scrollbar-width:none]">
         {(["all", "send", "project"] as const).map((option) => {
           const label = option === "all" ? "Everything" : option === "send" ? "Sends" : "Projects";
