@@ -59,7 +59,17 @@ platform :ios do
     end
 
     begin
-      sh("cd '#{REPO_ROOT}' && npm run build && npx cap sync ios")
+      # NODE_BIN can point Fastlane at a known-good Node release when a newly
+      # installed global Node version is incompatible with the TypeScript build.
+      node_bin = ENV.fetch("NODE_BIN", "node")
+      node_directory = File.dirname(node_bin)
+      node_path = "PATH='#{node_directory}':$PATH"
+      if ENV["SKIP_WEB_BUILD"] == "1"
+        UI.important("Skipping the web build and syncing the existing dist bundle.")
+        sh("cd '#{REPO_ROOT}' && #{node_path} npx cap sync ios")
+      else
+        sh("cd '#{REPO_ROOT}' && #{node_path} npm run build && npx cap sync ios")
+      end
     ensure
       File.unlink(compatibility_project) if created_compatibility_project
     end

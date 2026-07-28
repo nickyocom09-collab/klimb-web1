@@ -150,7 +150,7 @@ export function Friends() {
         >
           <ChevronLeft size={24} />
         </button>
-        <h1 className="text-xl font-extrabold text-chalk">Friends</h1>
+        <h1 className="text-xl font-extrabold text-chalk">Manage friends</h1>
         <button
           onClick={() => setQrOpen(true)}
           className="ml-auto flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-2 text-sm font-semibold text-chalk"

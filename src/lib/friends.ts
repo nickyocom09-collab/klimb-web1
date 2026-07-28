@@ -5,6 +5,8 @@ export type FriendProfile = {
   display_name: string;
   username: string | null;
   avatar_url: string | null;
+  sends_public: boolean;
+  projects_public: boolean;
 };
 
 /** Everyone the current user is connected to (either direction). */
@@ -24,7 +26,7 @@ export async function fetchFriends(myId: string): Promise<FriendProfile[]> {
   if (otherIds.length === 0) return [];
   const { data: people } = await supabase
     .from("profiles")
-    .select("id, display_name, username, avatar_url")
+    .select("id, display_name, username, avatar_url, sends_public, projects_public")
     .in("id", otherIds);
   return people ?? [];
 }
@@ -120,7 +122,7 @@ export async function fetchPendingRequests(
   if (ids.length === 0) return [];
   const { data: people } = await supabase
     .from("profiles")
-    .select("id, display_name, username, avatar_url")
+    .select("id, display_name, username, avatar_url, sends_public, projects_public")
     .in("id", ids);
   return people ?? [];
 }

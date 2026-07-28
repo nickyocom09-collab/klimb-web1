@@ -32,8 +32,11 @@ import { Support } from "./pages/Support";
 const GymMap = lazy(() =>
   import("./pages/GymMap").then((m) => ({ default: m.GymMap })),
 );
-// Friends pulls in the QR-code library — most sessions never open it.
-const Friends = lazy(() =>
+const FriendsFeed = lazy(() =>
+  import("./pages/FriendsFeed").then((m) => ({ default: m.FriendsFeed })),
+);
+// Friend management pulls in the QR-code library — most sessions never open it.
+const FriendsManage = lazy(() =>
   import("./pages/Friends").then((m) => ({ default: m.Friends })),
 );
 
@@ -172,7 +175,17 @@ export default function App() {
         element={
           <RequireAuth>
             <Suspense fallback={<div className="h-full bg-bg" />}>
-              <Friends />
+              <FriendsFeed />
+            </Suspense>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/friends/manage"
+        element={
+          <RequireAuth>
+            <Suspense fallback={<div className="h-full bg-bg" />}>
+              <FriendsManage />
             </Suspense>
           </RequireAuth>
         }
