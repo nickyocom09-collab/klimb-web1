@@ -29,9 +29,7 @@
        replaces #root on mount, removing this automatically. Styles are inline
        here (the stylesheet hasn't loaded yet at first paint). -->
   <style>
-    /* Boot splash — the Klimb mark on pure black. Calm and quiet: the tile
-       eases in, then breathes gently. No text, no spinners. Mirrors
-       .klimb-splash in the app stylesheet for a seamless handoff. */
+    /* Mirrors the React splash so the native-to-web handoff stays seamless. */
     #boot-splash {
       position: fixed;
       inset: 0;
@@ -40,19 +38,35 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
-      background: #111111;
+      flex-direction: column;
+      gap: 12px;
+      background:
+        radial-gradient(circle at 50% 48%, rgba(57,255,136,.09), transparent 29%),
+        #050706;
     }
     #boot-splash .mark {
-      width: min(104px, 26vw);
-      height: min(104px, 26vw);
+      width: min(276px, 66vw);
+      height: min(276px, 66vw);
       object-fit: contain;
       color: #f2efe8;
-      animation: boot-in 1.8s cubic-bezier(0.33, 0, 0.15, 1) both;
+      filter: drop-shadow(0 22px 42px rgba(0,0,0,.5));
+      animation: boot-in 1.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    #boot-splash .name {
+      margin: -2px 0 0;
+      color: rgba(244,245,242,.78);
+      font: 800 15px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+      letter-spacing: .46em;
+      text-indent: .46em;
+      text-transform: uppercase;
+      opacity: 0;
+      animation: boot-name .8s ease-out .5s both;
     }
     @keyframes boot-in {
-      0% { transform: scale(0.985); opacity: 0; }
+      0% { transform: scale(0.88); opacity: 0; }
       100% { transform: scale(1); opacity: 1; }
     }
+    @keyframes boot-name { to { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) {
       #boot-splash .mark { animation: none; }
     }
@@ -62,7 +76,8 @@
 <body>
   <div id="root">
     <div id="boot-splash">
-      <img class="mark" src="/brand/klimb-logo-dark.png" alt="Klimb" />
+      <img class="mark" src="/klimb-k.svg" alt="Klimb" />
+      <p class="name">Klimb</p>
     </div>
   </div>
   <script type="module" src="/src/main.tsx"></script>
