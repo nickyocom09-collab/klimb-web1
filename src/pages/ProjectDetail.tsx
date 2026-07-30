@@ -41,6 +41,8 @@ export function ProjectDetail() {
   const [noteUpdatedAt, setNoteUpdatedAt] = useState<string | null>(null);
   const [savingNote, setSavingNote] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [celebrating, setCelebrating] = useState<null | "send" | "topped">(
     null,
   );
@@ -122,7 +124,8 @@ export function ProjectDetail() {
       )
     )
       return;
-    await Promise.all([
+    setActionError(null);
+    const [bookmarkResult, noteResult] = await Promise.all([
       supabase
         .from("bookmarks")
         .delete()
@@ -135,6 +138,11 @@ export function ProjectDetail() {
         .eq("user_id", profile.id)
         .eq("route_id", routeId),
     ]);
+    const error = bookmarkResult.error ?? noteResult.error;
+    if (error) {
+      setActionError(error.message);
+      return;
+    }
     navigate("/");
   }
 
@@ -142,30 +150,48 @@ export function ProjectDetail() {
   // is the only outcome that graduates a project out of this space.
   async function completeProject(outcome: "send" | "topped") {
     if (!routeId || !profile) return;
-    setCelebrating(outcome);
-    await supabase.from("sends").upsert(
-      {
-        route_id: routeId,
-        user_id: profile.id,
-        send_type: outcome,
-      },
-      { onConflict: "route_id,user_id" },
-    );
-    if (outcome === "send") {
-      await supabase
-        .from("bookmarks")
-        .delete()
-        .eq("user_id", profile.id)
-        .eq("route_id", routeId)
-        .eq("kind", "project");
-      window.setTimeout(
-        () => navigate(`/route/${routeId}`, { replace: true }),
-        1400,
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const { error: sendError } = await supabase.from("sends").upsert(
+        {
+          route_id: routeId,
+          user_id: profile.id,
+          send_type: outcome,
+        },
+        { onConflict: "route_id,user_id" },
       );
-    } else {
-      setSent(true);
-      setSendType("topped");
-      window.setTimeout(() => setCelebrating(null), 1150);
+      if (sendError) throw sendError;
+
+      if (outcome === "send") {
+        const { error: bookmarkError } = await supabase
+          .from("bookmarks")
+          .delete()
+          .eq("user_id", profile.id)
+          .eq("route_id", routeId)
+          .eq("kind", "project");
+        if (bookmarkError) throw bookmarkError;
+      }
+
+      setCelebrating(outcome);
+      if (outcome === "send") {
+        window.setTimeout(
+          () => navigate(`/route/${routeId}`, { replace: true }),
+          1400,
+        );
+      } else {
+        setSent(true);
+        setSendType("topped");
+        window.setTimeout(() => setCelebrating(null), 1150);
+      }
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Couldn't update this project.",
+      );
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -341,6 +367,14 @@ export function ProjectDetail() {
               </p>
             )
           ) : null}
+          {actionError ? (
+            <p
+              role="alert"
+              className="rounded-xl bg-wide/10 px-3 py-2 text-sm text-wide"
+            >
+              {actionError}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -351,6 +385,8 @@ export function ProjectDetail() {
           <div className="pointer-events-auto rounded-3xl border border-border bg-surface/95 p-2 shadow-card backdrop-blur">
             <Button
               className="h-14 w-full rounded-[1.25rem]"
+              loading={actionBusy}
+              disabled={actionBusy}
               onClick={() => completeProject("send")}
             >
               <Trophy size={19} className="mr-2 shrink-0" />
@@ -360,6 +396,7 @@ export function ProjectDetail() {
               <Button
                 className="mt-2 h-14 w-full rounded-[1.25rem]"
                 variant="secondary"
+                disabled={actionBusy}
                 onClick={() => completeProject("topped")}
               >
                 <Flag size={17} className="mr-2 shrink-0 text-accent" />

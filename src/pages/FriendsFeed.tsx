@@ -57,18 +57,19 @@ function relativeTime(value: string) {
 
 export function FriendsFeed() {
   const { profile } = useAuth();
+  const profileId = profile?.id ?? null;
   const navigate = useNavigate();
   const [activities, setActivities] = useState<FriendActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | ActivityKind>("all");
 
   useEffect(() => {
-    if (!profile) return;
+    if (!profileId) return;
     let active = true;
 
     (async () => {
       setLoading(true);
-      const friends = await fetchFriends(profile.id);
+      const friends = await fetchFriends(profileId);
       const friendById = new Map(friends.map((friend) => [friend.id, friend]));
       const sendIds = friends.filter((friend) => friend.sends_public).map((friend) => friend.id);
       const projectIds = friends.filter((friend) => friend.projects_public).map((friend) => friend.id);
@@ -134,7 +135,7 @@ export function FriendsFeed() {
     return () => {
       active = false;
     };
-  }, [profile?.id]);
+  }, [profileId]);
 
   const visibleActivities = useMemo(
     () => activities.filter((activity) => filter === "all" || activity.kind === filter),

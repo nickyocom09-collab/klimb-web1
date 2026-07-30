@@ -93,6 +93,7 @@ export function LogSheet({
   const [routeName, setRouteName] = useState(route.name ?? "");
   const [note, setNote] = useState(initialNote);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [reward, setReward] = useState<LogOutcome | null>(null);
   const canNameRoute = profile?.route_names_enabled || !!route.name;
 
@@ -129,7 +130,15 @@ export function LogSheet({
       if (upErr) throw upErr;
       const url = supabase.storage.from("route-photos").getPublicUrl(path).data
         .publicUrl;
-      await supabase.from("routes").update({ photo_url: url }).eq("id", route.id);
+      const { error: routeError } = await supabase
+        .from("routes")
+        .update({ photo_url: url })
+        .eq("id", route.id);
+      if (routeError) {
+        // Avoid leaving a paid-storage orphan when the route update fails.
+        await supabase.storage.from("route-photos").remove([path]);
+        throw routeError;
+      }
       setPhotoUrl(url);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -161,64 +170,90 @@ export function LogSheet({
   async function save() {
     if (!profile || !outcome) return;
     setSaving(true);
-
-    if (feltGrade !== null) {
-      await supabase.from("grades").upsert(
-        {
-          route_id: route.id,
-          user_id: profile.id,
-          grade: feltGrade,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "route_id,user_id" },
-      );
-    }
-    if (gymGrade !== null && gymGrade !== route.gym_grade) {
-      await supabase.rpc("set_gym_grade", {
-        p_route_id: route.id,
-        p_grade: gymGrade,
-      });
-    }
-    const name = routeName.trim() || null;
-    if (name !== route.name) {
-      await supabase.from("routes").update({ name }).eq("id", route.id);
-    }
-
-    if (outcome === "project") {
-      // Moving to a project: drop any logged send so the states stay
-      // mutually exclusive, then bookmark it.
-      await supabase
-        .from("sends")
-        .delete()
-        .eq("route_id", route.id)
-        .eq("user_id", profile.id);
-      await toggleBookmark(profile.id, route.id, "project", false);
-    } else {
-      const trimmed = note.trim();
-      await supabase.from("sends").upsert(
-        {
-          route_id: route.id,
-          user_id: profile.id,
-          send_type: outcome as SendType,
-          note: trimmed.length ? trimmed : null,
-        },
-        { onConflict: "route_id,user_id" },
-      );
-      // A topped rope route remains a project: reaching the anchor with falls
-      // is progress, not a finished project. Only a clean send graduates it.
-      if (outcome !== "topped") {
-        await supabase
-          .from("bookmarks")
+    setSaveError(null);
+    try {
+      if (feltGrade !== null) {
+        const { error } = await supabase.from("grades").upsert(
+          {
+            route_id: route.id,
+            user_id: profile.id,
+            grade: feltGrade,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "route_id,user_id" },
+        );
+        if (error) throw error;
+      } else if (initialFeltGrade !== null) {
+        const { error } = await supabase
+          .from("grades")
           .delete()
-          .eq("user_id", profile.id)
           .eq("route_id", route.id)
-          .eq("kind", "project");
+          .eq("user_id", profile.id);
+        if (error) throw error;
       }
-    }
 
-    setSaving(false);
-    setReward(outcome);
-    setTimeout(() => onSaved(outcome), 1100);
+      if (gymGrade !== null && gymGrade !== route.gym_grade) {
+        const { error } = await supabase.rpc("set_gym_grade", {
+          p_route_id: route.id,
+          p_grade: gymGrade,
+        });
+        if (error) throw error;
+      }
+
+      const name = routeName.trim() || null;
+      if (name !== route.name) {
+        const { error } = await supabase
+          .from("routes")
+          .update({ name })
+          .eq("id", route.id);
+        if (error) throw error;
+      }
+
+      if (outcome === "project") {
+        // Moving to a project: drop any logged send so the states stay
+        // mutually exclusive, then bookmark it.
+        const { error } = await supabase
+          .from("sends")
+          .delete()
+          .eq("route_id", route.id)
+          .eq("user_id", profile.id);
+        if (error) throw error;
+        await toggleBookmark(profile.id, route.id, "project", false);
+      } else {
+        const trimmed = note.trim();
+        const { error } = await supabase.from("sends").upsert(
+          {
+            route_id: route.id,
+            user_id: profile.id,
+            send_type: outcome as SendType,
+            note: trimmed.length ? trimmed : null,
+          },
+          { onConflict: "route_id,user_id" },
+        );
+        if (error) throw error;
+
+        // A topped rope route remains a project: reaching the anchor with falls
+        // is progress, not a finished project. Only a clean send graduates it.
+        if (outcome !== "topped") {
+          const { error: bookmarkError } = await supabase
+            .from("bookmarks")
+            .delete()
+            .eq("user_id", profile.id)
+            .eq("route_id", route.id)
+            .eq("kind", "project");
+          if (bookmarkError) throw bookmarkError;
+        }
+      }
+
+      setReward(outcome);
+      setTimeout(() => onSaved(outcome), 1100);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Couldn't save this Klimb.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -387,6 +422,11 @@ export function LogSheet({
         >
           {editing ? "Save" : outcome === "project" ? "Save to projects" : "Log it"}
         </Button>
+        {saveError ? (
+          <p className="mt-3 text-center text-sm text-wide" role="alert">
+            {saveError}
+          </p>
+        ) : null}
 
         {/* Reward moment */}
         {reward ? (

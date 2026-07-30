@@ -512,24 +512,29 @@ export function GymMap() {
     [gyms, profile?.home_gym_id],
   );
 
-  // Collection progress: gyms collected + distinct states stamped.
-  const collectedStats = useMemo(() => {
+  // Collection progress is intentionally local to the climber's home country.
+  // A worldwide denominator made a new user's first stamp feel meaningless
+  // and changed whenever the global directory grew.
+  const homeCountryProgress = useMemo(() => {
+    const homeCc = home?.cc?.toLowerCase() ?? null;
+    const countryGyms = homeCc
+      ? gyms.filter((g) => g.cc?.toLowerCase() === homeCc)
+      : [];
     const states = new Set<string>();
-    const countries = new Map<string, string>(); // cc -> country name
-    for (const g of gyms) {
+    let collectedGyms = 0;
+    for (const g of countryGyms) {
       if (!collected.has(g.id)) continue;
+      collectedGyms += 1;
       if (g.state) states.add(g.state);
-      if (g.cc) countries.set(g.cc, g.country ?? g.cc.toUpperCase());
     }
     return {
-      gyms: collected.size,
+      cc: homeCc,
+      country: home?.country ?? homeCc?.toUpperCase() ?? null,
+      gyms: collectedGyms,
+      total: countryGyms.length,
       states: states.size,
-      countries: countries.size,
-      countryList: [...countries.entries()].sort((a, b) =>
-        a[1].localeCompare(b[1]),
-      ),
     };
-  }, [gyms, collected]);
+  }, [gyms, collected, home]);
 
   function focusGym(gym: GymWithCount, zoom = 13) {
     setSelected(gym);
@@ -599,10 +604,15 @@ export function GymMap() {
       window.alert(near.error ?? "You need to be near the gym to make it yours.");
       return;
     }
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({ home_gym_id: gym.id, visiting_gym_id: null })
       .eq("id", profile.id);
+    if (error) {
+      setSaving(null);
+      window.alert(`Couldn't update your home gym: ${error.message}`);
+      return;
+    }
     await refreshProfile();
     setSaving(null);
     navigate("/");
@@ -622,10 +632,15 @@ export function GymMap() {
       }
     }
     setSaving("visit");
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({ visiting_gym_id: gym.id })
       .eq("id", profile.id);
+    if (error) {
+      setSaving(null);
+      window.alert(`Couldn't start this gym visit: ${error.message}`);
+      return;
+    }
     await refreshProfile();
     setSaving(null);
     navigate("/");
@@ -721,20 +736,28 @@ export function GymMap() {
         </div>
       </div>
 
-      {/* Collection progress — how many gyms you've stamped. Hidden while
-          searching so it doesn't sit on top of the results list. */}
-      {!loading && !searching ? (
+      {/* Home-country collection progress. Hidden while searching so it
+          doesn't sit on top of the results list. */}
+      {!loading && !searching && homeCountryProgress.total > 0 ? (
         <div className="absolute left-4 top-20 z-10">
-          <div className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-bold text-chalk shadow-lg backdrop-blur">
+          <div
+            className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-bold text-chalk shadow-lg backdrop-blur"
+            title={`Gyms collected in ${homeCountryProgress.country ?? "your home country"}`}
+          >
             <Trophy size={14} style={{ color: "#ffc24b" }} />
+            {homeCountryProgress.cc ? (
+              <span aria-hidden="true">
+                {flagEmoji(homeCountryProgress.cc)}
+              </span>
+            ) : null}
             <span className="tabular-nums">
-              {collectedStats.gyms}/{gyms.length}
+              {homeCountryProgress.gyms}/{homeCountryProgress.total}
             </span>{" "}
             gyms
-            {collectedStats.states > 0 ? (
+            {homeCountryProgress.states > 0 ? (
               <span className="text-muted">
-                · {collectedStats.states} state
-                {collectedStats.states === 1 ? "" : "s"}
+                · {homeCountryProgress.states} state
+                {homeCountryProgress.states === 1 ? "" : "s"}
               </span>
             ) : null}
           </div>

@@ -50,6 +50,8 @@ export function RouteDetail() {
   const [logOpen, setLogOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -106,23 +108,44 @@ export function RouteDetail() {
   // Topped (anchor with falls) → Sent (clean). One tap, no sheet.
   async function upgradeToSend() {
     if (!id || !profile) return;
-    await supabase
-      .from("sends")
-      .update({ send_type: "send" })
-      .eq("route_id", id)
-      .eq("user_id", profile.id);
-    load();
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const { error } = await supabase
+        .from("sends")
+        .update({ send_type: "send" })
+        .eq("route_id", id)
+        .eq("user_id", profile.id);
+      if (error) throw error;
+      await load();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Couldn't update this Klimb.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
   }
 
   async function deleteLog() {
     if (!id || !profile) return;
     setDeleting(true);
-    await supabase
-      .from("sends")
-      .delete()
-      .eq("route_id", id)
-      .eq("user_id", profile.id);
-    navigate("/");
+    setActionError(null);
+    try {
+      const { error } = await supabase
+        .from("sends")
+        .delete()
+        .eq("route_id", id)
+        .eq("user_id", profile.id);
+      if (error) throw error;
+      navigate("/");
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Couldn't delete this Klimb.",
+      );
+      setConfirmDelete(false);
+      setDeleting(false);
+    }
   }
 
   if (loading) {
@@ -342,9 +365,11 @@ export function RouteDetail() {
               {mySendType === "topped" ? (
                 <button
                   onClick={upgradeToSend}
+                  disabled={actionBusy}
                   className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent/10 py-2.5 text-sm font-bold text-accent transition hover:bg-accent/15 active:scale-[0.98]"
                 >
-                  <Check size={15} /> Sent it clean — upgrade to Sent
+                  <Check size={15} />{" "}
+                  {actionBusy ? "Saving…" : "Sent it clean — upgrade to Sent"}
                 </button>
               ) : null}
             </div>
@@ -362,6 +387,15 @@ export function RouteDetail() {
               <Trophy size={18} className="mr-2" /> Log this climb
             </Button>
           )}
+
+          {actionError ? (
+            <p
+              role="alert"
+              className="rounded-xl bg-wide/10 px-3 py-2 text-sm text-wide"
+            >
+              {actionError}
+            </p>
+          ) : null}
 
         </div>
       </div>

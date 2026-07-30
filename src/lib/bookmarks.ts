@@ -22,20 +22,22 @@ export async function toggleBookmark(
   active: boolean,
 ): Promise<boolean> {
   if (active) {
-    await supabase
+    const { error } = await supabase
       .from("bookmarks")
       .delete()
       .eq("user_id", userId)
       .eq("route_id", routeId)
       .eq("kind", kind);
+    if (error) throw error;
     return false;
   }
-  await supabase
+  const { error } = await supabase
     .from("bookmarks")
     .upsert(
       { user_id: userId, route_id: routeId, kind },
       { onConflict: "user_id,route_id,kind", ignoreDuplicates: true },
     );
+  if (error) throw error;
   return true;
 }
 

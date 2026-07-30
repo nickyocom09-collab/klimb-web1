@@ -72,10 +72,15 @@ export function GymSelect() {
       setLocError(near.error ?? "You need to be near the gym to set it as home.");
       return;
     }
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({ home_gym_id: gym.id })
       .eq("id", profile.id);
+    if (error) {
+      setSaving(null);
+      setLocError(`Couldn't save your home gym: ${error.message}`);
+      return;
+    }
     await refreshProfile();
     setSaving(null);
     navigate("/", { replace: true });
@@ -198,7 +203,7 @@ export function GymSelect() {
     setSgSaving(true);
     const country =
       countryList.find((c) => c.cc === openCountry)?.name ?? null;
-    await supabase.from("gyms").insert({
+    const { error } = await supabase.from("gyms").insert({
       name: sgName.trim(),
       city: sgCity.trim() || null,
       state: openState ?? null,
@@ -208,6 +213,10 @@ export function GymSelect() {
       created_by: profile.id,
     });
     setSgSaving(false);
+    if (error) {
+      window.alert(`Couldn't send this gym: ${error.message}`);
+      return;
+    }
     setSgDone(true);
   }
 
