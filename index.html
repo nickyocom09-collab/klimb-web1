@@ -9,12 +9,14 @@
 
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#04130c">
+  <meta name="theme-color" content="#1c1c1e">
   <!-- Standalone (home-screen) status bar: keep it dark, never the default white. -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="apple-touch-icon" href="/klimb-app-icon.png">
+  <link rel="preload" as="image" href="/klimb-splash-dark.png">
+  <link rel="preload" as="image" href="/klimb-splash-light.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,13 +28,21 @@
   <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossorigin>
 
   <script>
-    /* Paint the saved theme before the first frame so the launch handoff never
-       flashes the opposite background. */
+    /* Paint the saved theme before the first frame. On a fresh install, match
+       iOS instead of briefly defaulting to dark before React starts. */
     try {
       var savedTheme = localStorage.getItem("klimb-theme");
-      if (savedTheme === "light" || savedTheme === "dark") {
-        document.documentElement.dataset.theme = savedTheme;
-      }
+      var bootTheme =
+        savedTheme === "light" || savedTheme === "dark"
+          ? savedTheme
+          : window.matchMedia("(prefers-color-scheme: light)").matches
+            ? "light"
+            : "dark";
+      document.documentElement.dataset.theme = bootTheme;
+      document.documentElement.style.colorScheme = bootTheme;
+      document
+        .querySelector('meta[name="theme-color"]')
+        .setAttribute("content", bootTheme === "light" ? "#ffffff" : "#1c1c1e");
     } catch (_) {}
   </script>
   <!-- Pre-JS splash. React replaces #root on mount. -->
@@ -51,19 +61,13 @@
       width: min(224px, 58vw);
       height: min(224px, 58vw);
       object-fit: contain;
-      animation: boot-in .55s cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-    @keyframes boot-in {
-      0% { transform: scale(0.94); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
+      opacity: 1;
+      transform: none;
     }
     :root[data-theme="light"] #boot-splash { background: #fff; }
     #boot-splash .light-mark { display: none; }
     :root[data-theme="light"] #boot-splash .light-mark { display: block; }
     :root[data-theme="light"] #boot-splash .dark-mark { display: none; }
-    @media (prefers-reduced-motion: reduce) {
-      #boot-splash .mark { animation: none; }
-    }
   </style>
 </head>
 

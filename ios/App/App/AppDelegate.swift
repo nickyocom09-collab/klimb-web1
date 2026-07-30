@@ -13,11 +13,17 @@ import GoogleSignIn
 // available. The Main storyboard points its bridge scene at this class
 // (customClass="MainViewController", module "App").
 class MainViewController: CAPBridgeViewController {
+    override func viewWillAppear(_ animated: Bool) {
+        ThemeAppearancePlugin.applySavedTheme(to: self)
+        super.viewWillAppear(animated)
+    }
+
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(AppleSignInPlugin())
         bridge?.registerPluginInstance(WebAuthenticationPlugin())
         bridge?.registerPluginInstance(InstagramStoriesPlugin())
         bridge?.registerPluginInstance(MessageComposePlugin())
+        bridge?.registerPluginInstance(ThemeAppearancePlugin())
     }
 }
 
@@ -27,7 +33,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        DispatchQueue.main.async { [weak self] in
+            ThemeAppearancePlugin.applySavedTheme(to: self?.window?.rootViewController)
+        }
         return true
     }
 
@@ -71,6 +79,57 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+}
+
+// MARK: - Saved app appearance
+//
+// The web theme is persisted in localStorage, but the native container exists
+// before the WebView does. Mirroring that preference into UserDefaults lets the
+// first native view and the web splash agree instead of visibly changing color
+// during the handoff.
+@objc(ThemeAppearancePlugin)
+public class ThemeAppearancePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "ThemeAppearancePlugin"
+    public let jsName = "ThemeAppearance"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "setTheme", returnType: CAPPluginReturnPromise),
+    ]
+
+    private static let defaultsKey = "klimb.savedTheme"
+
+    private static var savedStyle: UIUserInterfaceStyle {
+        switch UserDefaults.standard.string(forKey: defaultsKey) {
+        case "light":
+            return .light
+        case "dark":
+            return .dark
+        default:
+            return .unspecified
+        }
+    }
+
+    public static func applySavedTheme(to viewController: UIViewController?) {
+        let style = savedStyle
+        guard style != .unspecified else { return }
+        viewController?.overrideUserInterfaceStyle = style
+        viewController?.view.window?.overrideUserInterfaceStyle = style
+    }
+
+    @objc func setTheme(_ call: CAPPluginCall) {
+        guard let theme = call.getString("theme"),
+              theme == "light" || theme == "dark" else {
+            call.reject("Theme must be light or dark")
+            return
+        }
+
+        UserDefaults.standard.set(theme, forKey: Self.defaultsKey)
+        DispatchQueue.main.async {
+            let style: UIUserInterfaceStyle = theme == "light" ? .light : .dark
+            self.bridge?.viewController?.overrideUserInterfaceStyle = style
+            self.bridge?.viewController?.view.window?.overrideUserInterfaceStyle = style
+            call.resolve()
+        }
+    }
 }
 
 // MARK: - Instagram Stories direct-share ("Strava-style" share to story)

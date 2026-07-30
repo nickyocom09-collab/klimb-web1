@@ -778,29 +778,79 @@ export function WeeklyRecap({
         )}
 
         {card === "share" && (
-          <div style={{ ...S.card, background: "radial-gradient(circle at 50% 14%, #1c4430 0%, #0b1510 42%, #080B0A 100%)" }}>
-            <div style={S.cardInner}>
-              <div style={S.finishMark}><Check size={24} strokeWidth={2.7} /></div>
-              <div style={{ ...S.kicker, marginTop: 16 }}>THAT'S A WRAP</div>
-              <h2 style={S.wrapTitle}>Your {periodWord},<br />well spent.</h2>
-              <p style={S.wrapSub}>{week.climbs} climbs logged · {week.sends} sends earned</p>
-              <div style={S.finishStats}>
-                <FinishStat value={week.climbs} label="Klimbs" />
-                <FinishStat value={week.sends} label="Sends" />
-                <FinishStat value={week.flashes} label="Flashes" />
-              </div>
-              {mix.length > 0 ? (
-                <div style={S.finishMix}>
-                  {mix.map((item) => (
-                    <span key={item.key} style={S.finishMixItem}>
-                      <i style={{ ...S.finishMixDot, background: item.hue }} />
-                      {item.n} {item.label}
-                    </span>
-                  ))}
+          <div
+            style={{
+              ...S.card,
+              background:
+                "radial-gradient(circle at 50% 8%, #204d35 0%, #0d1b14 34%, #080B0A 72%)",
+            }}
+          >
+            <div style={S.finishGlow} />
+            <div style={S.finishOrbit} />
+            <div style={{ ...S.cardInner, ...S.finishInner }}>
+              <div style={S.finishHero}>
+                <div style={S.finishMark}>
+                  <Check size={24} strokeWidth={2.8} />
                 </div>
-              ) : (
-                <div style={S.finishRule} />
-              )}
+                <div style={{ ...S.kicker, margin: "15px 0 10px" }}>
+                  THAT&apos;S A WRAP
+                </div>
+                <h2 style={S.wrapTitle}>
+                  Your {periodWord},
+                  <br />
+                  well spent.
+                </h2>
+                <p style={S.wrapSub}>
+                  {week.climbs} climbs logged · {week.sends} sends earned
+                </p>
+              </div>
+
+              <div style={S.finishPanel}>
+                <div style={S.finishStats}>
+                  <FinishStat value={week.climbs} label="Klimbs" />
+                  <FinishStat value={week.sends} label="Sends" />
+                  <FinishStat value={week.flashes} label="Flashes" />
+                </div>
+
+                {mix.length > 0 && (
+                  <div style={S.finishMixBlock}>
+                    <div style={S.finishSectionLabel}>WHAT YOU CLIMBED</div>
+                    <div style={S.finishMixBar}>
+                      {mix.map((item) => (
+                        <i
+                          key={item.key}
+                          style={{
+                            ...S.finishMixSegment,
+                            background: item.hue,
+                            flexGrow: item.n,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div style={S.finishMix}>
+                      {mix.map((item) => (
+                        <span key={item.key} style={S.finishMixItem}>
+                          <i
+                            style={{
+                              ...S.finishMixDot,
+                              background: item.hue,
+                            }}
+                          />
+                          {Math.round((item.n / mixTotal) * 100)}% {item.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {hardestPrimary !== "—" && (
+                  <div style={S.finishBest}>
+                    <span style={S.finishBestLabel}>HARDEST SEND</span>
+                    <strong style={S.finishBestGrade}>{hardestPrimary}</strong>
+                  </div>
+                )}
+              </div>
+
               <button
                 style={S.shareBtn}
                 onClick={(e) => {
@@ -810,6 +860,7 @@ export function WeeklyRecap({
               >
                 <Share2 size={18} strokeWidth={2.4} /> Share your recap
               </button>
+              <span style={S.shareHint}>Opens your iOS share menu</span>
             </div>
           </div>
         )}
@@ -903,18 +954,30 @@ const S: Record<string, React.CSSProperties> = {
   mixTrack: { width: "100%", height: 8, borderRadius: 999, background: "rgba(255,255,255,0.07)", overflow: "hidden" },
   mixFill: { height: "100%", borderRadius: 999, minWidth: 8 },
   mixNote: { margin: "30px 0 0", color: "#B8C4BD", fontFamily: serif, fontSize: 16, fontStyle: "italic" },
-  finishMark: { width: 50, height: 50, borderRadius: 25, display: "flex", alignItems: "center", justifyContent: "center", color: "#07110B", background: "#82F0A7", boxShadow: "0 0 0 6px rgba(130,240,167,0.1), 0 0 34px rgba(130,240,167,0.28)" },
-  wrapTitle: { fontFamily: serif, fontSize: 38, lineHeight: 1.05, fontWeight: 700, color: "#F1F8F2", margin: "6px 0 10px", letterSpacing: -1.1 },
-  wrapSub: { color: "#B8CFC0", fontSize: 14, margin: 0 },
-  finishRule: { width: 42, height: 1, background: "rgba(130,240,167,0.55)", margin: "22px 0" },
-  finishStats: { width: "100%", maxWidth: 330, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 24 },
-  finishStat: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "13px 6px 12px", borderRadius: 14, background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.07)" },
+  finishGlow: { position: "absolute", width: 310, height: 310, top: -164, left: "50%", transform: "translateX(-50%)", borderRadius: "50%", background: "rgba(74,222,128,0.14)", filter: "blur(72px)", pointerEvents: "none" },
+  finishOrbit: { position: "absolute", width: 330, height: 330, top: -205, left: "50%", transform: "translateX(-50%)", borderRadius: "50%", border: "1px solid rgba(130,240,167,0.12)", boxShadow: "0 0 0 42px rgba(130,240,167,0.025), 0 0 0 84px rgba(130,240,167,0.018)", pointerEvents: "none" },
+  finishInner: { justifyContent: "center", padding: "calc(env(safe-area-inset-top, 0px) + 62px) 24px calc(env(safe-area-inset-bottom, 0px) + 22px)" },
+  finishHero: { display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 },
+  finishMark: { width: 50, height: 50, borderRadius: 25, display: "flex", alignItems: "center", justifyContent: "center", color: "#07110B", background: "linear-gradient(145deg, #A3F7BE, #65E995)", border: "1px solid rgba(255,255,255,0.38)", boxShadow: "0 0 0 7px rgba(130,240,167,0.08), 0 14px 42px rgba(74,222,128,0.26)" },
+  wrapTitle: { fontFamily: serif, fontSize: "clamp(35px, 10.4vw, 44px)", lineHeight: 1.01, fontWeight: 700, color: "#F4FAF6", margin: 0, letterSpacing: -1.35 },
+  wrapSub: { color: "#ABC2B3", fontSize: "clamp(12px, 3.5vw, 14px)", margin: "11px 0 0" },
+  finishPanel: { width: "100%", maxWidth: 350, margin: "clamp(20px, 4vh, 30px) 0 18px", padding: "18px 17px 16px", borderRadius: 22, background: "linear-gradient(155deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025))", border: "1px solid rgba(166,242,190,0.13)", boxShadow: "0 18px 52px rgba(0,0,0,0.22)", backdropFilter: "blur(14px)" },
+  finishStats: { width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 },
+  finishStat: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "2px 6px 15px", borderBottom: "1px solid rgba(255,255,255,0.075)" },
   finishStatValue: { color: "#F1F8F2", fontFamily: serif, fontSize: 24, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
   finishStatLabel: { color: "#7C8C84", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" },
-  finishMix: { width: "100%", maxWidth: 330, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "8px 14px", margin: "18px 0 22px" },
-  finishMixItem: { display: "inline-flex", alignItems: "center", gap: 6, color: "#AAB9B0", fontSize: 11.5, fontWeight: 650 },
+  finishMixBlock: { marginTop: 15 },
+  finishSectionLabel: { color: "#6F8177", fontSize: 8.5, fontWeight: 750, letterSpacing: "0.2em", textAlign: "left" },
+  finishMixBar: { display: "flex", gap: 4, width: "100%", height: 7, marginTop: 10 },
+  finishMixSegment: { display: "block", minWidth: 8, borderRadius: 999, boxShadow: "0 0 14px rgba(255,255,255,0.05)" },
+  finishMix: { width: "100%", display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "7px 13px", marginTop: 10 },
+  finishMixItem: { display: "inline-flex", alignItems: "center", gap: 5, color: "#9EAEA4", fontSize: 10, fontWeight: 650 },
   finishMixDot: { display: "inline-block", width: 6, height: 6, borderRadius: 999 },
-  shareBtn: { width: "100%", maxWidth: 330, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 15, fontWeight: 750, color: "#080B0A", background: "#4ADE80", border: "none", padding: "16px 18px", borderRadius: 16, boxShadow: "0 10px 30px rgba(74,222,128,0.16)", cursor: "pointer" },
+  finishBest: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginTop: 14, paddingTop: 13, borderTop: "1px solid rgba(255,255,255,0.075)" },
+  finishBestLabel: { color: "#6F8177", fontSize: 8.5, fontWeight: 750, letterSpacing: "0.18em" },
+  finishBestGrade: { color: "#E4B363", fontSize: 20, lineHeight: 1, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" },
+  shareBtn: { width: "100%", maxWidth: 350, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 15, fontWeight: 800, color: "#07110B", background: "linear-gradient(135deg, #64E992, #43D979)", border: "1px solid rgba(255,255,255,0.24)", padding: "15px 18px", borderRadius: 17, boxShadow: "0 14px 34px rgba(74,222,128,0.19)", cursor: "pointer" },
+  shareHint: { color: "#607168", fontSize: 10.5, marginTop: 8, letterSpacing: "0.01em" },
   overlay: { position: "fixed", inset: 0, background: "rgba(4,6,5,0.85)", backdropFilter: "blur(4px)", display: "grid", placeItems: "center", zIndex: 60, padding: 20 },
   previewCard: { width: "100%", maxWidth: 300, background: "#0E1512", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 18, padding: 14 },
   previewHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
