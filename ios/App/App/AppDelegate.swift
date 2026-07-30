@@ -18,6 +18,21 @@ class MainViewController: CAPBridgeViewController {
         super.viewWillAppear(animated)
     }
 
+    /// Paint the web container with the same adaptive colour as the launch
+    /// screen. WKWebView defaults to white, which flashed through as a harsh
+    /// white frame between the launch screen disappearing and the first web
+    /// paint. Assigning the *named* asset colour (rather than a resolved one)
+    /// means it tracks the launch appearance at boot and then re-resolves
+    /// automatically once the saved theme is applied.
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        guard let launchColor = UIColor(named: "LaunchBackground") else { return }
+        view.backgroundColor = launchColor
+        webView?.isOpaque = false
+        webView?.backgroundColor = launchColor
+        webView?.scrollView.backgroundColor = launchColor
+    }
+
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(AppleSignInPlugin())
         bridge?.registerPluginInstance(WebAuthenticationPlugin())

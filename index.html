@@ -28,24 +28,35 @@
   <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossorigin>
 
   <script>
-    /* Paint the saved theme before the first frame. On a fresh install, match
-       iOS instead of briefly defaulting to dark before React starts. */
+    /* Two separate things, on purpose:
+
+       1. data-theme  — the user's SAVED app theme. Drives the whole UI.
+       2. data-launch — the DEVICE appearance. Drives the splash only.
+
+       The native iOS launch screen can only follow the device appearance. If
+       the splash followed the saved theme instead, a user on a dark phone with
+       Klimb set to light saw the launch screen hard-cut from dark to white
+       mid-boot. Matching the splash to the device keeps the native -> web
+       handoff invisible; we then crossfade into the real theme. */
     try {
+      var deviceLight = window.matchMedia("(prefers-color-scheme: light)").matches;
       var savedTheme = localStorage.getItem("klimb-theme");
       var bootTheme =
         savedTheme === "light" || savedTheme === "dark"
           ? savedTheme
-          : window.matchMedia("(prefers-color-scheme: light)").matches
+          : deviceLight
             ? "light"
             : "dark";
       document.documentElement.dataset.theme = bootTheme;
+      document.documentElement.dataset.launch = deviceLight ? "light" : "dark";
       document.documentElement.style.colorScheme = bootTheme;
       document
         .querySelector('meta[name="theme-color"]')
         .setAttribute("content", bootTheme === "light" ? "#ffffff" : "#1c1c1e");
     } catch (_) {}
   </script>
-  <!-- Pre-JS splash. React replaces #root on mount. -->
+  <!-- Pre-JS splash. It sits OUTSIDE #root so React's first render can't rip it
+       away in a single frame; main.tsx crossfades it out once the app mounts. -->
   <style>
     #boot-splash {
       position: fixed;
@@ -56,7 +67,12 @@
       justify-content: center;
       overflow: hidden;
       background: #1c1c1e;
+      /* Fades to reveal whatever is underneath (identical React splash, or the
+         app itself) instead of cutting. */
+      opacity: 1;
+      transition: opacity 420ms ease;
     }
+    #boot-splash.is-hiding { opacity: 0; }
     #boot-splash .mark {
       width: min(224px, 58vw);
       height: min(224px, 58vw);
@@ -64,19 +80,22 @@
       opacity: 1;
       transform: none;
     }
-    :root[data-theme="light"] #boot-splash { background: #fff; }
+    /* Match the NATIVE launch screen, which follows the device appearance. */
+    :root[data-launch="light"] #boot-splash { background: #fff; }
     #boot-splash .light-mark { display: none; }
-    :root[data-theme="light"] #boot-splash .light-mark { display: block; }
-    :root[data-theme="light"] #boot-splash .dark-mark { display: none; }
+    :root[data-launch="light"] #boot-splash .light-mark { display: block; }
+    :root[data-launch="light"] #boot-splash .dark-mark { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      #boot-splash { transition-duration: 1ms; }
+    }
   </style>
 </head>
 
 <body>
-  <div id="root">
-    <div id="boot-splash">
-      <img class="mark dark-mark" src="/klimb-splash-dark.png" alt="Klimb" />
-      <img class="mark light-mark" src="/klimb-splash-light.png" alt="Klimb" />
-    </div>
+  <div id="root"></div>
+  <div id="boot-splash">
+    <img class="mark dark-mark" src="/klimb-splash-dark.png" alt="Klimb" />
+    <img class="mark light-mark" src="/klimb-splash-light.png" alt="Klimb" />
   </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

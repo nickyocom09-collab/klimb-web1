@@ -45,7 +45,7 @@ export function Layout() {
           : 0;
 
   return (
-    <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
+    <div className="klimb-app-in mx-auto flex h-full max-w-app flex-col bg-bg">
       {showIntro ? <IntroTutorial /> : null}
       <main className="flex-1 overflow-y-auto pb-28">
         <Outlet />

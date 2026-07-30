@@ -634,15 +634,36 @@
 .klimb-splash__mark--light {
   display: none;
 }
-.klimb-splash[data-theme="light"],
-:root[data-theme="light"] .klimb-splash {
+/* Keyed to the DEVICE appearance (data-launch), not the saved theme, so this
+   is pixel-identical to the native launch screen and the pre-JS boot splash.
+   Keying it to the theme caused a hard dark->white flash for anyone whose app
+   theme differed from their phone's appearance. */
+.klimb-splash[data-launch="light"],
+:root[data-launch="light"] .klimb-splash {
   background: #ffffff;
 }
-:root[data-theme="light"] .klimb-splash__mark--dark {
+:root[data-launch="light"] .klimb-splash__mark--dark {
   display: none;
 }
-:root[data-theme="light"] .klimb-splash__mark--light {
+:root[data-launch="light"] .klimb-splash__mark--light {
   display: block;
+}
+/* Splash -> app handoff: content dissolves in rather than snapping. */
+@keyframes klimb-app-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.klimb-app-in {
+  animation: klimb-app-in 360ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .klimb-app-in {
+    animation-duration: 1ms;
+  }
 }
 .klimb-splash__tag {
   font-size: 12px;
