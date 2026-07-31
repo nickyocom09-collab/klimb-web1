@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { useAuth } from "./lib/auth";
 import { setupDeepLinks } from "./lib/deeplink";
+import { dismissBootSplash } from "./lib/bootSplash";
 import { Splash } from "./components/Splash";
 import { Layout } from "./components/Layout";
 import { Login } from "./pages/Login";
@@ -73,6 +74,13 @@ function PublicOnly({ children }: { children: ReactNode }) {
 
 export default function App() {
   const navigate = useNavigate();
+  const { loading: authLoading } = useAuth();
+
+  // Hold the launch splash until auth has resolved, then crossfade it out once
+  // — straight into the finished UI, with no intermediate splash step.
+  useEffect(() => {
+    if (!authLoading) dismissBootSplash();
+  }, [authLoading]);
 
   // Catches klimb:// links (email confirmation, password reset, OAuth
   // return) so they hand the session to Supabase and route in-app instead

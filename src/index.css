@@ -634,18 +634,17 @@
 .klimb-splash__mark--light {
   display: none;
 }
-/* Keyed to the DEVICE appearance (data-launch), not the saved theme, so this
-   is pixel-identical to the native launch screen and the pre-JS boot splash.
-   Keying it to the theme caused a hard dark->white flash for anyone whose app
-   theme differed from their phone's appearance. */
-.klimb-splash[data-launch="light"],
-:root[data-launch="light"] .klimb-splash {
+/* Follows the chosen theme so it is pixel-identical to the pre-JS boot splash:
+   light = green mark on white, dark = white mark on black. Dark is the default
+   and matches the native launch screen, so nobody sees the other one. */
+.klimb-splash[data-theme="light"],
+:root[data-theme="light"] .klimb-splash {
   background: #ffffff;
 }
-:root[data-launch="light"] .klimb-splash__mark--dark {
+:root[data-theme="light"] .klimb-splash__mark--dark {
   display: none;
 }
-:root[data-launch="light"] .klimb-splash__mark--light {
+:root[data-theme="light"] .klimb-splash__mark--light {
   display: block;
 }
 /* Splash -> app handoff: content dissolves in rather than snapping. */

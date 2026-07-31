@@ -19,27 +19,6 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 
-/**
- * Hand the pre-JS splash over to React without a visible seam.
- *
- * The boot splash lives outside #root, so React's first paint happens
- * underneath it. We wait two frames (so that paint has actually landed), then
- * crossfade the boot splash out. Underneath is either React's identical
- * <Splash /> — making the fade invisible — or the app itself, which dissolves
- * in. Either way there is never a hard cut.
- */
-function dismissBootSplash() {
-  const boot = document.getElementById("boot-splash");
-  if (!boot) return;
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      boot.classList.add("is-hiding");
-      const done = () => boot.remove();
-      boot.addEventListener("transitionend", done, { once: true });
-      // Safety net if the transition never fires (reduced motion, etc.).
-      setTimeout(done, 900);
-    }),
-  );
-}
-
-dismissBootSplash();
+// The boot splash is dismissed by App once auth has resolved (see
+// dismissBootSplash in lib/bootSplash.ts), so the launch is a single
+// crossfade straight into the finished UI rather than splash -> splash -> app.

@@ -28,27 +28,15 @@
   <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossorigin>
 
   <script>
-    /* Two separate things, on purpose:
-
-       1. data-theme  — the user's SAVED app theme. Drives the whole UI.
-       2. data-launch — the DEVICE appearance. Drives the splash only.
-
-       The native iOS launch screen can only follow the device appearance. If
-       the splash followed the saved theme instead, a user on a dark phone with
-       Klimb set to light saw the launch screen hard-cut from dark to white
-       mid-boot. Matching the splash to the device keeps the native -> web
-       handoff invisible; we then crossfade into the real theme. */
+    /* Paint the saved theme before the first frame. Klimb is a dark-first app:
+       the default is dark (matching the native launch screen, which is pinned
+       to dark), and light is an explicit opt-in from Settings. The splash then
+       follows that same theme — light shows the green mark on white, dark
+       shows the white mark on black — so you never see the other one. */
     try {
-      var deviceLight = window.matchMedia("(prefers-color-scheme: light)").matches;
       var savedTheme = localStorage.getItem("klimb-theme");
-      var bootTheme =
-        savedTheme === "light" || savedTheme === "dark"
-          ? savedTheme
-          : deviceLight
-            ? "light"
-            : "dark";
+      var bootTheme = savedTheme === "light" ? "light" : "dark";
       document.documentElement.dataset.theme = bootTheme;
-      document.documentElement.dataset.launch = deviceLight ? "light" : "dark";
       document.documentElement.style.colorScheme = bootTheme;
       document
         .querySelector('meta[name="theme-color"]')
@@ -67,10 +55,10 @@
       justify-content: center;
       overflow: hidden;
       background: #1c1c1e;
-      /* Fades to reveal whatever is underneath (identical React splash, or the
-         app itself) instead of cutting. */
+      /* Held until the app is ready, then dissolved away in one pass. The
+         gentle ease-out reads as an intentional reveal rather than a cut. */
       opacity: 1;
-      transition: opacity 420ms ease;
+      transition: opacity 520ms cubic-bezier(0.4, 0, 0.2, 1);
     }
     #boot-splash.is-hiding { opacity: 0; }
     #boot-splash .mark {
@@ -80,11 +68,13 @@
       opacity: 1;
       transform: none;
     }
-    /* Match the NATIVE launch screen, which follows the device appearance. */
-    :root[data-launch="light"] #boot-splash { background: #fff; }
+    /* Follows the user's chosen theme: light = green mark on white,
+       dark = white mark on black. Dark is the default and matches the native
+       launch screen exactly, so the handoff is invisible. */
+    :root[data-theme="light"] #boot-splash { background: #fff; }
     #boot-splash .light-mark { display: none; }
-    :root[data-launch="light"] #boot-splash .light-mark { display: block; }
-    :root[data-launch="light"] #boot-splash .dark-mark { display: none; }
+    :root[data-theme="light"] #boot-splash .light-mark { display: block; }
+    :root[data-theme="light"] #boot-splash .dark-mark { display: none; }
     @media (prefers-reduced-motion: reduce) {
       #boot-splash { transition-duration: 1ms; }
     }

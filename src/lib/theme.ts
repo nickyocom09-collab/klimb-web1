@@ -45,13 +45,12 @@ export function applyTheme(theme: ThemePref) {
   }
 }
 
-/** Last-used theme from storage. A fresh install follows the device appearance
- *  so the native launch screen and the first web frame use the same colors. */
+/** Last-used theme from storage. Klimb is dark-first: a fresh install is dark
+ *  (matching the native launch screen, which is pinned to dark) and light is an
+ *  explicit opt-in from Settings. Keeping the default fixed — rather than
+ *  following the device — is what makes the launch seamless out of the box. */
 export function bootTheme(): ThemePref {
-  let theme: ThemePref = window.matchMedia("(prefers-color-scheme: light)")
-    .matches
-    ? "light"
-    : "dark";
+  let theme: ThemePref = "dark";
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === "light" || saved === "dark") theme = saved;

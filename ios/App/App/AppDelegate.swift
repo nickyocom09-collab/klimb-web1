@@ -13,6 +13,10 @@ import GoogleSignIn
 // available. The Main storyboard points its bridge scene at this class
 // (customClass="MainViewController", module "App").
 class MainViewController: CAPBridgeViewController {
+    // Apply the saved theme to the native chrome before the first frame so the
+    // status bar / scroll bounce never flash the opposite theme. This is safe
+    // for the splash: the splash keys off the saved theme in localStorage, not
+    // `prefers-color-scheme`, so overriding the trait can't desync it.
     override func viewWillAppear(_ animated: Bool) {
         ThemeAppearancePlugin.applySavedTheme(to: self)
         super.viewWillAppear(animated)
