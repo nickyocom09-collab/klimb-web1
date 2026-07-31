@@ -631,39 +631,12 @@
   opacity: 1;
   transform: none;
 }
-.klimb-splash__mark--light {
-  display: none;
-}
-/* Follows the chosen theme so it is pixel-identical to the pre-JS boot splash:
-   light = green mark on white, dark = white mark on black. Dark is the default
-   and matches the native launch screen, so nobody sees the other one. */
-.klimb-splash[data-theme="light"],
-:root[data-theme="light"] .klimb-splash {
-  background: #ffffff;
-}
-:root[data-theme="light"] .klimb-splash__mark--dark {
-  display: none;
-}
-:root[data-theme="light"] .klimb-splash__mark--light {
-  display: block;
-}
-/* Splash -> app handoff: content dissolves in rather than snapping. */
-@keyframes klimb-app-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.klimb-app-in {
-  animation: klimb-app-in 360ms ease-out both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .klimb-app-in {
-    animation-duration: 1ms;
-  }
-}
+/* Intentionally theme-independent: the splash is always the dark mark on
+   #1c1c1e, matching the native launch screen exactly. */
+/* Splash -> app handoff is a single fade-out of the splash over the
+   already-painted app. We deliberately do NOT also fade the app in: two
+   overlapping fades let the background show through both layers mid-transition,
+   which read as a dip in brightness. One fade, one direction. */
 .klimb-splash__tag {
   font-size: 12px;
   font-weight: 600;
