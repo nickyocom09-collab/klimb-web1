@@ -13,6 +13,8 @@ import GoogleSignIn
 // available. The Main storyboard points its bridge scene at this class
 // (customClass="MainViewController", module "App").
 class MainViewController: CAPBridgeViewController {
+    private var launchOverlay: UIView?
+
     // Apply the saved theme to the native chrome before the first frame so the
     // status bar / scroll bounce never flash the opposite theme. This is safe
     // for the splash: the splash keys off the saved theme in localStorage, not
@@ -20,6 +22,9 @@ class MainViewController: CAPBridgeViewController {
     override func viewWillAppear(_ animated: Bool) {
         ThemeAppearancePlugin.applySavedTheme(to: self)
         super.viewWillAppear(animated)
+        if let launchOverlay {
+            view.bringSubviewToFront(launchOverlay)
+        }
     }
 
     /// Paint the web container with the same adaptive colour as the launch
@@ -35,6 +40,50 @@ class MainViewController: CAPBridgeViewController {
         webView?.isOpaque = false
         webView?.backgroundColor = launchColor
         webView?.scrollView.backgroundColor = launchColor
+        installLaunchOverlay(backgroundColor: launchColor)
+    }
+
+    /// iOS owns the transition away from LaunchScreen.storyboard and begins
+    /// fading that snapshot before WKWebView is guaranteed to have painted.
+    /// Keep an identical native layer above the WebView during that gap so the
+    /// mark cannot dim and then flash bright again when HTML appears.
+    private func installLaunchOverlay(backgroundColor: UIColor) {
+        guard launchOverlay == nil else { return }
+
+        let overlay = UIView()
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        overlay.backgroundColor = backgroundColor
+        overlay.isUserInteractionEnabled = false
+        overlay.accessibilityElementsHidden = true
+
+        let mark = UIImageView(image: UIImage(named: "Splash"))
+        mark.translatesAutoresizingMaskIntoConstraints = false
+        mark.contentMode = .scaleAspectFit
+
+        overlay.addSubview(mark)
+        view.addSubview(overlay)
+        NSLayoutConstraint.activate([
+            overlay.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            overlay.topAnchor.constraint(equalTo: view.topAnchor),
+            overlay.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            mark.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            mark.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),
+            mark.widthAnchor.constraint(equalToConstant: 224),
+            mark.heightAnchor.constraint(equalToConstant: 224),
+        ])
+        UIView.performWithoutAnimation {
+            view.layoutIfNeeded()
+        }
+        launchOverlay = overlay
+    }
+
+    func dismissLaunchOverlay() {
+        guard let launchOverlay else { return }
+        UIView.performWithoutAnimation {
+            launchOverlay.removeFromSuperview()
+        }
+        self.launchOverlay = nil
     }
 
     override func capacitorDidLoad() {
@@ -43,6 +92,7 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(InstagramStoriesPlugin())
         bridge?.registerPluginInstance(MessageComposePlugin())
         bridge?.registerPluginInstance(ThemeAppearancePlugin())
+        bridge?.registerPluginInstance(LaunchOverlayPlugin())
     }
 }
 
@@ -146,6 +196,24 @@ public class ThemeAppearancePlugin: CAPPlugin, CAPBridgedPlugin {
             let style: UIUserInterfaceStyle = theme == "light" ? .light : .dark
             self.bridge?.viewController?.overrideUserInterfaceStyle = style
             self.bridge?.viewController?.view.window?.overrideUserInterfaceStyle = style
+            call.resolve()
+        }
+    }
+}
+
+// MARK: - Seamless native-to-web launch handoff
+
+@objc(LaunchOverlayPlugin)
+public class LaunchOverlayPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "LaunchOverlayPlugin"
+    public let jsName = "LaunchOverlay"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "dismiss", returnType: CAPPluginReturnPromise),
+    ]
+
+    @objc func dismiss(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            (self.bridge?.viewController as? MainViewController)?.dismissLaunchOverlay()
             call.resolve()
         }
     }

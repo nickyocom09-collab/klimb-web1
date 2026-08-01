@@ -29,15 +29,32 @@ const ENDPOINTS = [
   "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
-// Bias toward indoor gyms rather than outdoor crags: named features that are a
-// climbing sports-centre / climbing leisure venue, or explicitly indoor.
+// INDOOR GYMS ONLY.
+//
+// The obvious tag, leisure=climbing, is a trap: in OSM it covers outdoor crags,
+// boulders and whole climbing areas as well as indoor walls. Querying it pulled
+// in things like "Rocca Sbarua" and dozens of individual routes ("Via dei
+// Torinesi", "Sa Gúbia - Sector Excàlibur"), which are not gyms.
+//
+// So we match only features that are positively indoor — a climbing
+// sports/fitness centre, climbing=gym|indoor, or an explicit indoor flag — and
+// then subtract anything carrying an outdoor marker (crag, boulder, route,
+// area, cliff, via ferrata). Klimb is an indoor-gym app; outdoor rock is out of
+// scope by design.
 function query(b: Bounds): string {
   const bbox = `${b.south},${b.west},${b.north},${b.east}`;
   return `[out:json][timeout:25];
 (
-  nwr["sport"="climbing"]["leisure"~"sports_centre|climbing|fitness_centre"]["name"](${bbox});
-  nwr["leisure"="climbing"]["name"](${bbox});
-  nwr["climbing"="indoor"]["name"](${bbox});
+  nwr["sport"="climbing"]["leisure"~"^(sports_centre|fitness_centre)$"]["name"](${bbox});
+  nwr["climbing"~"^(gym|indoor)$"]["name"](${bbox});
+  nwr["leisure"="climbing"]["indoor"="yes"]["name"](${bbox});
+  nwr["leisure"="climbing"]["climbing:indoor"="yes"]["name"](${bbox});
+);
+- (
+  nwr["climbing"~"^(crag|boulder|route|route_bottom|route_top|area|cliff)$"](${bbox});
+  nwr["natural"~"^(cliff|rock|stone|bare_rock|peak)$"](${bbox});
+  nwr["climbing:outdoor"="yes"](${bbox});
+  nwr["highway"="via_ferrata"](${bbox});
 );
 out center 600;`;
 }
