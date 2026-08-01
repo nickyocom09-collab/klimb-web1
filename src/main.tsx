@@ -5,6 +5,7 @@ import "./index.css";
 import App from "./App";
 import { AuthProvider } from "./lib/auth";
 import { EntitlementProvider } from "./lib/entitlements";
+import { PushNotificationProvider } from "./lib/pushNotifications";
 import { bootTheme } from "./lib/theme";
 
 // Apply the last-used theme before first paint to avoid a flash.
@@ -15,7 +16,9 @@ createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <AuthProvider>
         <EntitlementProvider>
-          <App />
+          <PushNotificationProvider>
+            <App />
+          </PushNotificationProvider>
         </EntitlementProvider>
       </AuthProvider>
     </BrowserRouter>

@@ -4,6 +4,8 @@ import {
   BookOpen,
   ChevronRight,
   AtSign,
+  Bell,
+  BellOff,
   Mail,
   Shield,
   Trash2,
@@ -29,6 +31,10 @@ import { AppHeader } from "../components/Layout";
 import { Button, Card, ConfirmDialog, Input, Textarea } from "../components/ui";
 import type { Database } from "../lib/database.types";
 import { profileNameError } from "../lib/nameModeration";
+import {
+  usePushNotifications,
+  type NotificationPreferenceKey,
+} from "../lib/pushNotifications";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -82,9 +88,53 @@ function Section({
   );
 }
 
+function NotificationToggle({
+  label,
+  description,
+  enabled,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  enabled: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={() => onChange(!enabled)}
+      className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition active:bg-surface-2"
+    >
+      <span>
+        <span className="block text-sm font-semibold text-chalk">{label}</span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-faint">
+          {description}
+        </span>
+      </span>
+      <span
+        aria-hidden="true"
+        className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+          enabled ? "bg-accent" : "bg-surface-2 ring-1 ring-border"
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+            enabled ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
 export function Settings() {
   const { profile, session, updateProfile, signOut } = useAuth();
   const navigate = useNavigate();
+  const push = usePushNotifications();
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
   const [name, setName] = useState(profile?.display_name ?? "");
 
   const [uname, setUname] = useState(profile?.username ?? "");
@@ -142,6 +192,19 @@ export function Settings() {
 
   async function deleteAccount() {
     setDeleting(true);
+    // Storage intentionally blocks direct SQL deletion. Remove avatar objects
+    // through its API while the user still has permission, then delete the
+    // database/auth account. A failed cleanup must not trap the account.
+    if (profile?.id) {
+      const { data: avatarFiles } = await supabase.storage
+        .from("avatars")
+        .list(profile.id);
+      if (avatarFiles?.length) {
+        await supabase.storage
+          .from("avatars")
+          .remove(avatarFiles.map((file) => `${profile.id}/${file.name}`));
+      }
+    }
     const { error } = await supabase.rpc("delete_account");
     if (error) {
       setDeleting(false);
@@ -165,6 +228,27 @@ export function Settings() {
     if (error) window.alert("Couldn't save that setting. Please try again.");
   }
 
+  async function togglePushMaster() {
+    setPushBusy(true);
+    setPushMessage(null);
+    const result = push.active ? await push.disable() : await push.enable();
+    setPushBusy(false);
+    setPushMessage(
+      result.error ??
+        (push.active
+          ? "Notifications are off on this device."
+          : "Notifications are enabled. You can choose what Klimb sends below."),
+    );
+  }
+
+  async function setPushPreference(
+    key: NotificationPreferenceKey,
+    value: boolean,
+  ) {
+    const result = await push.updatePreference(key, value);
+    if (result.error) setPushMessage(result.error);
+  }
+
   // --- One "Save changes" for the whole account card -----------------------
   // Three separate save buttons made the page feel like a form graveyard.
   // This writes only what actually changed, in a single pass.
@@ -172,7 +256,8 @@ export function Settings() {
   const trimmedBio = bio.trim();
   const normUname = uname.trim().replace(/^@/, "").toLowerCase();
   const accountDirty =
-    (trimmedName !== (profile?.display_name ?? "") && trimmedName.length >= 2) ||
+    (trimmedName !== (profile?.display_name ?? "") &&
+      trimmedName.length >= 2) ||
     trimmedBio !== (profile?.bio ?? "") ||
     normUname !== (profile?.username ?? "");
 
@@ -196,7 +281,10 @@ export function Settings() {
       }
     }
     const patch: ProfileUpdate = {};
-    if (trimmedName !== (profile?.display_name ?? "") && trimmedName.length >= 2)
+    if (
+      trimmedName !== (profile?.display_name ?? "") &&
+      trimmedName.length >= 2
+    )
       patch.display_name = trimmedName;
     if (trimmedBio !== (profile?.bio ?? "")) patch.bio = trimmedBio || null;
     if (normUname !== (profile?.username ?? "")) patch.username = normUname;
@@ -272,7 +360,9 @@ export function Settings() {
             <span
               aria-hidden="true"
               className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
-                routeNamesEnabled ? "bg-accent" : "bg-surface-2 ring-1 ring-border"
+                routeNamesEnabled
+                  ? "bg-accent"
+                  : "bg-surface-2 ring-1 ring-border"
               }`}
             >
               <span
@@ -286,6 +376,96 @@ export function Settings() {
             Turning this off hides the field; names you already saved stay on
             their routes and can still be edited.
           </p>
+        </Section>
+
+        <Section title="Notifications">
+          <Card className="overflow-hidden p-0">
+            <div className="flex items-center gap-3 border-b border-border px-4 py-4">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                {push.active ? <Bell size={20} /> : <BellOff size={20} />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-chalk">
+                  {push.active
+                    ? "Apple notifications are on"
+                    : "Apple notifications are off"}
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-faint">
+                  Recaps, streak reminders, and friend activity.
+                </p>
+              </div>
+              <Button
+                variant={push.active ? "secondary" : "primary"}
+                className="h-10 shrink-0 px-4 text-sm"
+                loading={pushBusy}
+                disabled={!push.available}
+                onClick={() => void togglePushMaster()}
+              >
+                {push.active ? "Turn off" : "Enable"}
+              </Button>
+            </div>
+
+            {push.active && push.preferences ? (
+              <div className="divide-y divide-border">
+                <NotificationToggle
+                  label="Friend requests"
+                  description="When another climber wants to connect."
+                  enabled={push.preferences.friend_requests}
+                  onChange={(value) =>
+                    void setPushPreference("friend_requests", value)
+                  }
+                />
+                <NotificationToggle
+                  label="New friends"
+                  description="When someone accepts your request."
+                  enabled={push.preferences.friend_accepts}
+                  onChange={(value) =>
+                    void setPushPreference("friend_accepts", value)
+                  }
+                />
+                <NotificationToggle
+                  label="Weekly recap"
+                  description="When your Sunday recap is ready to watch."
+                  enabled={push.preferences.weekly_recaps}
+                  onChange={(value) =>
+                    void setPushPreference("weekly_recaps", value)
+                  }
+                />
+                <NotificationToggle
+                  label="Streak reminders"
+                  description="Sunday afternoon when your weekly streak is at risk."
+                  enabled={push.preferences.streak_risk}
+                  onChange={(value) =>
+                    void setPushPreference("streak_risk", value)
+                  }
+                />
+                <NotificationToggle
+                  label="Come climb"
+                  description="A friendly reminder after 14 days away."
+                  enabled={push.preferences.inactivity}
+                  onChange={(value) =>
+                    void setPushPreference("inactivity", value)
+                  }
+                />
+              </div>
+            ) : null}
+          </Card>
+          {!push.available ? (
+            <p className="ml-1 text-xs text-faint">
+              Notification controls are available in the Klimb iPhone app.
+            </p>
+          ) : null}
+          {push.permission === "denied" ? (
+            <p className="ml-1 text-xs text-wide">
+              Permission was denied. Open iPhone Settings → Notifications →
+              Klimb to turn it back on.
+            </p>
+          ) : null}
+          {pushMessage || push.error ? (
+            <p className="ml-1 text-xs text-faint">
+              {pushMessage ?? push.error}
+            </p>
+          ) : null}
         </Section>
 
         <Section title="Learn the lingo">
@@ -309,7 +489,9 @@ export function Settings() {
 
         <Section title="Privacy">
           <div className="flex flex-col gap-1.5">
-            <p className="ml-1 text-sm font-semibold text-chalk">Sends &amp; logbook</p>
+            <p className="ml-1 text-sm font-semibold text-chalk">
+              Sends &amp; logbook
+            </p>
             <Segmented<string>
               value={sendsPublic ? "public" : "private"}
               options={[
@@ -331,11 +513,13 @@ export function Settings() {
                 { value: "public", label: "Public" },
                 { value: "private", label: "Private" },
               ]}
-              onChange={(v) => updateProfile({ projects_public: v === "public" })}
+              onChange={(v) =>
+                updateProfile({ projects_public: v === "public" })
+              }
             />
             <p className="ml-1 text-xs text-faint">
-              Controls whether the routes you're projecting show on your
-              profile — separate from your sends.
+              Controls whether the routes you're projecting show on your profile
+              — separate from your sends.
             </p>
           </div>
         </Section>
@@ -498,7 +682,9 @@ export function Settings() {
                       {b.display_name}
                     </p>
                     {b.username ? (
-                      <p className="truncate text-sm text-muted">@{b.username}</p>
+                      <p className="truncate text-sm text-muted">
+                        @{b.username}
+                      </p>
                     ) : null}
                   </div>
                   <Button
@@ -561,8 +747,8 @@ export function Settings() {
             </div>
             <p className="text-sm text-muted">
               This permanently deletes your profile, sends, projects, grades,
-              notes, and friends. Your logged history can't be recovered.
-              Routes you added stay visible to other climbers at your gym.
+              notes, and friends. Your logged history can't be recovered. Routes
+              you added stay visible to other climbers at your gym.
             </p>
             <p className="mt-4 mb-2 text-sm text-muted">
               Type <span className="font-bold text-chalk">DELETE</span> to

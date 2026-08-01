@@ -45,6 +45,12 @@ export function Privacy() {
             used only for that distance check, in memory, and is never stored or
             put in a link.
           </li>
+          <li>
+            <b>Notifications</b> — if you enable Apple notifications, we store
+            your device push token, time zone, and reminder preferences so we
+            can deliver the alerts you choose. You can turn them off in Settings
+            at any time.
+          </li>
         </Block>
 
         <Block title="How we use it">
@@ -73,6 +79,10 @@ export function Privacy() {
           </li>
           <li>Go Private any time to hide your profile from others.</li>
           <li>Location access can be turned off in your device settings.</li>
+          <li>
+            Notification categories or all notifications can be turned off in
+            Settings.
+          </li>
         </Block>
 
         <Block title="Children">

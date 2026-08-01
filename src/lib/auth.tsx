@@ -342,6 +342,9 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut() {
         await supabase.auth.signOut();
+        // A deleted Auth user can no longer accept a server-side sign-out, so
+        // always clear the in-memory session as well as the profile.
+        setSession(null);
         setProfile(null);
       },
       async refreshProfile() {

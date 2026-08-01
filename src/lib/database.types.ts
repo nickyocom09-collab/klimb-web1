@@ -37,6 +37,7 @@ export type EntitlementStatus =
   | "expired"
   | "revoked";
 export type EntitlementEnvironment = "Sandbox" | "Production" | "Xcode";
+export type PushEnvironment = "development" | "production";
 
 /** Shape of the JSON stats payload computed by generate_recaps() in the DB. */
 export type RecapPayload = {
@@ -64,6 +65,62 @@ export type RecapPayload = {
 export interface Database {
   public: {
     Tables: {
+      push_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          token: string;
+          platform: "ios";
+          environment: PushEnvironment;
+          timezone: string;
+          enabled: boolean;
+          created_at: string;
+          updated_at: string;
+          last_seen_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          token: string;
+          platform?: "ios";
+          environment?: PushEnvironment;
+          timezone?: string;
+          enabled?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          last_seen_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["push_tokens"]["Insert"]>;
+        Relationships: [];
+      };
+      notification_preferences: {
+        Row: {
+          user_id: string;
+          friend_requests: boolean;
+          friend_accepts: boolean;
+          weekly_recaps: boolean;
+          streak_risk: boolean;
+          inactivity: boolean;
+          inactivity_days: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          friend_requests?: boolean;
+          friend_accepts?: boolean;
+          weekly_recaps?: boolean;
+          streak_risk?: boolean;
+          inactivity?: boolean;
+          inactivity_days?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database["public"]["Tables"]["notification_preferences"]["Insert"]
+        >;
+        Relationships: [];
+      };
       user_entitlements: {
         Row: {
           user_id: string;
@@ -728,6 +785,22 @@ export interface Database {
         Returns: string;
       };
       delete_account: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      register_push_token: {
+        Args: {
+          p_token: string;
+          p_timezone?: string;
+          p_environment?: PushEnvironment;
+        };
+        Returns: Database["public"]["Tables"]["push_tokens"]["Row"];
+      };
+      disable_push_token: {
+        Args: { p_token: string };
+        Returns: undefined;
+      };
+      disable_all_push_tokens: {
         Args: Record<string, never>;
         Returns: undefined;
       };

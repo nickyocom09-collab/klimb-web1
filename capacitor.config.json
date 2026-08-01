@@ -6,6 +6,9 @@
     "contentInset": "never"
   },
   "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "banner", "list"]
+    },
     "SocialLogin": {
       "providers": {
         "google": true,
