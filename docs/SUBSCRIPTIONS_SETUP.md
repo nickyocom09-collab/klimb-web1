@@ -19,7 +19,7 @@ and billing period come from StoreKit product data.
 
 ## 1. Apply the database migration
 
-Run `migrations/0015_entitlements_and_logging_repair.sql` in the Supabase SQL
+Run `migrations/0016_entitlements_and_logging_repair.sql` in the Supabase SQL
 Editor or through your normal migration workflow. It:
 
 - creates the entitlement, transaction, analytics, admin, and audit tables;

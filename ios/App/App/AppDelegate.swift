@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import StoreKit
 #if canImport(GoogleSignIn)
 import GoogleSignIn
 #endif
@@ -93,6 +94,241 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MessageComposePlugin())
         bridge?.registerPluginInstance(ThemeAppearancePlugin())
         bridge?.registerPluginInstance(LaunchOverlayPlugin())
+        bridge?.registerPluginInstance(KlimbStoreKitPlugin())
+    }
+}
+
+// MARK: - StoreKit 2 subscriptions
+//
+// Keeps Apple's purchase UI and transaction verification in the native layer.
+// The signed JWS is then verified again by Klimb's server before the app grants
+// access or finishes the transaction.
+@objc(KlimbStoreKitPlugin)
+public class KlimbStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "KlimbStoreKitPlugin"
+    public let jsName = "KlimbStoreKit"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "loadProducts", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "currentEntitlements", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restorePurchases", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "finishTransaction", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "manageSubscriptions", returnType: CAPPluginReturnPromise),
+    ]
+
+    private var transactionUpdatesTask: Task<Void, Never>?
+
+    public override func load() {
+        transactionUpdatesTask = Task { [weak self] in
+            for await result in Transaction.updates {
+                guard !Task.isCancelled, let self else { return }
+                switch result {
+                case .verified(let transaction):
+                    self.notifyListeners(
+                        "transactionUpdated",
+                        data: Self.transactionPayload(
+                            transaction,
+                            signedTransaction: result.jwsRepresentation
+                        )
+                    )
+                case .unverified(_, let error):
+                    self.notifyListeners(
+                        "transactionVerificationFailed",
+                        data: ["message": error.localizedDescription]
+                    )
+                }
+            }
+        }
+    }
+
+    deinit {
+        transactionUpdatesTask?.cancel()
+    }
+
+    @objc func loadProducts(_ call: CAPPluginCall) {
+        guard let productIds = call.getArray("productIds", String.self),
+              !productIds.isEmpty else {
+            call.reject("At least one product identifier is required")
+            return
+        }
+
+        Task {
+            do {
+                let products = try await Product.products(for: productIds)
+                var payloads: [[String: Any]] = []
+                for product in products {
+                    payloads.append(await Self.productPayload(product))
+                }
+                call.resolve(["products": payloads])
+            } catch {
+                call.reject("Apple pricing is temporarily unavailable", nil, error)
+            }
+        }
+    }
+
+    @objc func purchase(_ call: CAPPluginCall) {
+        guard let productId = call.getString("productId"),
+              let accountTokenValue = call.getString("appAccountToken"),
+              let accountToken = UUID(uuidString: accountTokenValue) else {
+            call.reject("A product and valid account token are required")
+            return
+        }
+
+        Task {
+            do {
+                guard let product = try await Product.products(for: [productId]).first else {
+                    call.reject("This subscription is not available from Apple")
+                    return
+                }
+                let result = try await product.purchase(options: [
+                    .appAccountToken(accountToken),
+                ])
+                switch result {
+                case .success(let verification):
+                    switch verification {
+                    case .verified(let transaction):
+                        var payload = Self.transactionPayload(
+                            transaction,
+                            signedTransaction: verification.jwsRepresentation
+                        )
+                        payload["state"] = "purchased"
+                        call.resolve(payload)
+                    case .unverified(_, let error):
+                        self.notifyListeners(
+                            "transactionVerificationFailed",
+                            data: ["message": error.localizedDescription]
+                        )
+                        call.reject("Apple could not verify this purchase", nil, error)
+                    }
+                case .pending:
+                    call.resolve(["state": "pending"])
+                case .userCancelled:
+                    call.resolve(["state": "canceled"])
+                @unknown default:
+                    call.reject("Apple returned an unknown purchase state")
+                }
+            } catch {
+                call.reject("The purchase could not be completed", nil, error)
+            }
+        }
+    }
+
+    @objc func currentEntitlements(_ call: CAPPluginCall) {
+        Task {
+            call.resolve(["transactions": await Self.verifiedCurrentEntitlements()])
+        }
+    }
+
+    @objc func restorePurchases(_ call: CAPPluginCall) {
+        Task {
+            do {
+                try await AppStore.sync()
+                call.resolve(["transactions": await Self.verifiedCurrentEntitlements()])
+            } catch {
+                call.reject("Purchases could not be restored", nil, error)
+            }
+        }
+    }
+
+    @objc func finishTransaction(_ call: CAPPluginCall) {
+        guard let transactionId = call.getString("transactionId"),
+              let numericId = UInt64(transactionId) else {
+            call.reject("A valid transaction identifier is required")
+            return
+        }
+
+        Task {
+            for await result in Transaction.unfinished {
+                guard case .verified(let transaction) = result else { continue }
+                if transaction.id == numericId {
+                    await transaction.finish()
+                    call.resolve()
+                    return
+                }
+            }
+            // StoreKit may already have finished an idempotently replayed
+            // transaction. Treat that as success after server verification.
+            call.resolve()
+        }
+    }
+
+    @objc func manageSubscriptions(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            guard let scene = self.bridge?.viewController?.view.window?.windowScene else {
+                call.reject("No active window is available")
+                return
+            }
+            do {
+                try await AppStore.showManageSubscriptions(in: scene)
+                call.resolve()
+            } catch {
+                call.reject("Subscription settings could not be opened", nil, error)
+            }
+        }
+    }
+
+    private static func verifiedCurrentEntitlements() async -> [[String: Any]] {
+        var transactions: [[String: Any]] = []
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result else { continue }
+            transactions.append(transactionPayload(
+                transaction,
+                signedTransaction: result.jwsRepresentation
+            ))
+        }
+        return transactions
+    }
+
+    private static func transactionPayload(
+        _ transaction: Transaction,
+        signedTransaction: String
+    ) -> [String: Any] {
+        [
+            "transactionId": String(transaction.id),
+            "signedTransaction": signedTransaction,
+        ]
+    }
+
+    private static func productPayload(_ product: Product) async -> [String: Any] {
+        var payload: [String: Any] = [
+            "id": product.id,
+            "displayName": product.displayName,
+            "description": product.description,
+            "displayPrice": product.displayPrice,
+        ]
+        guard let subscription = product.subscription else { return payload }
+
+        payload["period"] = periodPayload(subscription.subscriptionPeriod)
+        payload["isEligibleForIntroOffer"] = await subscription.isEligibleForIntroOffer
+        if let offer = subscription.introductoryOffer {
+            payload["introductoryOffer"] = [
+                "displayPrice": offer.displayPrice,
+                "paymentMode": paymentModeName(offer.paymentMode),
+                "period": periodPayload(offer.period),
+            ]
+        }
+        return payload
+    }
+
+    private static func periodPayload(_ period: Product.SubscriptionPeriod) -> [String: Any] {
+        let unit: String
+        switch period.unit {
+        case .day: unit = "day"
+        case .week: unit = "week"
+        case .month: unit = "month"
+        case .year: unit = "year"
+        @unknown default: unit = "period"
+        }
+        return ["value": period.value, "unit": unit]
+    }
+
+    private static func paymentModeName(_ mode: Product.SubscriptionOffer.PaymentMode) -> String {
+        switch mode {
+        case .freeTrial: return "freeTrial"
+        case .payAsYouGo: return "payAsYouGo"
+        case .payUpFront: return "payUpFront"
+        default: return "unknown"
+        }
     }
 }
 

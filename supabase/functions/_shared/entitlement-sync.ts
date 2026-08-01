@@ -28,7 +28,10 @@ function statusFor(
   if (!transaction.expiresDate || transaction.expiresDate <= now) {
     return "expired";
   }
-  return transaction.offerType === 1 ? "trial" : "active";
+  // `offerType === 1` means any introductory offer, including paid upfront or
+  // pay-as-you-go offers. Only Apple's explicit FREE_TRIAL payment mode should
+  // be represented as a trial in Klimb.
+  return transaction.offerDiscountType === "FREE_TRIAL" ? "trial" : "active";
 }
 
 export async function syncVerifiedTransaction({

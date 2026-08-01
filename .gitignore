@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Local tool state
+ios/App/.bundle/
+ios/App/vendor/
+supabase/.temp/

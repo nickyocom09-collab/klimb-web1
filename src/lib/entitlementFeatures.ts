@@ -45,7 +45,7 @@ export const STOREKIT_CONFIG = {
   monthlyProductId:
     import.meta.env.VITE_STOREKIT_MONTHLY_PRODUCT_ID ||
     "com.nickyocom.klimb.pro.monthly",
-  privacyUrl: "https://klimbsupport.netlify.app/privacy.html",
+  privacyUrl: "https://klimb-privacy.vercel.app/",
   termsUrl:
     "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",
 } as const;

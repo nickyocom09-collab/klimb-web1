@@ -21,6 +21,22 @@ export type ContentReportReason =
   | "harassment"
   | "wrong_info"
   | "other";
+export type EntitlementPlan = "free" | "pro_monthly" | "lifetime_pro";
+export type EntitlementType =
+  | "free"
+  | "founder"
+  | "manual_lifetime"
+  | "subscription"
+  | "trial";
+export type EntitlementStatus =
+  | "inactive"
+  | "active"
+  | "trial"
+  | "grace_period"
+  | "billing_retry"
+  | "expired"
+  | "revoked";
+export type EntitlementEnvironment = "Sandbox" | "Production" | "Xcode";
 
 /** Shape of the JSON stats payload computed by generate_recaps() in the DB. */
 export type RecapPayload = {
@@ -48,6 +64,48 @@ export type RecapPayload = {
 export interface Database {
   public: {
     Tables: {
+      user_entitlements: {
+        Row: {
+          user_id: string;
+          plan: EntitlementPlan;
+          entitlement_type: EntitlementType;
+          entitlement_status: EntitlementStatus;
+          is_lifetime_pro: boolean;
+          founder_granted_at: string | null;
+          manual_granted_at: string | null;
+          subscription_product_id: string | null;
+          original_transaction_id: string | null;
+          subscription_started_at: string | null;
+          trial_ends_at: string | null;
+          current_period_ends_at: string | null;
+          expiration_date: string | null;
+          last_verified_at: string | null;
+          environment: EntitlementEnvironment | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          plan?: EntitlementPlan;
+          entitlement_type?: EntitlementType;
+          entitlement_status?: EntitlementStatus;
+          is_lifetime_pro?: boolean;
+          founder_granted_at?: string | null;
+          manual_granted_at?: string | null;
+          subscription_product_id?: string | null;
+          original_transaction_id?: string | null;
+          subscription_started_at?: string | null;
+          trial_ends_at?: string | null;
+          current_period_ends_at?: string | null;
+          expiration_date?: string | null;
+          last_verified_at?: string | null;
+          environment?: EntitlementEnvironment | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["user_entitlements"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -671,6 +729,13 @@ export interface Database {
       };
       delete_account: {
         Args: Record<string, never>;
+        Returns: undefined;
+      };
+      record_entitlement_event: {
+        Args: {
+          p_event_name: string;
+          p_properties?: Record<string, string | number | boolean>;
+        };
         Returns: undefined;
       };
     };

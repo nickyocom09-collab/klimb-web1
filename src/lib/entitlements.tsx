@@ -82,7 +82,12 @@ function readCache(userId: string): EntitlementRecord | null {
 }
 
 function writeCache(record: EntitlementRecord) {
-  localStorage.setItem(cacheKey(record.user_id), JSON.stringify(record));
+  try {
+    localStorage.setItem(cacheKey(record.user_id), JSON.stringify(record));
+  } catch {
+    // Server-verified access remains valid even when device storage is full or
+    // unavailable. The next online launch will simply fetch it again.
+  }
 }
 
 export function EntitlementProvider({ children }: { children: ReactNode }) {
@@ -119,6 +124,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (data) acceptEntitlement(data as EntitlementRecord);
+    else setEntitlement(null);
   }, [acceptEntitlement, userId]);
 
   const verifyWithBackend = useCallback(
@@ -156,7 +162,8 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       return;
     }
     const cached = readCache(userId);
-    if (cached) setEntitlement(cached);
+    // Never carry one account's cached access across an account switch.
+    setEntitlement(cached);
     void refreshEntitlements();
   }, [refreshEntitlements, userId]);
 

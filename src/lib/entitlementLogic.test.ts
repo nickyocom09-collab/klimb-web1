@@ -190,4 +190,54 @@ describe("Klimb entitlement policy", () => {
       ),
     ).toBe(false);
   });
+
+  it("15. keeps access during Apple's grace period", () => {
+    const grace = record({
+      plan: "pro_monthly",
+      entitlement_type: "subscription",
+      entitlement_status: "grace_period",
+      expiration_date: "2026-08-03T12:00:00Z",
+    });
+    expect(accessFromEntitlement(grace, NOW).hasProAccess).toBe(true);
+  });
+
+  it("16. does not grant access during billing retry without grace", () => {
+    const retry = record({
+      plan: "pro_monthly",
+      entitlement_type: "subscription",
+      entitlement_status: "billing_retry",
+      expiration_date: "2026-07-28T12:00:00Z",
+    });
+    expect(accessFromEntitlement(retry, NOW).hasProAccess).toBe(false);
+  });
+
+  it("17. removes access immediately after an Apple refund or revocation", () => {
+    const refunded = record({
+      plan: "free",
+      entitlement_type: "subscription",
+      entitlement_status: "revoked",
+      expiration_date: "2026-08-29T12:00:00Z",
+    });
+    expect(accessFromEntitlement(refunded, NOW).hasProAccess).toBe(false);
+  });
+
+  it("18. treats the founder cutoff timestamp as inclusive", () => {
+    expect(
+      isFounderEligible({
+        enabled: true,
+        cutoffAt: "2026-08-31T23:59:59Z",
+        accountCreatedAt: "2026-08-31T23:59:59Z",
+      }),
+    ).toBe(true);
+  });
+
+  it("19. rejects accounts created one second after the founder cutoff", () => {
+    expect(
+      isFounderEligible({
+        enabled: true,
+        cutoffAt: "2026-08-31T23:59:59Z",
+        accountCreatedAt: "2026-09-01T00:00:00Z",
+      }),
+    ).toBe(false);
+  });
 });

@@ -22,16 +22,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  /* Work-in-progress subscription/entitlement feature. These files are not
-     imported by the app yet and don't type-check on their own (the
-     `user_entitlements` table isn't in database.types.ts, and the test needs
-     vitest, which isn't installed). Excluding them keeps `npm run build`
-     shippable without touching the feature. NOTE: TypeScript still checks any
-     excluded file the moment something imports it, so wiring the feature in
-     will surface these errors again — which is what we want. */
-  "exclude": [
-    "src/pages/Upgrade.tsx",
-    "src/lib/entitlements.tsx",
-    "src/lib/entitlementLogic.test.ts"
-  ]
+  "exclude": ["src/lib/entitlementLogic.test.ts"]
 }
