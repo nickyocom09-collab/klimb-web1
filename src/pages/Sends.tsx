@@ -164,7 +164,10 @@ export function Sends() {
             .maybeSingle();
           if (home) target = { id: home.id, name: home.name };
         } else {
-          const match = await findApprovedGymForLabel(profile.offgrid_gym_label);
+          const match = await findApprovedGymForLabel(
+            profile.offgrid_gym_label,
+            book.offGrid,
+          );
           if (match) target = { id: match.id, name: match.name };
         }
       }

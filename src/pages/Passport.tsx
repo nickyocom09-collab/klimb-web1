@@ -17,8 +17,13 @@ const CONTINENT: Record<string, string> = {
   nl: "Europe", be: "Europe", ch: "Europe", at: "Europe", se: "Europe", no: "Europe",
   dk: "Europe", fi: "Europe", is: "Europe", cz: "Europe", pl: "Europe", pt: "Europe",
   gr: "Europe", hu: "Europe", ro: "Europe", si: "Europe", sk: "Europe", hr: "Europe",
+  al: "Europe", ad: "Europe", am: "Europe", az: "Europe", by: "Europe", ba: "Europe",
+  bg: "Europe", cy: "Europe", ee: "Europe", ge: "Europe", kz: "Europe", xk: "Europe",
+  lv: "Europe", li: "Europe", lt: "Europe", lu: "Europe", mt: "Europe", md: "Europe",
+  mc: "Europe", me: "Europe", mk: "Europe", rs: "Europe", ru: "Europe", sm: "Europe",
+  tr: "Europe", ua: "Europe", va: "Europe",
   jp: "Asia", kr: "Asia", cn: "Asia", hk: "Asia", tw: "Asia", sg: "Asia", th: "Asia",
-  in: "Asia", id: "Asia", my: "Asia", ph: "Asia", vn: "Asia", ae: "Asia", il: "Asia", tr: "Asia",
+  in: "Asia", id: "Asia", my: "Asia", ph: "Asia", vn: "Asia", ae: "Asia", il: "Asia",
   au: "Oceania", nz: "Oceania",
   za: "Africa", ma: "Africa", eg: "Africa", ke: "Africa", ng: "Africa",
 };
@@ -105,13 +110,17 @@ export function Passport() {
       setCountries(list);
       setUnlocked(got);
       setLoading(false);
-    })();
+    })().catch((error: unknown) => {
+      console.error("Could not load passport", error);
+      if (active) setLoading(false);
+    });
     return () => {
       active = false;
     };
   }, [targetId, isMe]);
 
   const total = countries.length;
+  const directoryGyms = countries.reduce((sum, country) => sum + country.gyms, 0);
   const gotN = countries.filter((c) => unlocked.has(c.cc)).length;
   const pct = total ? Math.round((gotN / total) * 100) : 0;
   const continentsGot = new Set(
@@ -183,7 +192,8 @@ export function Passport() {
           <div style={{ ...S.barFill, width: `${pct}%` }} />
         </div>
         <p style={S.hint}>
-          A country unlocks the first time you log a Klimb at a gym there.
+          {directoryGyms.toLocaleString()} indoor climbing gyms across {total}{" "}
+          countries. A country unlocks when you log at a gym there.
         </p>
 
         {/* Grid by continent */}
@@ -235,8 +245,8 @@ export function Passport() {
         })}
 
         <div style={S.footer}>
-          <Globe size={13} color="#3f4b44" /> {total} countries have Klimb gyms —
-          collect them all.
+          <Globe size={13} color="#3f4b44" /> {directoryGyms.toLocaleString()} gyms in{" "}
+          {total} countries — collect them all.
         </div>
       </div>
     </div>

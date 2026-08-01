@@ -64,6 +64,7 @@ export function useLogClimb() {
     longitude: number | null;
   } | null>(null);
   const [gradeStyle, setGradeStyle] = useState<GradeStyle>("classic");
+  const [pendingGymId, setPendingGymId] = useState<string | null>(null);
 
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -97,6 +98,32 @@ export function useLogClimb() {
         );
       });
   }, [gymId]);
+
+  // Link personal logs to the user's pending gym suggestion when possible.
+  // This gives the later transfer an exact gym id instead of relying only on a
+  // name match after the suggestion is approved.
+  useEffect(() => {
+    if (!offGrid || !profile || !offgridLabel) {
+      setPendingGymId(null);
+      return;
+    }
+    let active = true;
+    supabase
+      .from("gyms")
+      .select("id")
+      .eq("created_by", profile.id)
+      .eq("status", "pending")
+      .ilike("name", offgridLabel)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) setPendingGymId(data?.id ?? null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [offGrid, offgridLabel, profile]);
 
   const gymGradeOpts = gymGradeOptions(climbingType, system, gradeStyle);
   const feltOpts = pickerOptions(climbingType, system);
@@ -195,6 +222,7 @@ export function useLogClimb() {
         const { error: plError } = await supabase.from("personal_logs").insert({
           user_id: profile.id,
           gym_label: offgridLabel,
+          pending_gym_id: pendingGymId,
           climbing_type: climbingType,
           hold_color: holdColor,
           route_name: routeName.trim() || null,

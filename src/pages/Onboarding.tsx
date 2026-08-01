@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ListChecks,
   MapPin,
+  MapPinOff,
   Plus,
   ScrollText,
   Search,
@@ -79,6 +80,10 @@ export function Onboarding() {
   const [suggestCity, setSuggestCity] = useState("");
   const [suggestSaving, setSuggestSaving] = useState(false);
   const [suggestDone, setSuggestDone] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [offgridLabel, setOffgridLabel] = useState<string | null>(
+    profile?.offgrid_gym_label ?? null,
+  );
 
   // Jump the list back to the top whenever we drill into a country/state or
   // search, so you never land mid-scroll on a fresh list.
@@ -176,7 +181,10 @@ export function Onboarding() {
     return (
       <li key={gym.id}>
         <button
-          onClick={() => setGymId(gym.id)}
+          onClick={() => {
+            setGymId(gym.id);
+            setOffgridLabel(null);
+          }}
           className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
             selected
               ? "border-accent bg-surface-2"
@@ -249,6 +257,7 @@ export function Onboarding() {
       display_name: name.trim() || "Climber",
       username: normalizedUname,
       home_gym_id: gymId,
+      offgrid_gym_label: gymId ? null : offgridLabel,
       log_style: logStyle,
       onboarded: true,
     });
@@ -266,6 +275,7 @@ export function Onboarding() {
     setSuggestName("");
     setSuggestCity("");
     setSuggestDone(false);
+    setSuggestError(null);
     setSuggestOpen(true);
   }
 
@@ -275,7 +285,7 @@ export function Onboarding() {
     const country =
       countryList.find((countryOption) => countryOption.cc === openCountry)
         ?.name ?? null;
-    await supabase.from("gyms").insert({
+    const { error } = await supabase.from("gyms").insert({
       name: suggestName.trim(),
       city: suggestCity.trim() || null,
       state: openState,
@@ -285,7 +295,20 @@ export function Onboarding() {
       created_by: profile.id,
     });
     setSuggestSaving(false);
+    if (error) {
+      setSuggestError(`Couldn't submit this gym: ${error.message}`);
+      return;
+    }
     setSuggestDone(true);
+  }
+
+  function continueOffGrid() {
+    const label = suggestName.trim();
+    if (!label) return;
+    setGymId(null);
+    setOffgridLabel(label);
+    setSuggestOpen(false);
+    setStep("logStyle");
   }
 
   return (
@@ -621,11 +644,26 @@ export function Onboarding() {
                   was submitted for review. We'll add it soon.
                 </p>
                 <Button
+                  variant="secondary"
                   className="w-full"
                   onClick={() => setSuggestOpen(false)}
                 >
-                  Done
+                  I'll wait
                 </Button>
+                <div className="rounded-2xl border border-border bg-surface-2/60 p-4">
+                  <p className="text-sm text-muted">
+                    You don't have to wait. Start a private logbook for{" "}
+                    <span className="font-semibold text-chalk">
+                      {suggestName.trim()}
+                    </span>{" "}
+                    now, then transfer every climb when the gym is approved.
+                    Off-grid climbs never unlock Passport or appear on the map.
+                  </p>
+                  <Button className="mt-3 w-full" onClick={continueOffGrid}>
+                    <MapPinOff size={16} className="mr-2" />
+                    Start my private logbook
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -648,6 +686,9 @@ export function Onboarding() {
                   onChange={(event) => setSuggestCity(event.target.value)}
                   placeholder="e.g. Denver"
                 />
+                {suggestError ? (
+                  <p className="text-sm text-wide">{suggestError}</p>
+                ) : null}
                 <Button
                   className="mt-1 w-full"
                   loading={suggestSaving}

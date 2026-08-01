@@ -33,17 +33,23 @@ export function TransferOffGridSheet({
   const { updateProfile } = useAuth();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TransferResult | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   if (!open) return null;
   const n = logs.length;
 
   async function transfer() {
     setBusy(true);
+    setProfileError(null);
     const res = await transferOffGridLogs(logs, gym.id);
     // A clean sweep retires off-grid mode: clear the waiting label and make the
     // gym home. A partial move leaves them off-grid so they can retry the rest.
     if (res.failed === 0) {
-      await updateProfile({ offgrid_gym_label: null, home_gym_id: gym.id });
+      const { error } = await updateProfile({
+        offgrid_gym_label: null,
+        home_gym_id: gym.id,
+      });
+      if (error) setProfileError(error);
     }
     setResult(res);
     setBusy(false);
@@ -99,6 +105,12 @@ export function TransferOffGridSheet({
                 </>
               )}
             </p>
+            {profileError ? (
+              <p className="rounded-2xl border border-wide/40 bg-wide/10 px-3 py-2 text-sm text-wide">
+                Your climbs moved safely, but Klimb couldn't finish setting{" "}
+                {gym.name} as your home gym: {profileError}
+              </p>
+            ) : null}
             <Button className="w-full" onClick={close}>
               Done
             </Button>

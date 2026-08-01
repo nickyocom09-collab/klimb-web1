@@ -36,7 +36,20 @@ export async function fetchOffGridLogs(
  *  low; the transfer prompt only appears when we're confident it's their gym. */
 export async function findApprovedGymForLabel(
   label: string | null | undefined,
+  logs: PersonalLogRow[] = [],
 ): Promise<GymRow | null> {
+  const pendingIds = [
+    ...new Set(logs.map((log) => log.pending_gym_id).filter(Boolean)),
+  ] as string[];
+  if (pendingIds.length > 0) {
+    const { data } = await supabase
+      .from("gyms")
+      .select("*")
+      .eq("status", "approved")
+      .in("id", pendingIds)
+      .limit(1);
+    if (data?.[0]) return data[0];
+  }
   const name = label?.trim();
   if (!name) return null;
   const { data } = await supabase
