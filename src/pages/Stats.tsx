@@ -15,6 +15,7 @@ import {
   hardestParts,
   type LoggedItem,
 } from "../lib/logstats";
+import { offGridToLoggedItems } from "../lib/personalLogs";
 import {
   fetchRecaps,
   markRecapSeen,
@@ -56,7 +57,10 @@ export function Stats() {
         fetchRecaps(profile.id),
       ]);
       if (!active) return;
-      setLogged(book.logged);
+      // Off-grid climbs are real climbs — fold them into every all-time number,
+      // streak, and pyramid, exactly like gym-linked climbs.
+      const off = offGridToLoggedItems(book.offGrid).logged;
+      setLogged([...book.logged, ...off]);
       setRecaps(rec.history);
       setLoading(false);
     })();

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  ArrowRightLeft,
   Bell,
   Bookmark,
   Check,
@@ -10,6 +11,7 @@ import {
   RotateCcw,
   Sparkles,
   TrendingUp,
+  X,
   Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -21,6 +23,13 @@ import {
   type LoggedItem,
   type ProjectItem,
 } from "../lib/logstats";
+import {
+  findApprovedGymForLabel,
+  offGridToLoggedItems,
+  type PersonalLogRow,
+} from "../lib/personalLogs";
+import { OffGridSection } from "../components/OffGridSection";
+import { TransferOffGridSheet } from "../components/TransferOffGridSheet";
 import {
   fetchRecaps,
   markRecapSeen,
@@ -68,6 +77,11 @@ export function Sends() {
   const system = profile?.grade_system ?? "american";
   const [logged, setLogged] = useState<LoggedItem[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [offGrid, setOffGrid] = useState<PersonalLogRow[]>([]);
+  const [transferGym, setTransferGym] = useState<{ id: string; name: string } | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [latestRecap, setLatestRecap] = useState<RecapRow | null>(null);
   const [story, setStory] = useState<RecapRow | null>(null);
   const [unread, setUnread] = useState(0);
@@ -95,7 +109,26 @@ export function Sends() {
     [projects, activeGymId],
   );
 
+  // Off-grid climbs are real climbs and count toward the user's own numbers.
+  // A gym-less user (no active gym) sees them folded into the home hero and
+  // streak; once they have a gym, the home view stays scoped to that gym and
+  // off-grid climbs live only in their own labelled section below.
+  const offGridLogged = useMemo(
+    () => offGridToLoggedItems(offGrid).logged,
+    [offGrid],
+  );
+  const statInput = useMemo(
+    () => (activeGymId ? scopedLogged : [...scopedLogged, ...offGridLogged]),
+    [activeGymId, scopedLogged, offGridLogged],
+  );
+
+  // Hero "Sends" count includes off-grid when gym-less; the grouped list below
+  // only ever shows gym-linked sends (off-grid rows have no route to open).
   const cleanSends = useMemo(
+    () => statInput.filter((l) => l.sendType !== "topped"),
+    [statInput],
+  );
+  const gymSends = useMemo(
     () => scopedLogged.filter((l) => l.sendType !== "topped"),
     [scopedLogged],
   );
@@ -118,9 +151,29 @@ export function Sends() {
           .maybeSingle();
         if (active) setGymName(gym?.name ?? null);
       }
+
+      // Work out whether a real gym is now available to move off-grid climbs
+      // into: the home gym they just set, or their suggested gym once approved.
+      let target: { id: string; name: string } | null = null;
+      if (book.offGrid.length > 0) {
+        if (profile.home_gym_id) {
+          const { data: home } = await supabase
+            .from("gyms")
+            .select("id, name")
+            .eq("id", profile.home_gym_id)
+            .maybeSingle();
+          if (home) target = { id: home.id, name: home.name };
+        } else {
+          const match = await findApprovedGymForLabel(profile.offgrid_gym_label);
+          if (match) target = { id: match.id, name: match.name };
+        }
+      }
+
       if (!active) return;
       setLogged(book.logged);
       setProjects(book.projects);
+      setOffGrid(book.offGrid);
+      setTransferGym(target);
       setLatestRecap(recs.latestWeekly ?? recs.latestMonthly);
       setLoading(false);
     })();
@@ -135,23 +188,23 @@ export function Sends() {
     return () => {
       active = false;
     };
-  }, [profile]);
+  }, [profile, reloadKey]);
 
   const stats = useMemo(
-    () => computeLogStats(scopedLogged, system),
-    [scopedLogged, system],
+    () => computeLogStats(statInput, system),
+    [statInput, system],
   );
 
   const groups = useMemo(() => {
     const out: { label: string; items: LoggedItem[] }[] = [];
-    for (const item of cleanSends) {
+    for (const item of gymSends) {
       const label = groupLabel(item.date);
       const last = out[out.length - 1];
       if (last && last.label === label) last.items.push(item);
       else out.push({ label, items: [item] });
     }
     return out;
-  }, [cleanSends]);
+  }, [gymSends]);
 
   function openStory(r: RecapRow) {
     setStory(r);
@@ -196,7 +249,9 @@ export function Sends() {
 
       {loading ? (
         <CenterSpinner />
-      ) : scopedLogged.length === 0 && scopedProjects.length === 0 ? (
+      ) : scopedLogged.length === 0 &&
+        scopedProjects.length === 0 &&
+        offGrid.length === 0 ? (
         /* First-run: a warm nudge straight to the first log. */
         <div className="flex flex-col items-center gap-4 px-8 py-16 text-center">
           <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-accent/10">
@@ -241,6 +296,39 @@ export function Sends() {
               </p>
             )}
           </div>
+
+          {/* ---- Transfer prompt: their gym is on Klimb now ---- */}
+          {transferGym && offGrid.length > 0 && !bannerDismissed ? (
+            <div className="px-5 pt-3">
+              <div className="relative overflow-hidden rounded-3xl bg-accent/10 p-4 shadow-card ring-1 ring-accent/40">
+                <button
+                  onClick={() => setBannerDismissed(true)}
+                  aria-label="Dismiss"
+                  className="absolute right-3 top-3 rounded-full p-1 text-faint transition hover:text-chalk"
+                >
+                  <X size={16} />
+                </button>
+                <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-accent">
+                  <ArrowRightLeft size={13} /> Ready to move in
+                </p>
+                <p className="mt-1 pr-6 text-sm font-semibold text-chalk">
+                  {transferGym.name} is on Klimb now
+                </p>
+                <p className="mt-0.5 text-sm text-muted">
+                  Move your {offGrid.length} off-grid climb
+                  {offGrid.length === 1 ? "" : "s"} in and{" "}
+                  {offGrid.length === 1 ? "it becomes a" : "they become"} normal
+                  logged climb{offGrid.length === 1 ? "" : "s"} — original dates
+                  and all.
+                </p>
+                <Button className="mt-3" onClick={() => setTransferOpen(true)}>
+                  <ArrowRightLeft size={16} className="mr-2" />
+                  Transfer {offGrid.length} climb
+                  {offGrid.length === 1 ? "" : "s"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           {/* ---- Hero week stats ---- */}
           <div className="flex flex-col gap-3 px-5 pt-3">
@@ -295,11 +383,37 @@ export function Sends() {
           </div>
 
           {view === "logged" ? (
-            cleanSends.length === 0 ? (
-              <Empty text="No sends at this gym yet. Tap Log to record your first Klimb here." />
-            ) : (
-              <div className="flex flex-col gap-5 px-5 pb-6">
-                {groups.map((g) => (
+            <div className="flex flex-col gap-5 px-5 pb-6">
+              {offGrid.length > 0 ? (
+                <OffGridSection
+                  logs={offGrid}
+                  system={system}
+                  action={
+                    transferGym ? (
+                      <button
+                        onClick={() => setTransferOpen(true)}
+                        className="flex items-center gap-1 text-xs font-bold text-accent"
+                      >
+                        <ArrowRightLeft size={13} /> Transfer to my gym
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => navigate("/gyms")}
+                        className="text-xs font-semibold text-faint transition hover:text-accent"
+                      >
+                        Add your gym
+                      </button>
+                    )
+                  }
+                />
+              ) : null}
+
+              {gymSends.length === 0 ? (
+                offGrid.length === 0 ? (
+                  <Empty text="No sends at this gym yet. Tap Log to record your first Klimb here." />
+                ) : null
+              ) : (
+                groups.map((g) => (
                   <section key={g.label}>
                     <h2 className="mb-2 ml-1 text-sm font-semibold uppercase tracking-wide text-faint">
                       {g.label}
@@ -333,9 +447,9 @@ export function Sends() {
                       ))}
                     </ul>
                   </section>
-                ))}
-              </div>
-            )
+                ))
+              )}
+            </div>
           ) : scopedProjects.length === 0 ? (
             <Empty text="Nothing on the project board here. Log a Klimb as 'Project' to add one." />
           ) : (
@@ -360,6 +474,16 @@ export function Sends() {
 
       {story ? (
         <WeeklyRecap recap={story} system={system} onClose={() => setStory(null)} />
+      ) : null}
+
+      {transferGym ? (
+        <TransferOffGridSheet
+          open={transferOpen}
+          gym={transferGym}
+          logs={offGrid}
+          onClose={() => setTransferOpen(false)}
+          onDone={() => setReloadKey((k) => k + 1)}
+        />
       ) : null}
     </div>
   );

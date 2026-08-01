@@ -60,7 +60,10 @@ function RequireOnboarded({ children }: { children: ReactNode }) {
 function RequireGym({ children }: { children: ReactNode }) {
   const { profile, loading } = useAuth();
   if (loading) return <Splash />;
-  if (profile && !profile.home_gym_id)
+  // A gym-less user is normally bounced to the picker — unless they chose
+  // off-grid mode, in which case they log to a personal logbook with no home
+  // gym until their gym is added and they transfer their climbs over.
+  if (profile && !profile.home_gym_id && !profile.offgrid_gym_label)
     return <Navigate to="/gym/select" replace />;
   return <>{children}</>;
 }

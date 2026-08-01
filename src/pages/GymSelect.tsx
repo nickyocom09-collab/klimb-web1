@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, MapPin, Plus, Search, X } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  MapPinOff,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { Button, CenterSpinner, Input, Spinner } from "../components/ui";
@@ -36,6 +45,7 @@ export function GymSelect() {
   const [sgCity, setSgCity] = useState("");
   const [sgSaving, setSgSaving] = useState(false);
   const [sgDone, setSgDone] = useState(false);
+  const [offgridSaving, setOffgridSaving] = useState(false);
 
   // Drilling into a country or state should start you at the top, not wherever
   // you'd scrolled the previous list to.
@@ -227,6 +237,27 @@ export function GymSelect() {
     setSuggestOpen(true);
   }
 
+  // Off-grid escape hatch: start logging with no home gym. We stamp the gym the
+  // climber is waiting on (or a generic placeholder) onto the profile so the
+  // app lets them in and can later offer to move their climbs over.
+  async function startOffGrid(label: string | null) {
+    if (!profile) return;
+    setOffgridSaving(true);
+    const finalLabel = label?.trim() || "your gym";
+    const { error } = await supabase
+      .from("profiles")
+      .update({ offgrid_gym_label: finalLabel })
+      .eq("id", profile.id);
+    setOffgridSaving(false);
+    if (error) {
+      window.alert(`Couldn't start off-grid logging: ${error.message}`);
+      return;
+    }
+    await refreshProfile();
+    setSuggestOpen(false);
+    navigate("/", { replace: true });
+  }
+
   // Show the "Don't see your gym?" prompt once you're deep enough to be looking
   // at an actual gym list (a state, or a country with no state breakdown).
   const showSuggestPrompt =
@@ -355,12 +386,22 @@ export function GymSelect() {
         )}
 
         {showSuggestPrompt ? (
-          <button
-            onClick={openSuggest}
-            className="mb-6 mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface/40 p-4 text-sm font-semibold text-muted transition hover:border-accent hover:text-accent"
-          >
-            <Plus size={16} /> Don't see your gym? Add it
-          </button>
+          <div className="mb-6 mt-2 flex flex-col items-center gap-2">
+            <button
+              onClick={openSuggest}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface/40 p-4 text-sm font-semibold text-muted transition hover:border-accent hover:text-accent"
+            >
+              <Plus size={16} /> Don't see your gym? Add it
+            </button>
+            {/* Lighter path for climbers who'd rather just start logging. */}
+            <button
+              onClick={() => startOffGrid(null)}
+              disabled={offgridSaving}
+              className="flex items-center gap-1.5 py-1 text-xs font-semibold text-faint transition hover:text-accent disabled:opacity-60"
+            >
+              <MapPinOff size={13} /> Just let me log for now
+            </button>
+          </div>
         ) : null}
 
         <p className="pb-5 text-center text-[11px] text-faint">
@@ -410,6 +451,27 @@ export function GymSelect() {
                 <Button className="w-full" onClick={() => setSuggestOpen(false)}>
                   Done
                 </Button>
+
+                {/* Escape hatch: don't wait — start a personal logbook now. */}
+                <div className="rounded-2xl border border-border bg-surface-2/60 p-4">
+                  <p className="text-sm text-muted">
+                    Want to start logging now?{" "}
+                    <span className="font-semibold text-chalk">
+                      {sgName.trim()}
+                    </span>{" "}
+                    isn't on Klimb yet — but you can log climbs to a personal
+                    logbook and move them over the moment it's added.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    className="mt-3 w-full"
+                    loading={offgridSaving}
+                    onClick={() => startOffGrid(sgName)}
+                  >
+                    <MapPinOff size={16} className="mr-2" />
+                    Start logging without a gym
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-3">

@@ -79,6 +79,7 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     seen_intro: true,
     notifications_seen_at: new Date().toISOString(),
     notifications_cleared_at: null,
+    offgrid_gym_label: null,
     created_at: new Date().toISOString(),
   };
   const value: AuthState = {

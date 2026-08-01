@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { MapPinOff } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useLogClimb } from "../lib/useLogClimb";
 import { AppHeader } from "../components/Layout";
@@ -24,7 +25,7 @@ export function LogClimb() {
   const navigate = useNavigate();
   const s = useLogClimb();
 
-  if (!s.gymId) {
+  if (!s.gymId && !s.offGrid) {
     return (
       <div>
         <AppHeader title="Log a Klimb" subtitle="Your gym" />
@@ -46,9 +47,26 @@ export function LogClimb() {
     <div className={`relative flex flex-col ${style === "steps" ? "h-full" : "min-h-full"}`}>
       <AppHeader
         title="Log a Klimb"
-        subtitle={s.gymName ?? undefined}
+        subtitle={
+          s.offGrid ? "Off-grid — personal logbook" : s.gymName ?? undefined
+        }
         reserveSubtitle
       />
+      {s.offGrid ? (
+        <div className="px-5 pt-3">
+          <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-surface p-3.5 text-sm text-muted animate-fade-in">
+            <MapPinOff size={17} className="mt-0.5 shrink-0 text-accent" />
+            <p>
+              Logging off-grid — these save to your personal logbook and can be
+              moved to{" "}
+              <span className="font-semibold text-chalk">
+                {s.offgridLabel || "your gym"}
+              </span>{" "}
+              later.
+            </p>
+          </div>
+        </div>
+      ) : null}
       {style === "steps" ? <LogStepFlow s={s} /> : <LogScrollForm s={s} />}
       <PhotoSourceSheet
         open={s.photoSourceOpen}

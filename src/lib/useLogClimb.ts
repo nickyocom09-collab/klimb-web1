@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { pickPhotoNative, type PhotoSource } from "./photo";
 import type { ClimbType } from "./constants";
 import { assertNearGym } from "./location";
+import { PLACEHOLDER_PHOTO } from "./personalLogs";
 import {
   gymGradeOptions,
   pickerOptions,
@@ -52,6 +53,10 @@ export function useLogClimb() {
   const routeNamesEnabled = profile?.route_names_enabled ?? false;
   // Log at the gym you're actually at — a "visiting" gym wins over home.
   const gymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
+  // Off-grid: a user who chose to log without a gym (no home gym, but a gym
+  // label they're waiting on) saves to their private personal logbook instead.
+  const offgridLabel = profile?.offgrid_gym_label ?? null;
+  const offGrid = !gymId && !!offgridLabel;
 
   const [gymName, setGymName] = useState<string | null>(null);
   const [gymCoords, setGymCoords] = useState<{
@@ -144,30 +149,31 @@ export function useLogClimb() {
     // Validate quietly and inline — no popups mid-form. Photo is optional.
     if (!holdColor) return setError("Pick the hold color.");
     if (!outcome) return setError("How'd it go? Flash, Sent, or Project.");
-    if (!gymId || !profile) return setError("Pick a home gym first.");
+    if (!profile) return setError("You need to be signed in to log.");
+    if (!gymId && !offGrid) return setError("Pick a home gym first.");
     setError(null);
     setBusy(true);
     let uploadedPhotoPath: string | null = null;
     try {
-      // Anti-cheat: you must actually be at the gym to log a climb there.
-      const near = await assertNearGym({
-        name: gymName,
-        latitude: gymCoords?.latitude ?? null,
-        longitude: gymCoords?.longitude ?? null,
-      });
-      if (!near.ok) {
-        setBusy(false);
-        return setError(
-          near.error ?? "Get within range of your gym to log a Klimb.",
-        );
+      // Anti-cheat: you must actually be at the gym to log a climb there. Off-
+      // grid climbs have no gym location, so there's nothing to be near — skip
+      // the proximity check entirely for them.
+      if (!offGrid) {
+        const near = await assertNearGym({
+          name: gymName,
+          latitude: gymCoords?.latitude ?? null,
+          longitude: gymCoords?.longitude ?? null,
+        });
+        if (!near.ok) {
+          setBusy(false);
+          return setError(
+            near.error ?? "Get within range of your gym to log a Klimb.",
+          );
+        }
       }
       // 1) The route itself — yours, on your gym. Photo optional; without one
       // we store a quiet dark placeholder.
-      let photoUrl =
-        "data:image/svg+xml;utf8," +
-        encodeURIComponent(
-          "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='#1b1e1c'/><path d='M110 205 L175 125 L215 172 L250 140 L300 205 Z' fill='#2a2f2c'/><circle cx='250' cy='95' r='16' fill='#2a2f2c'/></svg>",
-        );
+      let photoUrl = PLACEHOLDER_PHOTO;
       if (photo) {
         const ext = photo.name.split(".").pop() || "jpg";
         const path = `${profile.id}/${Date.now()}-photo.${ext}`;
@@ -181,23 +187,44 @@ export function useLogClimb() {
           .getPublicUrl(path).data.publicUrl;
       }
 
-      // Save every database row as one transaction. A failure in the grade,
-      // rating, send, bookmark, or project note rolls the new route back too.
-      const { error: logError } = await supabase.rpc("log_climb", {
-        p_gym_id: gymId,
-        p_photo_url: photoUrl,
-        p_hold_color: holdColor,
-        p_climbing_type: climbingType,
-        p_gym_grade: gymGrade,
-        p_felt_grade: feltGrade,
-        p_stars: stars,
-        p_outcome: outcome,
-        p_note: note,
-        p_name: routeName.trim() || null,
-      });
-      if (logError) throw logError;
+      if (offGrid) {
+        // Off-grid: save to the private personal logbook. No gym, no proximity,
+        // no community exposure — just the climb, kept for the user until their
+        // gym is added and they transfer it over. Columns mirror log_climb so
+        // the later transfer is a clean 1:1 mapping.
+        const { error: plError } = await supabase.from("personal_logs").insert({
+          user_id: profile.id,
+          gym_label: offgridLabel,
+          climbing_type: climbingType,
+          hold_color: holdColor,
+          route_name: routeName.trim() || null,
+          gym_grade: gymGrade,
+          felt_grade: feltGrade,
+          outcome,
+          stars,
+          note: note.trim() || null,
+          photo_url: photoUrl,
+        });
+        if (plError) throw plError;
+      } else {
+        // Save every database row as one transaction. A failure in the grade,
+        // rating, send, bookmark, or project note rolls the new route back too.
+        const { error: logError } = await supabase.rpc("log_climb", {
+          p_gym_id: gymId!,
+          p_photo_url: photoUrl,
+          p_hold_color: holdColor,
+          p_climbing_type: climbingType,
+          p_gym_grade: gymGrade,
+          p_felt_grade: feltGrade,
+          p_stars: stars,
+          p_outcome: outcome,
+          p_note: note,
+          p_name: routeName.trim() || null,
+        });
+        if (logError) throw logError;
+      }
 
-      // The reward moment lives HERE, on the initial log.
+      // The reward moment lives HERE, on the initial log — identical off-grid.
       setBusy(false);
       setReward(outcome);
       // Projects and sends both drop you back Home after the reward — a project
@@ -228,6 +255,8 @@ export function useLogClimb() {
     navigate,
     gymId,
     gymName,
+    offGrid,
+    offgridLabel,
     system,
     routeNamesEnabled,
     photoRef,

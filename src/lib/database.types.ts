@@ -68,6 +68,9 @@ export interface Database {
           seen_intro: boolean;
           notifications_seen_at: string;
           notifications_cleared_at: string | null;
+          /** Non-null => the user chose off-grid mode; value is the gym name
+           *  they're waiting on. Lets a gym-less user into the app. */
+          offgrid_gym_label: string | null;
           created_at: string;
         };
         Insert: {
@@ -89,6 +92,7 @@ export interface Database {
           seen_intro?: boolean;
           notifications_seen_at?: string;
           notifications_cleared_at?: string | null;
+          offgrid_gym_label?: string | null;
           created_at?: string;
         };
         Update: {
@@ -109,6 +113,7 @@ export interface Database {
           seen_intro?: boolean;
           notifications_seen_at?: string;
           notifications_cleared_at?: string | null;
+          offgrid_gym_label?: string | null;
         };
         Relationships: [];
       };
@@ -506,6 +511,54 @@ export interface Database {
         };
         Relationships: [];
       };
+      personal_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          /** Free-text gym name the climber typed (what they're waiting on). */
+          gym_label: string | null;
+          /** Set if they suggested the gym and it's pending approval. */
+          pending_gym_id: string | null;
+          climbing_type: ClimbingTypeEnum;
+          hold_color: string;
+          route_name: string | null;
+          gym_grade: number | null;
+          felt_grade: number | null;
+          outcome: "flash" | "send" | "project";
+          stars: number | null;
+          note: string | null;
+          photo_url: string | null;
+          created_at: string;
+          /** Set once the climb is moved into a real gym. */
+          transferred_at: string | null;
+          transferred_route_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          gym_label?: string | null;
+          pending_gym_id?: string | null;
+          climbing_type: ClimbingTypeEnum;
+          hold_color: string;
+          route_name?: string | null;
+          gym_grade?: number | null;
+          felt_grade?: number | null;
+          outcome: "flash" | "send" | "project";
+          stars?: number | null;
+          note?: string | null;
+          photo_url?: string | null;
+          created_at?: string;
+          transferred_at?: string | null;
+          transferred_route_id?: string | null;
+        };
+        Update: {
+          gym_label?: string | null;
+          pending_gym_id?: string | null;
+          transferred_at?: string | null;
+          transferred_route_id?: string | null;
+        };
+        Relationships: [];
+      };
       recaps: {
         Row: {
           id: string;
@@ -612,6 +665,10 @@ export interface Database {
         Args: { p_route_id: string; p_grade: number };
         Returns: undefined;
       };
+      transfer_personal_log: {
+        Args: { p_personal_log_id: string; p_gym_id: string };
+        Returns: string;
+      };
       delete_account: {
         Args: Record<string, never>;
         Returns: undefined;
@@ -638,3 +695,5 @@ export type BlockRow = Database["public"]["Tables"]["blocks"]["Row"];
 export type ContentReportRow =
   Database["public"]["Tables"]["content_reports"]["Row"];
 export type RouteEventRow = Database["public"]["Tables"]["route_events"]["Row"];
+export type PersonalLogRow =
+  Database["public"]["Tables"]["personal_logs"]["Row"];

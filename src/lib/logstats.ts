@@ -4,7 +4,8 @@
 import { supabase } from "./supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "./routes";
 import { formatGradeStyled, isRope, type GradeSystem } from "./grades";
-import type { SendType } from "./database.types";
+import { fetchOffGridLogs } from "./personalLogs";
+import type { PersonalLogRow, SendType } from "./database.types";
 
 export type LoggedItem = {
   route: RouteWithStats;
@@ -36,8 +37,10 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 export async function fetchLogbook(profileId: string): Promise<{
   logged: LoggedItem[];
   projects: ProjectItem[];
+  /** Raw off-grid climbs still waiting to be transferred into a real gym. */
+  offGrid: PersonalLogRow[];
 }> {
-  const [{ data: sends }, { data: bms }, { data: myGradeRows }] =
+  const [{ data: sends }, { data: bms }, { data: myGradeRows }, offGrid] =
     await Promise.all([
       supabase
         .from("sends")
@@ -54,6 +57,7 @@ export async function fetchLogbook(profileId: string): Promise<{
         .from("grades")
         .select("route_id, grade")
         .eq("user_id", profileId),
+      fetchOffGridLogs(profileId),
     ]);
 
   const sendRows = sends ?? [];
@@ -127,7 +131,7 @@ export async function fetchLogbook(profileId: string): Promise<{
     userGrade: myGrades.get(b.route_id) ?? null,
   }));
 
-  return { logged, projects };
+  return { logged, projects, offGrid };
 }
 
 export type LogStats = {

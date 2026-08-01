@@ -4,10 +4,12 @@ import { Check, ChevronLeft, Flag, MapPin, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchLogbook, DAY_MS, type LoggedItem } from "../lib/logstats";
+import type { PersonalLogRow } from "../lib/database.types";
 import { holdHex } from "../lib/constants";
 import { routeLabel } from "../lib/routeLabel";
 import { CenterSpinner } from "../components/ui";
 import { RouteGradeStack } from "../components/RouteGradeStack";
+import { OffGridSection } from "../components/OffGridSection";
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -35,6 +37,7 @@ export function FullLogbook() {
   const navigate = useNavigate();
   const system = profile?.grade_system ?? "american";
   const [logged, setLogged] = useState<LoggedItem[]>([]);
+  const [offGrid, setOffGrid] = useState<PersonalLogRow[]>([]);
   const [gymNames, setGymNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
 
@@ -51,6 +54,7 @@ export function FullLogbook() {
       if (!active) return;
       setGymNames(new Map((gyms ?? []).map((g) => [g.id, g.name])));
       setLogged(book.logged.filter((l) => l.sendType !== "attempt"));
+      setOffGrid(book.offGrid);
       setLoading(false);
     })();
     return () => {
@@ -87,8 +91,12 @@ export function FullLogbook() {
         <div>
           <h1 className="text-xl font-extrabold text-chalk">Full logbook</h1>
           <p className="text-xs text-muted">
-            {logged.length} climb{logged.length === 1 ? "" : "s"} ·{" "}
-            {gymCount} gym{gymCount === 1 ? "" : "s"}
+            {logged.length + offGrid.length} climb
+            {logged.length + offGrid.length === 1 ? "" : "s"} · {gymCount} gym
+            {gymCount === 1 ? "" : "s"}
+            {offGrid.length > 0
+              ? ` · ${offGrid.length} off-grid`
+              : ""}
           </p>
         </div>
       </header>
@@ -96,12 +104,26 @@ export function FullLogbook() {
       <div className="flex-1 overflow-y-auto px-5 pb-8">
         {loading ? (
           <CenterSpinner />
-        ) : logged.length === 0 ? (
+        ) : logged.length === 0 && offGrid.length === 0 ? (
           <p className="px-8 py-16 text-center text-faint">
             Nothing logged yet. Every climb you log — anywhere — shows up here.
           </p>
         ) : (
           <div className="flex flex-col gap-5">
+            {offGrid.length > 0 ? (
+              <OffGridSection
+                logs={offGrid}
+                system={system}
+                action={
+                  <button
+                    onClick={() => navigate("/")}
+                    className="flex items-center gap-1 text-xs font-bold text-accent"
+                  >
+                    Transfer to my gym
+                  </button>
+                }
+              />
+            ) : null}
             {groups.map((g) => (
               <section key={g.label}>
                 <h2 className="mb-2 ml-1 text-sm font-semibold uppercase tracking-wide text-faint">

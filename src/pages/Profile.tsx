@@ -42,24 +42,36 @@ export function Profile() {
           .maybeSingle();
         if (active) setGymName(data?.name ?? null);
       }
+      // Off-grid climbs count toward the user's own totals too — pull the
+      // waiting ones and fold them into each headline number.
+      const { data: offGrid } = await supabase
+        .from("personal_logs")
+        .select("outcome")
+        .eq("user_id", profile.id)
+        .is("transferred_at", null);
+      const og = offGrid ?? [];
+      const ogSends = og.filter((o) => o.outcome !== "project").length;
+      const ogFlashes = og.filter((o) => o.outcome === "flash").length;
+      const ogProjects = og.filter((o) => o.outcome === "project").length;
+
       const sends = await supabase
         .from("sends")
         .select("id", { count: "exact", head: true })
         .eq("user_id", profile.id)
         .neq("send_type", "attempt");
-      if (active) setSendCount(sends.count ?? 0);
+      if (active) setSendCount((sends.count ?? 0) + ogSends);
       const flashes = await supabase
         .from("sends")
         .select("id", { count: "exact", head: true })
         .eq("user_id", profile.id)
         .eq("send_type", "flash");
-      if (active) setFlashCount(flashes.count ?? 0);
+      if (active) setFlashCount((flashes.count ?? 0) + ogFlashes);
       const projects = await supabase
         .from("bookmarks")
         .select("id", { count: "exact", head: true })
         .eq("user_id", profile.id)
         .eq("kind", "project");
-      if (active) setProjectCount(projects.count ?? 0);
+      if (active) setProjectCount((projects.count ?? 0) + ogProjects);
     })();
     return () => {
       active = false;
