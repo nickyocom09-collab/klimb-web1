@@ -23,23 +23,26 @@ export function OffGridSection({
   logs,
   system,
   action,
+  description,
 }: {
   logs: PersonalLogRow[];
   system: GradeSystem;
   /** Optional trailing control, e.g. a "Transfer to my gym" button. */
   action?: React.ReactNode;
+  description?: React.ReactNode;
 }) {
   if (logs.length === 0) return null;
   return (
     <section>
       <div className="mb-1.5 ml-1 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
-          <MapPinOff size={14} className="text-accent" /> Off-grid
+          <MapPinOff size={14} className="text-accent" /> Guest logbook
         </h2>
         {action}
       </div>
       <p className="mb-3 ml-1 text-xs text-muted">
-        Not tied to a gym yet. Transfer them when your gym is added.
+        {description ??
+          "Private and not tied to a gym yet. Transfer these climbs when your gym is added."}
       </p>
       <ul className="flex flex-col gap-2">
         {logs.map((pl) => {
@@ -62,7 +65,7 @@ export function OffGridSection({
                   />
                   <span className="truncate">{routeLabel(route)}</span>
                   <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent">
-                    Off-grid
+                    Guest
                   </span>
                 </p>
                 <div className="mt-1 flex min-w-0 items-center gap-2">

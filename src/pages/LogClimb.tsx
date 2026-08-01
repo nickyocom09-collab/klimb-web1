@@ -48,7 +48,7 @@ export function LogClimb() {
       <AppHeader
         title="Log a Klimb"
         subtitle={
-          s.offGrid ? "Off-grid — personal logbook" : s.gymName ?? undefined
+          s.offGrid ? "Guest logbook — private" : s.gymName ?? undefined
         }
         reserveSubtitle
       />
@@ -57,7 +57,7 @@ export function LogClimb() {
           <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-surface p-3.5 text-sm text-muted animate-fade-in">
             <MapPinOff size={17} className="mt-0.5 shrink-0 text-accent" />
             <p>
-              Logging off-grid — these save to your personal logbook and can be
+              Logging as a guest — these save to your private logbook and can be
               moved to{" "}
               <span className="font-semibold text-chalk">
                 {s.offgridLabel || "your gym"}

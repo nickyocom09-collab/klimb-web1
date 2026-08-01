@@ -19,7 +19,7 @@ const SLIDES: Slide[] = [
   {
     Icon: null, // slide 0 uses the K mark
     title: "Welcome to Klimb",
-    body: "Your logs. Your stats. All in one place.",
+    body: "Share sends. Share stats. Share stoke.",
   },
   {
     Icon: Trophy,

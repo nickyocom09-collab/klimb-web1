@@ -94,6 +94,7 @@ export function Sends() {
   // on the Profile tab. Switching gyms "resets" this view to that gym.
   const activeGymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
   const isVisiting = !!profile?.visiting_gym_id;
+  const isGuestLogbook = !activeGymId && !!profile?.offgrid_gym_label;
   const scopedLogged = useMemo(
     () =>
       activeGymId
@@ -227,10 +228,16 @@ export function Sends() {
     <div>
       <AppHeader
         title={
-          view === "logged" ? "Sends" : "Projects"
+          isGuestLogbook
+            ? "Guest logbook"
+            : view === "logged"
+              ? "Sends"
+              : "Projects"
         }
         subtitle={
-          gymName
+          isGuestLogbook
+            ? `Private logs for ${profile?.offgrid_gym_label || "your gym"}`
+            : gymName
             ? `Klimbing out of ${gymName}${isVisiting ? " (visiting)" : ""}`
             : "Your Klimbing history"
         }
@@ -261,11 +268,14 @@ export function Sends() {
             <TrendingUp size={36} className="text-accent" />
           </span>
           <h2 className="text-xl font-extrabold text-chalk">
-            Your logbook starts here
+            {isGuestLogbook
+              ? "Your guest logbook starts here"
+              : "Your logbook starts here"}
           </h2>
           <p className="max-w-xs text-sm text-muted">
-            Log your first Klimb and this page fills with your history, grade
-            pyramid, streaks, and a weekly recap every Sunday.
+            {isGuestLogbook
+              ? `Log privately while ${profile?.offgrid_gym_label || "your gym"} is waiting for approval. When it goes live, a Transfer button appears here and moves everything over with the original dates. Guest logs do not unlock Passport or appear on the map before transfer.`
+              : "Log your first Klimb and this page fills with your history, grade pyramid, streaks, and a weekly recap every Sunday."}
           </p>
           <Button onClick={() => navigate("/log")}>
             <Plus size={18} className="mr-2" /> Log my first Klimb
@@ -318,7 +328,7 @@ export function Sends() {
                   {transferGym.name} is on Klimb now
                 </p>
                 <p className="mt-0.5 text-sm text-muted">
-                  Move your {offGrid.length} off-grid climb
+                  Move your {offGrid.length} guest climb
                   {offGrid.length === 1 ? "" : "s"} in and{" "}
                   {offGrid.length === 1 ? "it becomes a" : "they become"} normal
                   logged climb{offGrid.length === 1 ? "" : "s"} — original dates
@@ -399,14 +409,23 @@ export function Sends() {
                       >
                         <ArrowRightLeft size={13} /> Transfer to my gym
                       </button>
-                    ) : (
+                    ) : profile?.offgrid_gym_label === "your gym" ? (
                       <button
                         onClick={() => navigate("/gyms")}
                         className="text-xs font-semibold text-faint transition hover:text-accent"
                       >
                         Add your gym
                       </button>
+                    ) : (
+                      <span className="text-xs font-semibold text-faint">
+                        Waiting for approval
+                      </span>
                     )
+                  }
+                  description={
+                    transferGym
+                      ? `${transferGym.name} is ready. Transfer once and every guest climb keeps its original date, photo, grade, result, rating, and notes.`
+                      : `${profile?.offgrid_gym_label || "Your gym"} is still waiting to be approved. When it goes live, a Transfer button appears here. Until then, these climbs stay private and do not unlock Passport or appear on the map.`
                   }
                 />
               ) : null}

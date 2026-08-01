@@ -121,7 +121,7 @@ export function TransferOffGridSheet({
               <span className="font-semibold text-chalk">{gym.name}</span> is on
               Klimb now. You have{" "}
               <span className="font-semibold text-chalk">{n}</span> climb
-              {n === 1 ? "" : "s"} logged off-grid. Move{" "}
+              {n === 1 ? "" : "s"} in your guest logbook. Move{" "}
               {n === 1 ? "it" : "them"} in? Your original dates stay intact.
             </p>
             <div className="flex gap-2">
