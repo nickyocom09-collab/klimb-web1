@@ -95,7 +95,7 @@ export function FullLogbook() {
             {logged.length + offGrid.length === 1 ? "" : "s"} · {gymCount} gym
             {gymCount === 1 ? "" : "s"}
             {offGrid.length > 0
-              ? ` · ${offGrid.length} off-grid`
+              ? ` · ${offGrid.length} guest`
               : ""}
           </p>
         </div>

@@ -237,16 +237,20 @@ export function GymSelect() {
     setSuggestOpen(true);
   }
 
-  // Off-grid escape hatch: start logging with no home gym. We stamp the gym the
-  // climber is waiting on (or a generic placeholder) onto the profile so the
-  // app lets them in and can later offer to move their climbs over.
-  async function startOffGrid(label: string | null) {
-    if (!profile) return;
+  // Guest escape hatch: start logging with no home gym. We stamp the submitted
+  // gym name onto the profile so the app can match and transfer the climbs once
+  // that pending gym is approved.
+  async function startGuestLogbook(label: string) {
+    const finalLabel = label.trim();
+    if (!profile || !finalLabel) return;
     setOffgridSaving(true);
-    const finalLabel = label?.trim() || "your gym";
     const { error } = await supabase
       .from("profiles")
-      .update({ offgrid_gym_label: finalLabel })
+      .update({
+        offgrid_gym_label: finalLabel,
+        home_gym_id: null,
+        visiting_gym_id: null,
+      })
       .eq("id", profile.id);
     setOffgridSaving(false);
     if (error) {
@@ -317,7 +321,16 @@ export function GymSelect() {
           <CenterSpinner />
         ) : q ? (
           searchResults.length === 0 ? (
-            <p className="mt-8 text-center text-faint">No gyms found.</p>
+            <div className="mt-8 flex flex-col items-center gap-3 text-center">
+              <p className="text-faint">No gyms found.</p>
+              <button
+                type="button"
+                onClick={openSuggest}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface/40 p-4 text-sm font-semibold text-muted transition hover:border-accent hover:text-accent"
+              >
+                <MapPinOff size={16} /> Add it and use Guest logbook
+              </button>
+            </div>
           ) : (
             <ul className="flex flex-col gap-2 pb-4">
               {searchResults.map(renderGym)}
@@ -393,13 +406,13 @@ export function GymSelect() {
             >
               <Plus size={16} /> Don't see your gym? Add it
             </button>
-            {/* Lighter path for climbers who'd rather just start logging. */}
+            {/* Guest logging still starts with a named suggestion so those
+                climbs can be matched and transferred after approval. */}
             <button
-              onClick={() => startOffGrid(null)}
-              disabled={offgridSaving}
-              className="flex items-center gap-1.5 py-1 text-xs font-semibold text-faint transition hover:text-accent disabled:opacity-60"
+              onClick={openSuggest}
+              className="flex items-center gap-1.5 py-1 text-xs font-semibold text-faint transition hover:text-accent"
             >
-              <MapPinOff size={13} /> Just let me log for now
+              <MapPinOff size={13} /> Use Guest logbook
             </button>
           </div>
         ) : null}
@@ -452,24 +465,24 @@ export function GymSelect() {
                   Done
                 </Button>
 
-                {/* Escape hatch: don't wait — start a personal logbook now. */}
+                {/* Escape hatch: don't wait — start a guest logbook now. */}
                 <div className="rounded-2xl border border-border bg-surface-2/60 p-4">
                   <p className="text-sm text-muted">
                     Want to start logging now?{" "}
                     <span className="font-semibold text-chalk">
                       {sgName.trim()}
                     </span>{" "}
-                    isn't on Klimb yet — but you can log climbs to a personal
+                    isn't on Klimb yet — but you can log climbs to a guest
                     logbook and move them over the moment it's added.
                   </p>
                   <Button
                     variant="secondary"
                     className="mt-3 w-full"
                     loading={offgridSaving}
-                    onClick={() => startOffGrid(sgName)}
+                    onClick={() => startGuestLogbook(sgName)}
                   >
                     <MapPinOff size={16} className="mr-2" />
-                    Start logging without a gym
+                    Start Guest logbook
                   </Button>
                 </div>
               </div>

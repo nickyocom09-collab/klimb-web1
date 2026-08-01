@@ -460,7 +460,16 @@ export function Onboarding() {
               <CenterSpinner />
             ) : q ? (
               searchResults.length === 0 ? (
-                <p className="mt-8 text-center text-faint">No gyms found.</p>
+                <div className="mt-8 flex flex-col items-center gap-3 text-center">
+                  <p className="text-faint">No gyms found.</p>
+                  <button
+                    type="button"
+                    onClick={openGymSuggestion}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface/40 p-4 text-sm font-semibold text-muted transition active:scale-[0.99]"
+                  >
+                    <MapPinOff size={16} /> Add it and use Guest logbook
+                  </button>
+                </div>
               ) : (
                 <ul className="flex flex-col gap-2">
                   {searchResults.map(renderGym)}
@@ -543,6 +552,13 @@ export function Onboarding() {
                 <Plus size={16} /> Don't see your gym? Add it
               </button>
             ) : null}
+            <button
+              type="button"
+              onClick={openGymSuggestion}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-faint transition hover:text-accent active:scale-[0.99]"
+            >
+              <MapPinOff size={16} /> Use Guest logbook
+            </button>
             <Button
               className="w-full"
               disabled={!gymId}
@@ -652,16 +668,16 @@ export function Onboarding() {
                 </Button>
                 <div className="rounded-2xl border border-border bg-surface-2/60 p-4">
                   <p className="text-sm text-muted">
-                    You don't have to wait. Start a private logbook for{" "}
+                    You don't have to wait. Start a private Guest logbook for{" "}
                     <span className="font-semibold text-chalk">
                       {suggestName.trim()}
                     </span>{" "}
                     now, then transfer every climb when the gym is approved.
-                    Off-grid climbs never unlock Passport or appear on the map.
+                    Guest climbs never unlock Passport or appear on the map.
                   </p>
                   <Button className="mt-3 w-full" onClick={continueOffGrid}>
                     <MapPinOff size={16} className="mr-2" />
-                    Start my private logbook
+                    Start Guest logbook
                   </Button>
                 </div>
               </div>

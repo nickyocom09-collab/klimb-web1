@@ -100,7 +100,7 @@ export function TransferOffGridSheet({
               ) : (
                 <>
                   Moved {result.moved} of {n}. {result.failed} couldn't be moved
-                  — they're still safe in your off-grid logbook, so you can try
+                  — they're still safe in your Guest logbook, so you can try
                   those again in a moment.
                 </>
               )}
