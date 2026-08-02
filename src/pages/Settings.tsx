@@ -15,7 +15,6 @@ import {
   Mountain,
   Palette,
   Route,
-  Settings2,
   Shield,
   Sparkles,
   Trash2,
@@ -72,12 +71,12 @@ function Segmented<T extends string>({
             aria-pressed={active}
             className={`relative min-w-0 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
               active
-                ? "border-control/50 bg-control/15 text-chalk shadow-[0_6px_18px_-12px_rgb(var(--c-control)/0.9)]"
+                ? "border-accent/50 bg-accent/10 text-accent shadow-[0_6px_18px_-12px_rgb(var(--c-accent)/0.75)]"
                 : "border-transparent text-muted hover:bg-surface-2/70 hover:text-chalk"
             }`}
           >
             {active ? (
-              <span className="absolute inset-x-3 bottom-0 h-px rounded-full bg-control/80" />
+              <span className="absolute inset-x-3 bottom-0 h-px rounded-full bg-accent/80" />
             ) : null}
             {o.label}
           </button>
@@ -102,7 +101,7 @@ function Section({
     <section className="flex flex-col gap-3.5">
       <div className="flex items-center gap-3 px-1">
         {icon ? (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-control/20 bg-control/10 text-control">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
             {icon}
           </span>
         ) : null}
@@ -162,13 +161,13 @@ function NotificationToggle({
       role="switch"
       aria-checked={enabled}
       onClick={() => onChange(!enabled)}
-      className="group flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors active:bg-control/[0.06]"
+      className="group flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors active:bg-accent/[0.06]"
     >
       <span className="flex min-w-0 items-center gap-3">
         <span
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${
             enabled
-              ? "border-control/25 bg-control/10 text-control"
+              ? "border-accent/25 bg-accent/10 text-accent"
               : "border-border bg-bg/35 text-faint"
           }`}
         >
@@ -372,23 +371,6 @@ export function Settings() {
     <div className="settings-page min-h-full">
       <AppHeader title="Settings" />
       <div className="flex flex-col gap-7 px-4 pb-12 pt-4">
-        <div className="relative overflow-hidden rounded-[28px] border border-control/20 bg-surface px-5 py-5 shadow-card">
-          <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-control/10 blur-2xl" />
-          <div className="relative flex items-start gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-control/25 bg-control/10 text-control">
-              <Settings2 size={21} strokeWidth={1.8} />
-            </span>
-            <div>
-              <p className="text-base font-bold tracking-[-0.015em] text-chalk">
-                Make Klimb yours.
-              </p>
-              <p className="mt-1 max-w-[300px] text-sm leading-relaxed text-muted">
-                Tune how you log, what you share, and when Klimb checks in.
-              </p>
-            </div>
-          </div>
-        </div>
-
         <Section
           title="Climbing preferences"
           description="The defaults Klimb uses throughout your logbook."
@@ -397,7 +379,7 @@ export function Settings() {
           <Card className="overflow-hidden border border-border/80 p-0">
             <div className="border-b border-border/80 p-4">
               <div className="mb-3 flex items-center gap-2.5">
-                <MoonStar size={17} className="text-control" />
+                <MoonStar size={17} className="text-accent" />
                 <div>
                   <p className="text-sm font-semibold text-chalk">Appearance</p>
                   <p className="text-xs text-faint">Choose your app theme.</p>
@@ -412,7 +394,7 @@ export function Settings() {
 
             <div className="border-b border-border/80 p-4">
               <div className="mb-3 flex items-center gap-2.5">
-                <Gauge size={17} className="text-control" />
+                <Gauge size={17} className="text-accent" />
                 <div>
                   <p className="text-sm font-semibold text-chalk">
                     Grade system
@@ -431,7 +413,7 @@ export function Settings() {
 
             <div className="border-b border-border/80 p-4">
               <div className="mb-3 flex items-center gap-2.5">
-                <Route size={17} className="text-control" />
+                <Route size={17} className="text-accent" />
                 <div>
                   <p className="text-sm font-semibold text-chalk">Log style</p>
                   <p className="text-xs text-faint">
@@ -451,10 +433,10 @@ export function Settings() {
               role="switch"
               aria-checked={routeNamesEnabled}
               onClick={() => void setRouteNamesEnabled(!routeNamesEnabled)}
-              className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors active:bg-control/[0.06]"
+              className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors active:bg-accent/[0.06]"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-control/20 bg-control/10 text-control">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
                   <Sparkles size={17} />
                 </span>
                 <span className="min-w-0">
@@ -480,12 +462,12 @@ export function Settings() {
           <Card className="overflow-hidden border border-border/80 p-0">
             <div className="relative flex items-center gap-3 border-b border-border/80 px-4 py-4">
               {push.active ? (
-                <span className="absolute inset-y-0 left-0 w-[2px] bg-control" />
+                <span className="absolute inset-y-0 left-0 w-[2px] bg-accent" />
               ) : null}
               <span
                 className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${
                   push.active
-                    ? "border-control/25 bg-control/10 text-control"
+                    ? "border-accent/25 bg-accent/10 text-accent"
                     : "border-border bg-bg/40 text-faint"
                 }`}
               >
@@ -508,7 +490,7 @@ export function Settings() {
                 className={`h-10 shrink-0 rounded-xl border px-4 text-sm font-bold transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${
                   push.active
                     ? "border-border bg-bg/45 text-muted"
-                    : "border-control/50 bg-control text-bg shadow-[0_8px_20px_-12px_rgb(var(--c-control)/0.9)]"
+                    : "border-accent/50 bg-accent text-bg shadow-[0_8px_20px_-12px_rgb(var(--c-accent)/0.8)]"
                 }`}
                 disabled={!push.available}
                 onClick={() => void togglePushMaster()}
@@ -595,7 +577,7 @@ export function Settings() {
             className="flex w-full items-center justify-between rounded-2xl border border-border/80 bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
           >
             <span className="flex items-center gap-3 text-sm font-semibold text-chalk">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-control/10 text-control">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent">
                 <BookOpen size={17} />
               </span>
               Climber's dictionary
@@ -724,7 +706,7 @@ export function Settings() {
                       setEmailMsg(null);
                       setNewEmail("");
                     }}
-                    className="shrink-0 text-sm font-semibold text-control"
+                    className="shrink-0 text-sm font-semibold text-accent"
                   >
                     {emailOpen ? "Cancel" : "Change"}
                   </button>
@@ -751,15 +733,15 @@ export function Settings() {
                 </div>
               ) : null}
               {emailMsg ? (
-                <p className="ml-1 mt-2 text-xs text-control">{emailMsg}</p>
+                <p className="ml-1 mt-2 text-xs text-accent">{emailMsg}</p>
               ) : null}
             </div>
             <button
               onClick={() => navigate("/gym/select")}
-              className="flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors active:bg-control/[0.06]"
+              className="flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors active:bg-accent/[0.06]"
             >
               <span className="flex items-center gap-3 text-sm font-semibold text-chalk">
-                <Home size={17} className="text-control" /> Switch home gym
+                <Home size={17} className="text-accent" /> Switch home gym
               </span>
               <ChevronRight size={16} className="text-faint" />
             </button>
@@ -778,7 +760,7 @@ export function Settings() {
             </p>
             <a
               href="mailto:realklimb@gmail.com?subject=Klimb%20feedback"
-              className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-control/40 bg-control py-3 text-sm font-bold text-bg shadow-[0_8px_24px_-14px_rgb(var(--c-control)/0.9)] transition active:scale-[0.99]"
+              className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-accent/40 bg-accent py-3 text-sm font-bold text-bg shadow-[0_8px_24px_-14px_rgb(var(--c-accent)/0.8)] transition active:scale-[0.99]"
             >
               <Mail size={16} /> realklimb@gmail.com
             </a>
@@ -788,7 +770,7 @@ export function Settings() {
               rel="noreferrer"
               className="mt-2 flex items-center justify-center gap-2 rounded-2xl border border-border bg-surface-2 py-3 text-sm font-bold text-chalk transition active:scale-[0.99]"
             >
-              <AtSign size={16} className="text-control" /> @theklimbapp
+              <AtSign size={16} className="text-accent" /> @theklimbapp
             </a>
             <p className="mt-2 text-center text-xs text-faint">
               DM me on Instagram — I'll respond!
@@ -799,7 +781,7 @@ export function Settings() {
             className="flex w-full items-center justify-between rounded-2xl border border-border/80 bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
           >
             <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
-              <Shield size={18} className="text-control" /> Privacy policy
+              <Shield size={18} className="text-accent" /> Privacy policy
             </span>
             <ChevronRight size={18} className="text-faint" />
           </button>

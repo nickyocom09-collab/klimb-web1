@@ -17,9 +17,9 @@
     --c-faint: 107 107 115;
     --c-accent: 57 255 136;
     --c-accent-dim: 31 184 98;
-    /* Settings use a calmer brushed-steel blue instead of the app's neon
-       success green. It reads as premium and remains distinct in dark mode. */
-    --c-control: 157 187 210;
+    /* A calmer jade reserved for enabled switches. The rest of Settings keeps
+       Klimb's standard accent green. */
+    --c-control: 55 205 120;
     --c-wide: 255 159 69;
   }
 
@@ -34,7 +34,7 @@
     --c-faint: 138 138 147;
     --c-accent: 13 153 79;
     --c-accent-dim: 9 120 61;
-    --c-control: 43 91 124;
+    --c-control: 19 143 76;
     --c-wide: 200 70 10;
   }
 

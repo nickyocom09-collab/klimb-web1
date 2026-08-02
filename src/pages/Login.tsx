@@ -27,7 +27,7 @@ export function Login() {
           Klimb
         </h1>
         <p className="mt-2 text-muted">
-          Your sends, your stats, all in one place.
+          Share sends. Share stats. Share stoke.
         </p>
       </div>
 
