@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Ban, Bookmark, Check, ChevronLeft, ChevronRight, Clock, Lock, Stamp, UserPlus, Zap } from "lucide-react";
+import { Ban, Bookmark, Check, ChevronLeft, ChevronRight, Clock, Flag, Lock, Stamp, UserPlus, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
@@ -12,7 +12,11 @@ import {
   removeFriend,
   type FriendStatus,
 } from "../lib/friends";
-import { blockUser, unblockUser } from "../lib/moderation";
+import { blockUser, reportContent, unblockUser } from "../lib/moderation";
+import {
+  CONTENT_REPORT_REASONS,
+  type ContentReason,
+} from "../lib/constants";
 import { Avatar } from "../components/Avatar";
 import { RouteCard } from "../components/RouteCard";
 import { Button, CenterSpinner, ConfirmDialog } from "../components/ui";
@@ -48,6 +52,12 @@ export function PublicProfile() {
   const [blockOpen, setBlockOpen] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
   const [unfriendOpen, setUnfriendOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] =
+    useState<ContentReason>("inappropriate");
+  const [reportNote, setReportNote] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
 
   const isMe = !!me && me.id === id;
 
@@ -181,6 +191,26 @@ export function PublicProfile() {
     await unblockUser(me.id, id);
     setBlockBusy(false);
     setBlocked(false);
+  }
+
+  async function submitReport() {
+    if (!me || !id) return;
+    setReportBusy(true);
+    setReportMessage("");
+    const { error } = await reportContent(
+      "user",
+      id,
+      reportReason,
+      reportNote.trim() || undefined,
+    );
+    setReportBusy(false);
+    if (error) {
+      setReportMessage(error);
+      return;
+    }
+    setReportOpen(false);
+    setReportNote("");
+    setReportMessage("Report sent. Thanks for helping keep Klimb safe.");
   }
 
   if (loading) {
@@ -351,17 +381,100 @@ export function PublicProfile() {
               )}
             </div>
 
-            {!isMe && me ? (
-              <button
-                onClick={() => setBlockOpen(true)}
-                className="mx-auto mt-10 flex items-center justify-center gap-2 py-2 text-sm font-semibold text-faint transition hover:text-wide"
-              >
-                <Ban size={15} /> Block {person.display_name}
-              </button>
-            ) : null}
           </>
         )}
+
+        {!isMe && me ? (
+          <div className="mt-10 flex items-center justify-center gap-5">
+            <button
+              onClick={() => {
+                setReportMessage("");
+                setReportOpen(true);
+              }}
+              className="flex items-center justify-center gap-2 py-2 text-sm font-semibold text-faint transition hover:text-wide"
+            >
+              <Flag size={15} /> Report climber
+            </button>
+            {!blocked ? (
+              <button
+                onClick={() => setBlockOpen(true)}
+                className="flex items-center justify-center gap-2 py-2 text-sm font-semibold text-faint transition hover:text-wide"
+              >
+                <Ban size={15} /> Block
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {reportMessage ? (
+          <p className="mt-3 text-center text-xs text-muted" role="status">
+            {reportMessage}
+          </p>
+        ) : null}
       </div>
+
+      {reportOpen ? (
+        <div
+          className="fixed inset-0 z-40 mx-auto flex max-w-app animate-fade-in items-end bg-black/70 p-4"
+          onClick={() => setReportOpen(false)}
+        >
+          <div
+            className="w-full animate-fade-up rounded-3xl border border-border bg-surface p-5 shadow-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-chalk">Report climber</h3>
+            <p className="mt-1 text-sm text-muted">
+              Tell us what is wrong. Your report is private.
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              {CONTENT_REPORT_REASONS.map((reason) => (
+                <label
+                  key={reason.value}
+                  className="flex min-h-11 items-center gap-3 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-sm text-chalk"
+                >
+                  <input
+                    type="radio"
+                    name="report-reason"
+                    value={reason.value}
+                    checked={reportReason === reason.value}
+                    onChange={() => setReportReason(reason.value)}
+                    className="accent-accent"
+                  />
+                  {reason.label}
+                </label>
+              ))}
+            </div>
+            <textarea
+              value={reportNote}
+              onChange={(event) => setReportNote(event.target.value)}
+              maxLength={500}
+              placeholder="Add details (optional)"
+              className="mt-3 min-h-20 w-full rounded-2xl border border-border bg-surface-2 px-4 py-3 text-sm text-chalk placeholder:text-faint outline-none focus:border-accent"
+            />
+            {reportMessage ? (
+              <p className="mt-2 text-sm text-wide" role="alert">
+                {reportMessage}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-col gap-2">
+              <Button
+                variant="danger"
+                className="w-full"
+                loading={reportBusy}
+                onClick={submitReport}
+              >
+                Send report
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => setReportOpen(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={blockOpen}

@@ -30,7 +30,7 @@ import {
 import { AppHeader } from "../components/Layout";
 import { Button, Card, ConfirmDialog, Input, Textarea } from "../components/ui";
 import type { Database } from "../lib/database.types";
-import { profileNameError } from "../lib/nameModeration";
+import { containsProfanity, profileNameError } from "../lib/nameModeration";
 import {
   usePushNotifications,
   type NotificationPreferenceKey,
@@ -267,6 +267,10 @@ export function Settings() {
     const moderationError = profileNameError(trimmedName, normUname);
     if (moderationError) {
       setUMsg(moderationError);
+      return;
+    }
+    if (containsProfanity(trimmedBio)) {
+      setUMsg("Please edit your bio to remove profanity.");
       return;
     }
     // Username is the only field with rules — validate before touching anything.
