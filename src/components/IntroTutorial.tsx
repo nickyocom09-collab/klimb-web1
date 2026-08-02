@@ -119,21 +119,10 @@ export function IntroTutorial({ onDone }: { onDone?: () => void }) {
         key={slide}
         className="relative flex flex-1 animate-fade-up flex-col items-center justify-center gap-5 px-10 text-center"
       >
-        <span className="flex h-24 w-24 animate-pop items-center justify-center rounded-3xl bg-accent/10">
-          {Icon ? (
+        {Icon ? (
+          <span className="flex h-24 w-24 animate-pop items-center justify-center rounded-3xl bg-accent/10">
             <Icon size={44} className="text-accent" strokeWidth={1.8} />
-          ) : (
-            <img
-              src="/klimb-k.svg"
-              alt="Klimb"
-              className="h-12 w-12 object-contain"
-            />
-          )}
-        </span>
-        {slide === 0 ? (
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-accent">
-            Klimb
-          </p>
+          </span>
         ) : null}
         <h1 className="text-3xl font-extrabold leading-tight text-chalk">
           {title}
