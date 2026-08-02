@@ -15,6 +15,7 @@ export default {
         faint: "rgb(var(--c-faint) / <alpha-value>)",
         accent: "rgb(var(--c-accent) / <alpha-value>)",
         "accent-dim": "rgb(var(--c-accent-dim) / <alpha-value>)",
+        control: "rgb(var(--c-control) / <alpha-value>)",
         tight: "rgb(var(--c-accent) / <alpha-value>)",
         wide: "rgb(var(--c-wide) / <alpha-value>)",
       },
