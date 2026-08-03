@@ -246,6 +246,59 @@
   transform: translate(-50%, -50%) scale(1.4);
   background: rgba(180, 192, 186, 0.9);
 }
+/* "You are here" — a quiet accent dot with a soft, slow halo. Non-interactive
+   so it never gets in the way of tapping gym pins. */
+.klimb-me {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.klimb-me__halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  background: rgb(var(--c-accent) / 0.18);
+  transform: translate(-50%, -50%);
+  animation: klimb-me-pulse 2.6s ease-out infinite;
+}
+.klimb-me__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: rgb(var(--c-accent));
+  border: 2.5px solid rgba(11, 15, 13, 0.9);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 1px 5px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+}
+@keyframes klimb-me-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.55;
+  }
+  70% {
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .klimb-me__halo {
+    animation: none;
+    opacity: 0.3;
+  }
+}
 .klimb-osm-tip {
   background: rgba(12, 17, 14, 0.92) !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;

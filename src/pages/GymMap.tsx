@@ -311,6 +311,31 @@ function OsmGymLayer({ dbGyms }: { dbGyms: GymWithCount[] }) {
   return null;
 }
 
+/**
+ * A subtle "you are here" dot at the device location. Non-interactive and low-key
+ * by design — it marks where you are without competing with the gym pins.
+ */
+function MeMarker({ pos }: { pos: { lat: number; lng: number } | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!pos) return;
+    const marker = L.marker([pos.lat, pos.lng], {
+      icon: L.divIcon({
+        className: "klimb-me-wrap",
+        html: `<div class="klimb-me"><div class="klimb-me__halo"></div><div class="klimb-me__dot"></div></div>`,
+        iconSize: [0, 0],
+      }),
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: 400,
+    }).addTo(map);
+    return () => {
+      marker.remove();
+    };
+  }, [map, pos]);
+  return null;
+}
+
 export function GymMap() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
@@ -681,6 +706,7 @@ export function GymMap() {
             updateWhenZooming={false}
           />
           <OsmGymLayer dbGyms={gyms} />
+          <MeMarker pos={myLoc} />
           <GymLayer
             gyms={gyms}
             homeId={profile?.home_gym_id}
