@@ -2,6 +2,8 @@ import { Buffer } from "node:buffer";
 import {
   Environment,
   SignedDataVerifier,
+  VerificationException,
+  VerificationStatus,
   type JWSRenewalInfoDecodedPayload,
   type JWSTransactionDecodedPayload,
   type ResponseBodyV2DecodedPayload,
@@ -23,14 +25,75 @@ function rootCertificates(): Buffer[] {
   return APPLE_ROOT_CERTIFICATES_BASE64.map(decodeCertificate);
 }
 
-function verifier(environment: Environment) {
+function verifier(environment: Environment, enableOnlineChecks = true) {
   return new SignedDataVerifier(
     rootCertificates(),
-    true,
+    enableOnlineChecks,
     environment,
     bundleId,
     environment === Environment.PRODUCTION ? appAppleId : undefined,
   );
+}
+
+function isRetryableOnlineCheckFailure(error: unknown) {
+  return error instanceof VerificationException &&
+    error.status === VerificationStatus.RETRYABLE_VERIFICATION_FAILURE;
+}
+
+async function verifyTransactionInEnvironment(
+  environment: Environment,
+  signedTransaction: string,
+) {
+  try {
+    return await verifier(environment).verifyAndDecodeTransaction(
+      signedTransaction,
+    );
+  } catch (error) {
+    if (!isRetryableOnlineCheckFailure(error)) throw error;
+    // Apple's verifier classifies an unavailable OCSP responder as retryable.
+    // In that narrow case, verify again at the JWS signed date. This still
+    // enforces Apple's certificate chain, signature, bundle id, environment,
+    // product id, and account token; it only avoids making a temporary Apple
+    // revocation-service outage block a completed purchase.
+    console.warn("Apple OCSP check unavailable; using signed-date verification", {
+      environment,
+    });
+    return await verifier(environment, false).verifyAndDecodeTransaction(
+      signedTransaction,
+    );
+  }
+}
+
+async function verifyNotificationInEnvironment(
+  environment: Environment,
+  signedPayload: string,
+) {
+  try {
+    return await verifier(environment).verifyAndDecodeNotification(signedPayload);
+  } catch (error) {
+    if (!isRetryableOnlineCheckFailure(error)) throw error;
+    console.warn("Apple OCSP check unavailable for notification", { environment });
+    return await verifier(environment, false).verifyAndDecodeNotification(
+      signedPayload,
+    );
+  }
+}
+
+async function verifyRenewalInEnvironment(
+  environment: Environment,
+  signedRenewalInfo: string,
+) {
+  try {
+    return await verifier(environment).verifyAndDecodeRenewalInfo(
+      signedRenewalInfo,
+    );
+  } catch (error) {
+    if (!isRetryableOnlineCheckFailure(error)) throw error;
+    console.warn("Apple OCSP check unavailable for renewal", { environment });
+    return await verifier(environment, false).verifyAndDecodeRenewalInfo(
+      signedRenewalInfo,
+    );
+  }
 }
 
 export async function verifyTransaction(
@@ -38,7 +101,8 @@ export async function verifyTransaction(
 ): Promise<JWSTransactionDecodedPayload> {
   let sandboxError: unknown;
   try {
-    return await verifier(Environment.SANDBOX).verifyAndDecodeTransaction(
+    return await verifyTransactionInEnvironment(
+      Environment.SANDBOX,
       signedTransaction,
     );
   } catch (error) {
@@ -46,7 +110,8 @@ export async function verifyTransaction(
   }
 
   try {
-    return await verifier(Environment.PRODUCTION).verifyAndDecodeTransaction(
+    return await verifyTransactionInEnvironment(
+      Environment.PRODUCTION,
       signedTransaction,
     );
   } catch (productionError) {
@@ -63,7 +128,8 @@ export async function verifyNotification(
 ): Promise<ResponseBodyV2DecodedPayload> {
   let sandboxError: unknown;
   try {
-    return await verifier(Environment.SANDBOX).verifyAndDecodeNotification(
+    return await verifyNotificationInEnvironment(
+      Environment.SANDBOX,
       signedPayload,
     );
   } catch (error) {
@@ -71,7 +137,8 @@ export async function verifyNotification(
   }
 
   try {
-    return await verifier(Environment.PRODUCTION).verifyAndDecodeNotification(
+    return await verifyNotificationInEnvironment(
+      Environment.PRODUCTION,
       signedPayload,
     );
   } catch (productionError) {
@@ -88,7 +155,8 @@ export async function verifyRenewalInfo(
 ): Promise<JWSRenewalInfoDecodedPayload> {
   let sandboxError: unknown;
   try {
-    return await verifier(Environment.SANDBOX).verifyAndDecodeRenewalInfo(
+    return await verifyRenewalInEnvironment(
+      Environment.SANDBOX,
       signedRenewalInfo,
     );
   } catch (error) {
@@ -96,7 +164,8 @@ export async function verifyRenewalInfo(
   }
 
   try {
-    return await verifier(Environment.PRODUCTION).verifyAndDecodeRenewalInfo(
+    return await verifyRenewalInEnvironment(
+      Environment.PRODUCTION,
       signedRenewalInfo,
     );
   } catch (productionError) {

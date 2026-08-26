@@ -41,6 +41,7 @@ type PushState = {
     key: NotificationPreferenceKey,
     value: boolean,
   ) => Promise<{ error: string | null }>;
+  setAllPreferences: (value: boolean) => Promise<{ error: string | null }>;
 };
 
 const PushContext = createContext<PushState | undefined>(undefined);
@@ -301,6 +302,42 @@ export function PushNotificationProvider({
     [preferences, userId],
   );
 
+  const setAllPreferences = useCallback(
+    async (value: boolean): Promise<{ error: string | null }> => {
+      if (!userId || !preferences) {
+        return { error: "Enable notifications on this device first." };
+      }
+      const previous = preferences;
+      const next = {
+        ...preferences,
+        friend_requests: value,
+        friend_accepts: value,
+        weekly_recaps: value,
+        streak_risk: value,
+        inactivity: value,
+        updated_at: new Date().toISOString(),
+      };
+      setPreferences(next);
+      const { error: updateError } = await supabase
+        .from("notification_preferences")
+        .update({
+          friend_requests: value,
+          friend_accepts: value,
+          weekly_recaps: value,
+          streak_risk: value,
+          inactivity: value,
+          updated_at: next.updated_at,
+        })
+        .eq("user_id", userId);
+      if (updateError) {
+        setPreferences(previous);
+        return { error: updateError.message };
+      }
+      return { error: null };
+    },
+    [preferences, userId],
+  );
+
   const value = useMemo<PushState>(
     () => ({
       available: isNativeIos,
@@ -311,8 +348,9 @@ export function PushNotificationProvider({
       enable,
       disable,
       updatePreference,
+      setAllPreferences,
     }),
-    [active, disable, enable, error, permission, preferences, updatePreference],
+    [active, disable, enable, error, permission, preferences, setAllPreferences, updatePreference],
   );
 
   return <PushContext.Provider value={value}>{children}</PushContext.Provider>;

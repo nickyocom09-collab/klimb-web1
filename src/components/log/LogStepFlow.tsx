@@ -129,7 +129,7 @@ const STEPS: Step[] = [
     ) : (
       <button
         type="button"
-        onClick={() => s.navigate("/upgrade")}
+        onClick={() => s.navigate({ search: "?pro=video" })}
         className="flex w-full flex-col items-center rounded-3xl border border-accent/25 bg-accent/[0.06] px-6 py-8 text-center active:scale-[0.99]"
       >
         <Video size={32} className="text-accent" />

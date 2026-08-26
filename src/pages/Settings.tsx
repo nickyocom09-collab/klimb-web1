@@ -351,6 +351,14 @@ export function Settings() {
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
   const logStyle = (profile?.log_style ?? "steps") as LogStylePref;
   const routeNamesEnabled = profile?.route_names_enabled ?? false;
+  const anyNotificationEnabled = !!push.preferences && [
+    push.preferences.friend_requests,
+    push.preferences.friend_accepts,
+    push.preferences.weekly_recaps,
+    push.preferences.streak_risk,
+    push.preferences.inactivity,
+  ].some(Boolean);
+  const notificationsEnabled = push.active && anyNotificationEnabled;
 
   async function setRouteNamesEnabled(next: boolean) {
     if (routeNamesBusy || (hasProAccess && logbookPreferencesLoading)) return;
@@ -389,18 +397,22 @@ export function Settings() {
   }
 
   async function togglePushMaster() {
-    const wasActive = push.active;
+    const wasEnabled = notificationsEnabled;
     setPushBusy(true);
     setPushMessage(null);
-    const result = wasActive ? await push.disable() : await push.enable();
+    const result = wasEnabled
+      ? await push.disable()
+      : push.active
+        ? await push.setAllPreferences(true)
+        : await push.enable();
     setPushBusy(false);
     setPushMessage(
       result.error ??
-        (wasActive
+        (wasEnabled
           ? "Notifications are off on this device."
           : "Notifications are on. Every Klimb notification starts enabled."),
     );
-    if (wasActive) setNotificationDetailsOpen(false);
+    if (wasEnabled) setNotificationDetailsOpen(false);
   }
 
   async function setPushPreference(
@@ -631,24 +643,24 @@ export function Settings() {
         >
           <Card className="overflow-hidden border border-border/80 p-0">
             <div className="relative flex items-center gap-3 px-4 py-4">
-              {push.active ? (
+              {notificationsEnabled ? (
                 <span className="absolute inset-y-0 left-0 w-[2px] bg-accent" />
               ) : null}
               <span
                 className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${
-                  push.active
+                  notificationsEnabled
                     ? "border-accent/25 bg-accent/10 text-accent"
                     : "border-border bg-bg/40 text-faint"
                 }`}
               >
-                {push.active ? <Bell size={20} /> : <BellOff size={20} />}
+                {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="whitespace-nowrap text-sm font-semibold text-chalk">
-                  {push.active ? "Notifications are on" : "Notifications are off"}
+                  {notificationsEnabled ? "Notifications are on" : "Notifications are off"}
                 </p>
                 <p className="mt-0.5 text-xs leading-relaxed text-faint">
-                  {push.active
+                  {notificationsEnabled
                     ? "Recaps, streaks, and friend activity are enabled."
                     : "Recaps, streak reminders, and friend activity."}
                 </p>
@@ -656,13 +668,13 @@ export function Settings() {
               <button
                 type="button"
                 role="switch"
-                aria-checked={push.active}
+                aria-checked={notificationsEnabled}
                 aria-label="Notifications"
                 className="shrink-0 rounded-full p-1 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!push.available}
                 onClick={() => void togglePushMaster()}
               >
-                <ToggleSwitch enabled={push.active && !pushBusy} />
+                <ToggleSwitch enabled={notificationsEnabled && !pushBusy} />
               </button>
             </div>
 

@@ -14,8 +14,8 @@ APP_STORE_PROFILE = "Klimb App Store Links 2026-08-22"
 # Repo root (klimb-web) — four levels up from this Fastfile.
 REPO_ROOT = File.expand_path("../../../..", __FILE__)
 
-# App Store Connect occasionally returns a temporary 5xx response even when
-# the API key and request are valid. Retry only those server-side failures;
+# App Store Connect occasionally returns a temporary 5xx response or drops an
+# otherwise-valid upload connection. Retry only those transient failures;
 # credential, configuration, and validation errors still fail immediately.
 def with_app_store_retry(label, max_attempts: 4)
   attempt = 1
@@ -23,7 +23,7 @@ def with_app_store_retry(label, max_attempts: 4)
     yield
   rescue => error
     transient_server_error = error.message.match?(
-      /server error got 5\d\d|status(?: code)?[=: ]+5\d\d|service unavailable|temporarily unavailable/i
+      /server error got 5\d\d|status(?: code)?[=: ]+5\d\d|service unavailable|temporarily unavailable|network connection was lost|internet connection appears offline|NSURLErrorDomain.*-100[59]|timed out|could not connect to (?:the )?server|connection reset/i
     )
     raise unless transient_server_error && attempt < max_attempts
 

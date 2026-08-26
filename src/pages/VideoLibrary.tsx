@@ -40,6 +40,27 @@ function VideoPlayer({ src }: { src: string }) {
   );
 }
 
+function VideoThumbnail({ src, label }: { src: string; label: string }) {
+  return (
+    <video
+      src={src}
+      aria-label={`${label} video preview`}
+      muted
+      playsInline
+      preload="metadata"
+      onLoadedMetadata={(event) => {
+        const video = event.currentTarget;
+        if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+        // Seek away from the commonly-black opening frame while remaining
+        // inside very short clips. The video element then holds that still.
+        video.currentTime = Math.min(3, Math.max(0.1, video.duration - 0.1));
+      }}
+      onSeeked={(event) => event.currentTarget.pause()}
+      className="pointer-events-none h-full w-full bg-surface-2 object-cover"
+    />
+  );
+}
+
 export function VideoLibrary() {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -141,7 +162,7 @@ export function VideoLibrary() {
               {hasProAccess ? "Choose a video the next time you log. It will appear here automatically." : "Klimb Pro lets you attach a video while logging and keeps every clip organized here."}
             </p>
             {!hasProAccess ? (
-              <button type="button" onClick={() => navigate("/upgrade")} className="mt-5 rounded-full bg-accent px-5 py-3 text-sm font-extrabold text-bg">
+              <button type="button" onClick={() => navigate({ search: "?pro=video" })} className="mt-5 rounded-full bg-accent px-5 py-3 text-sm font-extrabold text-bg">
                 See Klimb Pro
               </button>
             ) : null}
@@ -153,7 +174,7 @@ export function VideoLibrary() {
           return (
             <article key={video.id} className="overflow-hidden rounded-3xl border border-border bg-surface shadow-card">
               <button type="button" onClick={() => setOpenVideo(video)} className="group relative block aspect-[4/5] w-full overflow-hidden bg-black text-left">
-                <video src={video.signedUrl} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" />
+                <VideoThumbnail src={video.signedUrl} label={label} />
                 <span className="absolute inset-0 grid place-items-center bg-black/10"><span className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-black/55 text-white backdrop-blur"><Play size={23} fill="currentColor" /></span></span>
               </button>
               <div className="flex items-start gap-3 p-4">
@@ -171,9 +192,11 @@ export function VideoLibrary() {
       </main>
 
       {openVideo ? (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-black pt-safe">
-          <div className="flex justify-end p-4"><button type="button" onClick={() => setOpenVideo(null)} aria-label="Done" className="grid h-11 w-11 place-items-center rounded-full bg-white text-black"><X size={21} /></button></div>
-          <div className="min-h-0 flex-1"><VideoPlayer src={openVideo.signedUrl} /></div>
+        <div className="fixed inset-0 z-[100] bg-black">
+          <div className="h-full w-full"><VideoPlayer src={openVideo.signedUrl} /></div>
+          <button type="button" onClick={() => setOpenVideo(null)} aria-label="Exit video" className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-11 items-center gap-1.5 rounded-full bg-black/65 px-4 font-extrabold text-white shadow-xl backdrop-blur-md">
+            <X size={18} /> Exit
+          </button>
         </div>
       ) : null}
     </div>

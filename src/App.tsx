@@ -20,6 +20,7 @@ import { Support } from "./pages/Support";
 import { ThirdPartyNotices } from "./pages/ThirdPartyNotices";
 import { ConnectionBanner } from "./components/ConnectionBanner";
 import { useEntitlements } from "./lib/entitlements";
+import { ProOfferSheet } from "./components/ProOfferSheet";
 
 // Keep signed-in routes out of the launch bundle. Auth and the welcome screen
 // stay immediate; feature code streams in only when that destination opens.
@@ -355,6 +356,7 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      <ProOfferSheet />
       {unlockCelebration ? (
         <Suspense fallback={null}>
           <ProUnlocked

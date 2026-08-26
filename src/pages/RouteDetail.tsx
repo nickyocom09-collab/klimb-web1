@@ -21,6 +21,7 @@ import { routeLabel } from "../lib/routeLabel";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
 import { ContentReportSheet } from "../components/ContentReportSheet";
+import { ZoomPhotoViewer } from "../components/ZoomPhotoViewer";
 import type { SendType } from "../lib/database.types";
 
 function formatDate(iso: string): string {
@@ -227,33 +228,21 @@ export function RouteDetail() {
       </div>
 
       {photoOpen && route.photo_url ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 px-4 pb-24 pt-4"
-          onClick={() => setPhotoOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Full route photo"
-        >
-          <img src={route.photo_url} alt={routeLabel(route)} className="max-h-full max-w-full rounded-xl object-contain shadow-2xl" />
-          <button
-            className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 min-w-28 -translate-x-1/2 rounded-full bg-white px-6 py-3 text-sm font-bold text-black shadow-2xl"
-            onClick={() => setPhotoOpen(false)}
-          >
-            Done
-          </button>
-        </div>
+        <ZoomPhotoViewer
+          src={route.photo_url}
+          alt={routeLabel(route)}
+          onClose={() => setPhotoOpen(false)}
+        />
       ) : null}
 
       {videoOpen && playableVideoUrl ? (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-black pt-safe" role="dialog" aria-modal="true" aria-label="Your Klimb video">
-          <div className="flex justify-end p-4">
-            <button type="button" onClick={() => setVideoOpen(false)} aria-label="Done" className="grid h-11 w-11 place-items-center rounded-full bg-white text-black">
-              <X size={21} />
-            </button>
-          </div>
-          <div className="min-h-0 flex-1">
+        <div className="fixed inset-0 z-[100] bg-black" role="dialog" aria-modal="true" aria-label="Your Klimb video">
+          <div className="h-full w-full">
             <video src={playableVideoUrl} controls autoPlay playsInline preload="metadata" controlsList="nodownload" disablePictureInPicture className="h-full w-full bg-black object-contain" onContextMenu={(event) => event.preventDefault()} />
           </div>
+          <button type="button" onClick={() => setVideoOpen(false)} aria-label="Exit video" className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] z-10 flex h-11 items-center gap-1.5 rounded-full bg-black/65 px-4 font-extrabold text-white shadow-xl backdrop-blur-md">
+            <X size={18} /> Exit
+          </button>
         </div>
       ) : null}
 
