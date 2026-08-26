@@ -19,6 +19,7 @@ import { Terms } from "./pages/Terms";
 import { Support } from "./pages/Support";
 import { ThirdPartyNotices } from "./pages/ThirdPartyNotices";
 import { ConnectionBanner } from "./components/ConnectionBanner";
+import { useEntitlements } from "./lib/entitlements";
 
 // Keep signed-in routes out of the launch bundle. Auth and the welcome screen
 // stay immediate; feature code streams in only when that destination opens.
@@ -86,6 +87,9 @@ const VideoLibrary = lazy(() =>
 const Upgrade = lazy(() =>
   import("./pages/Upgrade").then((m) => ({ default: m.Upgrade })),
 );
+const ProUnlocked = lazy(() =>
+  import("./components/ProUnlocked").then((m) => ({ default: m.ProUnlocked })),
+);
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
@@ -124,6 +128,7 @@ function PublicOnly({ children }: { children: ReactNode }) {
 export default function App() {
   const navigate = useNavigate();
   const { loading: authLoading, session } = useAuth();
+  const { unlockCelebration, dismissUnlockCelebration } = useEntitlements();
 
   // Hold the launch splash until auth has resolved, then crossfade it out once
   // — straight into the finished UI, with no intermediate splash step.
@@ -350,6 +355,17 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      {unlockCelebration ? (
+        <Suspense fallback={null}>
+          <ProUnlocked
+            celebration={unlockCelebration}
+            onStart={() => {
+              dismissUnlockCelebration();
+              navigate("/", { replace: true });
+            }}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }

@@ -6,6 +6,7 @@ import {
   type JWSTransactionDecodedPayload,
   type ResponseBodyV2DecodedPayload,
 } from "npm:@apple/app-store-server-library@2.0.0";
+import { APPLE_ROOT_CERTIFICATES_BASE64 } from "./apple-root-certificates.ts";
 
 const bundleId = Deno.env.get("APPLE_BUNDLE_ID") ?? "com.nickyocom.klimb";
 const appAppleId = Number(Deno.env.get("APPLE_APP_ID") ?? "6792880012");
@@ -19,17 +20,7 @@ function decodeCertificate(value: string): Buffer {
 }
 
 function rootCertificates(): Buffer[] {
-  const encoded = Deno.env.get("APPLE_ROOT_CA_CERTIFICATES_BASE64_JSON");
-  if (!encoded) {
-    throw new Error(
-      "APPLE_ROOT_CA_CERTIFICATES_BASE64_JSON is not configured.",
-    );
-  }
-  const certificates = JSON.parse(encoded) as string[];
-  if (!Array.isArray(certificates) || certificates.length === 0) {
-    throw new Error("At least one Apple root certificate is required.");
-  }
-  return certificates.map(decodeCertificate);
+  return APPLE_ROOT_CERTIFICATES_BASE64.map(decodeCertificate);
 }
 
 function verifier(environment: Environment) {

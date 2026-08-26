@@ -8,6 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
 import {
@@ -34,6 +37,8 @@ const PURCHASE_TIMEOUT_MS = 120_000;
 const VERIFICATION_TIMEOUT_MS = 30_000;
 const RESTORE_TIMEOUT_MS = 120_000;
 const ENTITLEMENT_SYNC_TIMEOUT_MS = 30_000;
+const VERIFICATION_RETRY_DELAYS_MS = [0, 1_200, 3_500] as const;
+const ENTITLEMENT_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 type PurchaseState =
   | "idle"
@@ -47,6 +52,11 @@ type PurchaseState =
   | "canceled"
   | "error";
 
+export type ProUnlockCelebration = {
+  productId: string;
+  isTrial: boolean;
+};
+
 type EntitlementContextValue = {
   entitlement: EntitlementRecord | null;
   hasProAccess: boolean;
@@ -58,12 +68,14 @@ type EntitlementContextValue = {
   monthlyProduct: StoreKitProduct | null;
   annualProduct: StoreKitProduct | null;
   purchaseState: PurchaseState;
+  unlockCelebration: ProUnlockCelebration | null;
   error: string | null;
   canUseFeature: (feature: EntitlementFeature) => boolean;
   refreshEntitlements: () => Promise<void>;
   purchaseProduct: (productId: string) => Promise<void>;
   restorePurchases: () => Promise<void>;
   manageSubscription: () => Promise<void>;
+  dismissUnlockCelebration: () => void;
   trackEvent: (
     eventName:
       | "pricing_screen_viewed"
@@ -102,13 +114,45 @@ function writeCache(record: EntitlementRecord) {
   }
 }
 
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function verificationErrorMessage(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    const response = error.context as Response | undefined;
+    if (response) {
+      try {
+        const payload = (await response.clone().json()) as { error?: unknown };
+        if (typeof payload.error === "string" && payload.error.trim()) {
+          return payload.error;
+        }
+      } catch {
+        // Fall through to a stable, user-facing message when the relay does
+        // not return JSON (for example during a temporary platform outage).
+      }
+      if (response.status === 401) {
+        return "Your Klimb sign-in expired. Sign in again, then use Restore Purchases.";
+      }
+    }
+    return "Apple confirmed the purchase, but Klimb could not activate Pro yet.";
+  }
+  return error instanceof Error
+    ? error.message
+    : "Apple confirmed the purchase, but Klimb could not activate Pro yet.";
+}
+
 export function EntitlementProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
   const [entitlement, setEntitlement] = useState<EntitlementRecord | null>(null);
   const [products, setProducts] = useState<StoreKitProduct[]>([]);
   const [purchaseState, setPurchaseState] = useState<PurchaseState>("idle");
+  const [unlockCelebration, setUnlockCelebration] =
+    useState<ProUnlockCelebration | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accessClock, setAccessClock] = useState(() => Date.now());
+  const entitlementRef = useRef<EntitlementRecord | null>(null);
   const verificationInFlight = useRef(
     new Map<string, Promise<EntitlementRecord>>(),
   );
@@ -116,6 +160,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   const acceptEntitlement = useCallback((incoming: EntitlementRecord) => {
     setEntitlement((current) => {
       if (!shouldReplaceCachedEntitlement({ current, incoming })) return current;
+      entitlementRef.current = incoming;
       writeCache(incoming);
       return incoming;
     });
@@ -123,6 +168,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
 
   const refreshEntitlements = useCallback(async () => {
     if (!userId) {
+      entitlementRef.current = null;
       setEntitlement(null);
       return;
     }
@@ -135,11 +181,17 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       // A temporary network failure must not remove a previously verified
       // entitlement. Keep the per-account cache until the server is reachable.
       const cached = readCache(userId);
-      if (cached) setEntitlement(cached);
+      if (cached) {
+        entitlementRef.current = cached;
+        setEntitlement(cached);
+      }
       return;
     }
     if (data) acceptEntitlement(data as EntitlementRecord);
-    else setEntitlement(null);
+    else {
+      entitlementRef.current = null;
+      setEntitlement(null);
+    }
   }, [acceptEntitlement, userId]);
 
   const verifyWithBackend = useCallback(
@@ -153,8 +205,16 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       if (existing) return existing;
       if (showProgress) setPurchaseState("verifying");
       const verification = (async () => {
+        if (!session?.access_token) {
+          throw new Error(
+            "Your Klimb sign-in expired. Sign in again, then use Restore Purchases.",
+          );
+        }
         const { data, error: verifyError } = await withTimeout(
           supabase.functions.invoke("verify-app-store-transaction", {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
             body: { signedTransaction: transaction.signedTransaction },
           }),
           VERIFICATION_TIMEOUT_MS,
@@ -188,7 +248,26 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         verificationInFlight.current.delete(transaction.transactionId);
       }
     },
-    [acceptEntitlement],
+    [acceptEntitlement, session?.access_token],
+  );
+
+  const verifyWithRetries = useCallback(
+    async (transaction: StoreKitTransaction, showProgress = true) => {
+      let lastError: unknown;
+      for (const [attempt, delay] of VERIFICATION_RETRY_DELAYS_MS.entries()) {
+        if (delay > 0) await wait(delay);
+        try {
+          return await verifyWithBackend(
+            transaction,
+            showProgress && attempt === 0,
+          );
+        } catch (verificationError) {
+          lastError = verificationError;
+        }
+      }
+      throw lastError;
+    },
+    [verifyWithBackend],
   );
 
   const trackEvent = useCallback<
@@ -203,12 +282,16 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!userId) {
+      entitlementRef.current = null;
       setEntitlement(null);
+      setUnlockCelebration(null);
       return;
     }
     const cached = readCache(userId);
     // Never carry one account's cached access across an account switch.
+    entitlementRef.current = cached;
     setEntitlement(cached);
+    setUnlockCelebration(null);
     void refreshEntitlements();
   }, [refreshEntitlements, userId]);
 
@@ -267,18 +350,25 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     let updateHandle: { remove: () => Promise<void> } | null = null;
     let failureHandle: { remove: () => Promise<void> } | null = null;
     void KlimbStoreKit.addListener("transactionUpdated", (transaction) => {
-      void verifyWithBackend(transaction)
-        .then(() => {
+      const previouslyHadPro = accessFromEntitlement(
+        entitlementRef.current,
+      ).hasProAccess;
+      void verifyWithRetries(transaction)
+        .then((verified) => {
           setPurchaseState("success");
+          if (!previouslyHadPro && accessFromEntitlement(verified).hasProAccess) {
+            setUnlockCelebration((current) =>
+              current ?? {
+                productId: verified.subscription_product_id ?? "",
+                isTrial: verified.entitlement_status === "trial",
+              },
+            );
+          }
           void refreshEntitlements();
         })
-        .catch((verificationError: unknown) => {
-          setError(
-            verificationError instanceof Error
-              ? verificationError.message
-              : "Apple verification failed.",
-          );
-          setPurchaseState("error");
+        .catch(async (verificationError: unknown) => {
+          setError(await verificationErrorMessage(verificationError));
+          setPurchaseState("sync_pending");
         });
     }).then((handle) => {
       updateHandle = handle;
@@ -296,7 +386,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       void updateHandle?.remove();
       void failureHandle?.remove();
     };
-  }, [refreshEntitlements, userId, verifyWithBackend]);
+  }, [refreshEntitlements, userId, verifyWithRetries]);
 
   useEffect(() => {
     if (!userId || !canUseStoreKit()) return;
@@ -324,7 +414,55 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       });
   }, [refreshEntitlements, userId, verifyWithBackend]);
 
-  const access = accessFromEntitlement(entitlement);
+  useEffect(() => {
+    if (!userId) return;
+    const refresh = () => {
+      setAccessClock(Date.now());
+      void refreshEntitlements();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = window.setInterval(
+      refresh,
+      ENTITLEMENT_REFRESH_INTERVAL_MS,
+    );
+    let appStateHandle: { remove: () => Promise<void> } | null = null;
+    if (Capacitor.isNativePlatform()) {
+      void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+        if (isActive) refresh();
+      }).then((handle) => {
+        appStateHandle = handle;
+      });
+    }
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.clearInterval(interval);
+      void appStateHandle?.remove();
+    };
+  }, [refreshEntitlements, userId]);
+
+  useEffect(() => {
+    const expiresAt = entitlement?.expiration_date
+      ? new Date(entitlement.expiration_date).getTime()
+      : null;
+    if (expiresAt === null) return;
+    const delay = Math.max(0, expiresAt - Date.now() + 250);
+    // Browsers clamp longer timeouts. The foreground/5-minute refresh above
+    // handles long subscriptions; this timer gives trials and near-term
+    // expirations an exact transition back to Free.
+    if (delay > 2_147_000_000) return;
+    const timer = window.setTimeout(() => setAccessClock(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [entitlement?.expiration_date]);
+
+  const access = useMemo(
+    () => accessFromEntitlement(entitlement, accessClock),
+    [accessClock, entitlement],
+  );
   const monthlyProduct =
     products.find(
       (candidate) => candidate.id === STOREKIT_CONFIG.monthlyProductId,
@@ -343,6 +481,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       monthlyProduct,
       annualProduct,
       purchaseState,
+      unlockCelebration,
       error,
       canUseFeature(feature) {
         if (
@@ -394,15 +533,19 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
             return;
           }
           applePurchaseCompleted = true;
-          const verified = await verifyWithBackend(result);
+          const verified = await verifyWithRetries(result);
           setPurchaseState("success");
-          await trackEvent(
+          setUnlockCelebration({
+            productId,
+            isTrial: verified.entitlement_status === "trial",
+          });
+          void trackEvent(
             verified.entitlement_status === "trial"
               ? "trial_started"
               : "subscription_purchased",
             { product_id: productId },
           );
-          await refreshEntitlements();
+          void refreshEntitlements();
         } catch (purchaseError) {
           if (
             applePurchaseCompleted ||
@@ -411,9 +554,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
                 purchaseError.message,
               ))
           ) {
-            setError(
-              "Apple completed the purchase. Klimb is still syncing your Pro access—reopen the app or tap Restore Purchases if it does not unlock shortly.",
-            );
+            setError(await verificationErrorMessage(purchaseError));
             setPurchaseState("sync_pending");
             return;
           }
@@ -445,7 +586,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
             "Apple did not finish restoring in time. Please try Restore Purchases again.",
           );
           for (const transaction of transactions) {
-            await verifyWithBackend(transaction);
+            await verifyWithRetries(transaction);
           }
           await refreshEntitlements();
           setPurchaseState("success");
@@ -453,11 +594,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
             transaction_count: transactions.length,
           });
         } catch (restoreError) {
-          setError(
-            restoreError instanceof Error
-              ? restoreError.message
-              : "Purchases could not be restored.",
-          );
+          setError(await verificationErrorMessage(restoreError));
           setPurchaseState("error");
         }
       },
@@ -472,6 +609,11 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         }
         await KlimbStoreKit.manageSubscriptions();
       },
+      dismissUnlockCelebration() {
+        setUnlockCelebration(null);
+        setPurchaseState("idle");
+        setError(null);
+      },
       trackEvent,
     }),
     [
@@ -484,8 +626,9 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       purchaseState,
       refreshEntitlements,
       trackEvent,
+      unlockCelebration,
       userId,
-      verifyWithBackend,
+      verifyWithRetries,
     ],
   );
 

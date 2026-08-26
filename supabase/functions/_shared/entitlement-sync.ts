@@ -1,6 +1,10 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { JWSTransactionDecodedPayload } from "npm:@apple/app-store-server-library@2.0.0";
 import { millisecondsToIso } from "./apple-verifier.ts";
+import {
+  appleAccountTokensMatch,
+  normalizeAppleAccountToken,
+} from "./apple-account-token.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -69,11 +73,14 @@ export async function syncVerifiedTransaction({
   if (!configuredProductIds.has(transaction.productId)) {
     throw new Error("This transaction is for an unknown Klimb product.");
   }
-  if (expectedUserId && transaction.appAccountToken !== expectedUserId) {
+  const userId = normalizeAppleAccountToken(transaction.appAccountToken);
+  if (
+    expectedUserId &&
+    !appleAccountTokensMatch(transaction.appAccountToken, expectedUserId)
+  ) {
     throw new Error("This purchase belongs to a different Klimb account.");
   }
 
-  const userId = transaction.appAccountToken;
   const environment = transaction.environment ?? "Sandbox";
   const entitlementStatus = statusFor(transaction);
   const expiresAt = millisecondsToIso(transaction.expiresDate);

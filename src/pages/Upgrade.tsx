@@ -109,8 +109,16 @@ export function Upgrade() {
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
 
   useEffect(() => {
+    if (hasProAccess) {
+      navigate("/", { replace: true });
+      return;
+    }
     void trackEvent("pricing_screen_viewed");
-  }, [trackEvent]);
+  }, [hasProAccess, navigate, trackEvent]);
+
+  if (hasProAccess) {
+    return <div className="min-h-full bg-bg" />;
+  }
 
   const selectedProduct =
     billing === "annual" ? annualProduct : monthlyProduct;

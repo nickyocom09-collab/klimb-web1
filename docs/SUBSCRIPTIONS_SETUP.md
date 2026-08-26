@@ -89,10 +89,10 @@ Both notification fields were configured with this URL on August 21, 2026.
 Create an App Store Connect In-App Purchase key for the secure administrator
 recheck endpoint. Download it once and store it only as a Supabase secret.
 
-Download the three current Apple root certificates from Apple PKI. Base64-encode
-the raw DER bytes of each `.cer` file and provide those strings as a JSON array.
-Do not encode a filename, placeholder, or JSON string a second time. These are
-public trust anchors; private App Store Connect keys must still never enter Git.
+Klimb bundles Apple&apos;s three public root certificates from Apple PKI with the
+transaction verifier. They are public trust anchors, not credentials, so
+purchase activation does not depend on a manually copied certificate secret.
+Private App Store Connect keys must still never enter Git.
 
 ```bash
 supabase secrets set \
@@ -102,8 +102,7 @@ supabase secrets set \
   APPLE_ANNUAL_PRODUCT_ID=com.nickyocom.klimb.pro.annual \
   APPLE_IAP_KEY_ID=YOUR_IN_APP_PURCHASE_KEY_ID \
   APPLE_IAP_ISSUER_ID=YOUR_ISSUER_ID \
-  APPLE_IAP_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----' \
-  APPLE_ROOT_CA_CERTIFICATES_BASE64_JSON='["APPLE_INC_ROOT_DER_BASE64","APPLE_G2_ROOT_DER_BASE64","APPLE_G3_ROOT_DER_BASE64"]'
+  APPLE_IAP_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
 ```
 
 Supabase supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and
