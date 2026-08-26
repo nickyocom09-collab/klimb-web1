@@ -1,7 +1,11 @@
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { useAuth } from "./lib/auth";
-import { setupDeepLinks } from "./lib/deeplink";
+import {
+  friendRequestPath,
+  PENDING_PROFILE_KEY,
+  setupDeepLinks,
+} from "./lib/deeplink";
 import { dismissBootSplash } from "./lib/bootSplash";
 import { Splash } from "./components/Splash";
 import { Layout } from "./components/Layout";
@@ -10,26 +14,59 @@ import { Signup } from "./pages/Signup";
 import { GuestHome } from "./pages/GuestHome";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
-import { GymSelect } from "./pages/GymSelect";
-import { LogClimb } from "./pages/LogClimb";
-import { RouteDetail } from "./pages/RouteDetail";
-import { PublicProfile } from "./pages/PublicProfile";
-import { Notifications } from "./pages/Notifications";
-import { Onboarding } from "./pages/Onboarding";
-import { Sends } from "./pages/Sends";
-import { Profile } from "./pages/Profile";
-import { Settings } from "./pages/Settings";
-import { Gyms } from "./pages/Gyms";
-import { Glossary } from "./pages/Glossary";
-import { Stats } from "./pages/Stats";
-import { ProjectDetail } from "./pages/ProjectDetail";
-import { FullLogbook } from "./pages/FullLogbook";
-import { Passport } from "./pages/Passport";
 import { Privacy } from "./pages/Privacy";
+import { Terms } from "./pages/Terms";
 import { Support } from "./pages/Support";
+import { ThirdPartyNotices } from "./pages/ThirdPartyNotices";
+import { ConnectionBanner } from "./components/ConnectionBanner";
 
-// The 3D globe pulls in three.js — keep it out of the main bundle so the
-// feed loads fast; the globe chunk streams in when the Map tab is opened.
+// Keep signed-in routes out of the launch bundle. Auth and the welcome screen
+// stay immediate; feature code streams in only when that destination opens.
+const GymSelect = lazy(() =>
+  import("./pages/GymSelect").then((m) => ({ default: m.GymSelect })),
+);
+const LogClimb = lazy(() =>
+  import("./pages/LogClimb").then((m) => ({ default: m.LogClimb })),
+);
+const RouteDetail = lazy(() =>
+  import("./pages/RouteDetail").then((m) => ({ default: m.RouteDetail })),
+);
+const PublicProfile = lazy(() =>
+  import("./pages/PublicProfile").then((m) => ({ default: m.PublicProfile })),
+);
+const Notifications = lazy(() =>
+  import("./pages/Notifications").then((m) => ({ default: m.Notifications })),
+);
+const Onboarding = lazy(() =>
+  import("./pages/Onboarding").then((m) => ({ default: m.Onboarding })),
+);
+const Sends = lazy(() =>
+  import("./pages/Sends").then((m) => ({ default: m.Sends })),
+);
+const Profile = lazy(() =>
+  import("./pages/Profile").then((m) => ({ default: m.Profile })),
+);
+const Settings = lazy(() =>
+  import("./pages/Settings").then((m) => ({ default: m.Settings })),
+);
+const Gyms = lazy(() =>
+  import("./pages/Gyms").then((m) => ({ default: m.Gyms })),
+);
+const Glossary = lazy(() =>
+  import("./pages/Glossary").then((m) => ({ default: m.Glossary })),
+);
+const Stats = lazy(() =>
+  import("./pages/Stats").then((m) => ({ default: m.Stats })),
+);
+const ProjectDetail = lazy(() =>
+  import("./pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail })),
+);
+const FullLogbook = lazy(() =>
+  import("./pages/FullLogbook").then((m) => ({ default: m.FullLogbook })),
+);
+const Passport = lazy(() =>
+  import("./pages/Passport").then((m) => ({ default: m.Passport })),
+);
 const GymMap = lazy(() =>
   import("./pages/GymMap").then((m) => ({ default: m.GymMap })),
 );
@@ -39,6 +76,15 @@ const FriendsFeed = lazy(() =>
 // Friend management pulls in the QR-code library — most sessions never open it.
 const FriendsManage = lazy(() =>
   import("./pages/Friends").then((m) => ({ default: m.Friends })),
+);
+const CustomizeLogbook = lazy(() =>
+  import("./pages/CustomizeLogbook").then((m) => ({ default: m.CustomizeLogbook })),
+);
+const VideoLibrary = lazy(() =>
+  import("./pages/VideoLibrary").then((m) => ({ default: m.VideoLibrary })),
+);
+const Upgrade = lazy(() =>
+  import("./pages/Upgrade").then((m) => ({ default: m.Upgrade })),
 );
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -77,7 +123,7 @@ function PublicOnly({ children }: { children: ReactNode }) {
 
 export default function App() {
   const navigate = useNavigate();
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, session } = useAuth();
 
   // Hold the launch splash until auth has resolved, then crossfade it out once
   // — straight into the finished UI, with no intermediate splash step.
@@ -92,11 +138,31 @@ export default function App() {
     return setupDeepLinks((path) => navigate(path, { replace: true }));
   }, [navigate]);
 
+  // If a signed-out recipient opened a friend invite, finish routing to that
+  // profile immediately after they sign in instead of losing the invite.
+  useEffect(() => {
+    if (authLoading || !session) return;
+    const profileId = localStorage.getItem(PENDING_PROFILE_KEY);
+    if (!profileId) return;
+    const path = friendRequestPath(profileId);
+    if (!path) {
+      localStorage.removeItem(PENDING_PROFILE_KEY);
+      return;
+    }
+    localStorage.removeItem(PENDING_PROFILE_KEY);
+    navigate(path, { replace: true });
+  }, [authLoading, navigate, session]);
+
   return (
-    <Routes>
+    <>
+      <ConnectionBanner />
+      <Suspense fallback={<Splash />}>
+        <Routes>
       {/* Public — reachable in-app and as an App Store privacy URL. */}
       <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/support" element={<Support />} />
+      <Route path="/open-source" element={<ThirdPartyNotices />} />
       <Route
         path="/welcome"
         element={
@@ -174,6 +240,18 @@ export default function App() {
         }
       />
       <Route
+        path="/settings/logbook"
+        element={<RequireAuth><CustomizeLogbook /></RequireAuth>}
+      />
+      <Route
+        path="/videos"
+        element={<RequireAuth><VideoLibrary /></RequireAuth>}
+      />
+      <Route
+        path="/upgrade"
+        element={<RequireAuth><Upgrade /></RequireAuth>}
+      />
+      <Route
         path="/u/:id"
         element={
           <RequireAuth>
@@ -202,7 +280,7 @@ export default function App() {
         }
       />
       <Route
-        path="/terms"
+        path="/glossary"
         element={
           <RequireAuth>
             <Glossary />
@@ -270,6 +348,8 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        </Routes>
+      </Suspense>
+    </>
   );
 }

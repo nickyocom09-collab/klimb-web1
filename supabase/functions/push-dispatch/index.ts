@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendApns } from "../_shared/apns.ts";
+import { safeErrorType } from "../_shared/request.ts";
 
 type PushKind =
   | "friend_request"
@@ -180,11 +181,9 @@ Deno.serve(async (request) => {
 
     return Response.json({ processed, sent, queued: events.length });
   } catch (error) {
-    console.error(error);
+    console.error("Push dispatch failed", { type: safeErrorType(error) });
     return Response.json(
-      {
-        error: error instanceof Error ? error.message : "Push dispatch failed.",
-      },
+      { error: "Push dispatch failed." },
       { status: 500 },
     );
   }

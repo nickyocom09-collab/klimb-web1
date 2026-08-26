@@ -56,6 +56,8 @@
     font-family: theme("fontFamily.sans");
     -webkit-font-smoothing: antialiased;
     overscroll-behavior-y: none;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: rgb(var(--c-accent) / 0.16);
   }
   /* The web view now runs full-screen (Capacitor contentInset: never), so push
      app content below the status bar / notch. The bottom nav handles its own
@@ -88,10 +90,34 @@
   textarea {
     font-size: max(16px, 1em);
   }
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+  /* Prevent WKWebView's long-press Save to Photos menu. Images remain
+     tappable through their surrounding button or link where applicable. */
+  img {
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+  :where(button, a, input, select, textarea, [role="button"]):focus-visible {
+    outline: 2px solid rgb(var(--c-accent));
+    outline-offset: 2px;
+  }
   /* Motion is decoration here — honor the OS preference. */
   @media (prefers-reduced-motion: reduce) {
     [class*="animate-"] {
       animation: none !important;
+    }
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
     }
   }
 }

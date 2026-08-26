@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   Clapperboard,
   UserPlus,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import {
@@ -15,6 +16,7 @@ import {
   type Notification,
 } from "../lib/notifications";
 import { timeAgo } from "../lib/time";
+import { notificationDestination } from "../lib/notificationDestination";
 
 function iconFor(kind: Notification["kind"]) {
   switch (kind) {
@@ -23,6 +25,9 @@ function iconFor(kind: Notification["kind"]) {
     case "friend_accept":
       return { Icon: Check, tint: "accent" as const };
     case "friend_request":
+      return { Icon: UserPlus, tint: "accent" as const };
+    case "reaction":
+      return { Icon: Sparkles, tint: "accent" as const };
     default:
       return { Icon: UserPlus, tint: "accent" as const };
   }
@@ -117,7 +122,7 @@ export function Notifications() {
                   return (
                     <li key={n.id}>
                       <button
-                        onClick={() => navigate(n.link)}
+                        onClick={() => navigate(notificationDestination(n.link))}
                         className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left shadow-card transition active:scale-[0.99] ${
                           n.unread ? "bg-accent/10" : "bg-surface"
                         }`}

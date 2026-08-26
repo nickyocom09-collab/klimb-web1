@@ -9,12 +9,19 @@ import {
   type ClimbType,
 } from "../lib/constants";
 import { pickerOptions, type GradeStyle } from "../lib/grades";
-import { assertNearGym } from "../lib/location";
+import { ensureGymUnlocked } from "../lib/location";
 import { pickPhotoNative } from "../lib/photo";
 import { AppHeader } from "../components/Layout";
 import { Button, ErrorText, Input, Textarea } from "../components/ui";
+import { contentTextError } from "../lib/nameModeration";
 import { Dropdown } from "../components/Dropdown";
 import { ClimbTypePicker } from "../components/log/ClimbTypePicker";
+import {
+  IMAGE_ACCEPT,
+  imageContentError,
+  imageUploadError,
+} from "../lib/uploadSecurity";
+import { secureImageUpload } from "../lib/secureImageUpload";
 
 const NOT_SURE = "Not sure";
 const NOT_SET = "Not set";
@@ -80,6 +87,12 @@ export function AddRoute() {
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    const validationError = imageUploadError(f);
+    if (validationError) {
+      e.target.value = "";
+      setError(validationError);
+      return;
+    }
     setError(null);
     setPhoto(f);
     setPhotoPreview(URL.createObjectURL(f));
@@ -94,6 +107,8 @@ export function AddRoute() {
         return;
       }
       if (!picked) return;
+      const validationError = imageUploadError(picked.file);
+      if (validationError) return setError(validationError);
       setPhoto(picked.file);
       setPhotoPreview(picked.previewUrl);
     } catch (photoError) {
@@ -112,7 +127,10 @@ export function AddRoute() {
   function validate(): string | null {
     if (!holdColor) return "Pick the hold color.";
     if (!targetGymId) return "No gym selected.";
-    return null;
+    return contentTextError([
+      { label: "the route name", value: routeName },
+      { label: "the description", value: description },
+    ]);
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -127,14 +145,12 @@ export function AddRoute() {
   }
 
   async function uploadFile(file: File, suffix: string): Promise<string> {
-    const ext = file.name.split(".").pop() || suffix;
-    const path = `${profile!.id}/${Date.now()}-${suffix}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("route-photos")
-      .upload(path, file, { contentType: file.type, upsert: false });
-    if (upErr) throw upErr;
-    return supabase.storage.from("route-photos").getPublicUrl(path).data
-      .publicUrl;
+    const validationError = imageUploadError(file);
+    if (validationError) throw new Error(validationError);
+    const contentError = await imageContentError(file);
+    if (contentError) throw new Error(contentError);
+    void suffix;
+    return (await secureImageUpload(file, "route")).publicUrl;
   }
 
   async function create() {
@@ -142,15 +158,21 @@ export function AddRoute() {
     setConfirming(false);
     setBusy(true);
     try {
-      // Location gate (fails closed): you must actually be near the gym to add
-      // a route there. No location / far away / no coords on file → blocked.
-      const near = await assertNearGym({
+      if (!profile) throw new Error("You need to be signed in to add a route.");
+
+      // Use the same first-visit rule as normal logging. Once this climber has
+      // verified a gym, adding another route there should not repeatedly fail
+      // just because location is briefly unavailable or they are reviewing the
+      // logbook from home.
+      const unlock = await ensureGymUnlocked(profile.id, targetGymId, {
         name: gymName,
         latitude: gymCoords?.lat ?? null,
         longitude: gymCoords?.lng ?? null,
       });
-      if (!near.ok) {
-        throw new Error(near.error ?? "Get within range of the gym to add a route.");
+      if (!unlock.ok) {
+        throw new Error(
+          unlock.error ?? "Your first route at this gym must be added nearby.",
+        );
       }
 
       const photoUrl = photo ? await uploadFile(photo, "photo") : NO_PHOTO;
@@ -204,7 +226,7 @@ export function AddRoute() {
           <input
             ref={photoRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_ACCEPT}
             capture="environment"
             onChange={onPickPhoto}
             className="hidden"
@@ -236,6 +258,11 @@ export function AddRoute() {
               <Camera size={15} /> Change photo
             </button>
           ) : null}
+          <p className="mt-2 text-xs leading-relaxed text-faint">
+            Route photos are shared with climbers viewing this gym. Don&apos;t
+            upload private information or an image you do not have permission
+            to use.
+          </p>
         </div>
 
         {/* Details as clean dropdowns */}
@@ -251,21 +278,19 @@ export function AddRoute() {
           {holdColor ? (
             <div className="flex items-center gap-2 text-xs text-faint">
               <span
-                className="h-3 w-3 rounded-full border border-white/10"
+                className={`h-3 w-3 rounded-full ${holdColor === "White" ? "border border-black/15" : ""}`}
                 style={{ backgroundColor: holdHex(holdColor) }}
               />
               {holdColor} holds
             </div>
           ) : null}
-          {profile?.route_names_enabled ? (
-            <Input
-              label="Route name (optional)"
-              value={routeName}
-              onChange={(event) => setRouteName(event.target.value)}
-              placeholder="e.g. The Green Mile"
-              maxLength={80}
-            />
-          ) : null}
+          <Input
+            label="Route name (optional)"
+            value={routeName}
+            onChange={(event) => setRouteName(event.target.value)}
+            placeholder="e.g. The Green Mile"
+            maxLength={80}
+          />
 
           <Row label="Your grade guess">
             <Dropdown

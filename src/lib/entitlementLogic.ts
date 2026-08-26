@@ -9,7 +9,7 @@ export type EntitlementStatus =
 
 export type EntitlementRecord = {
   user_id: string;
-  plan: "free" | "pro_monthly" | "lifetime_pro";
+  plan: "free" | "pro_monthly" | "pro_annual" | "lifetime_pro";
   entitlement_type:
     | "free"
     | "founder"

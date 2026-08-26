@@ -21,13 +21,17 @@ export function GymAdd() {
       setError("Enter a gym name.");
       return;
     }
+    if (city.trim().length < 2) {
+      setError("Enter the city where this gym is located.");
+      return;
+    }
     if (!profile) return;
     setBusy(true);
     // Suggested gyms come in as pending; an admin approves them before they
     // appear in the selector.
     const { error } = await supabase.from("gyms").insert({
       name: name.trim(),
-      city: city.trim() || null,
+      city: city.trim(),
       state: state.trim() || null,
       status: "pending",
       created_by: profile.id,

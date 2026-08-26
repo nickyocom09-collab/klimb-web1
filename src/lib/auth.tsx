@@ -12,7 +12,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "./supabase";
 import type { Database, UserRow } from "./database.types";
 import { applyTheme } from "./theme";
-import { authRedirectUrl } from "./deeplink";
+import { authRedirectUrl, emailConfirmationRedirectUrl } from "./deeplink";
 import { AppleSignIn, canUseNativeAppleSignIn } from "./appleSignIn";
 import {
   canUseNativeGoogleSignIn,
@@ -23,6 +23,11 @@ import {
   canUseNativeWebAuthentication,
 } from "./webAuthentication";
 import { containsProfanity } from "./nameModeration";
+import {
+  flushPendingLegalAcceptance,
+  PRIVACY_VERSION,
+  TERMS_VERSION,
+} from "./legalAcceptance";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -70,6 +75,8 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     visiting_gym_id: null,
     sends_public: true,
     projects_public: true,
+    notes_public: false,
+    friends_public: true,
     grade_system: "american",
     theme: "dark",
     default_climb_filter: "all",
@@ -79,6 +86,7 @@ function PreviewProvider({ children }: { children: ReactNode }) {
     seen_intro: true,
     notifications_seen_at: new Date().toISOString(),
     notifications_cleared_at: null,
+    pro_intro_seen_at: null,
     offgrid_gym_label: null,
     created_at: new Date().toISOString(),
   };
@@ -140,6 +148,7 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
       // than the email prefix. Email signup still uses the typed display name.
       const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
       const metaName =
+        (meta.display_name as string) ||
         (meta.full_name as string) ||
         (meta.name as string) ||
         (meta.user_name as string) ||
@@ -165,11 +174,22 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      if (!data.session) setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) console.warn("[Klimb] Could not restore the saved session.", error);
+        setSession(data.session);
+        if (!data.session) setLoading(false);
+      })
+      .catch((error: unknown) => {
+        // A storage/plugin failure must never trap the app on its splash
+        // screen. Show login and let the user create a fresh session.
+        console.warn("[Klimb] Saved-session restore failed.", error);
+        if (!active) return;
+        setSession(null);
+        setLoading(false);
+      });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, next) => {
       setSession(next);
     });
@@ -195,6 +215,14 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // Signup may finish after an email-confirmation link or OAuth redirect. Once
+  // a real session exists, persist the earlier affirmative legal acceptance
+  // with a server timestamp. A temporary failure remains queued for retry.
+  useEffect(() => {
+    if (!session) return;
+    void flushPendingLegalAcceptance();
+  }, [session]);
+
   // Keep the document theme in sync with the loaded profile preference.
   useEffect(() => {
     if (profile?.theme) applyTheme(profile.theme);
@@ -210,7 +238,15 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { emailRedirectTo: authRedirectUrl() },
+          options: {
+            emailRedirectTo: emailConfirmationRedirectUrl(),
+            data: {
+              display_name: displayName.trim(),
+              age_13_confirmed: true,
+              terms_version: TERMS_VERSION,
+              privacy_version: PRIVACY_VERSION,
+            },
+          },
         });
         if (error) return { error: error.message, needsConfirmation: false };
         // Supabase doesn't return an error for a duplicate, already-confirmed
@@ -226,11 +262,21 @@ function RealAuthProvider({ children }: { children: ReactNode }) {
         return { error: null, needsConfirmation };
       },
       async signIn(email, password) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        return { error: error ? error.message : null };
+        try {
+          const { error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
+          return { error: error ? error.message : null };
+        } catch (error) {
+          console.warn("[Klimb] Email sign-in failed before completion.", error);
+          return {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Login couldn't connect. Check your connection and try again.",
+          };
+        }
       },
       async signInWithProvider(provider) {
         // Google on iOS: use Google's native SDK so the button opens the real

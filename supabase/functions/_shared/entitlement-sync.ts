@@ -4,9 +4,22 @@ import { millisecondsToIso } from "./apple-verifier.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const configuredProductId =
+const configuredMonthlyProductId =
   Deno.env.get("APPLE_MONTHLY_PRODUCT_ID") ??
   "com.nickyocom.klimb.pro.monthly";
+const configuredAnnualProductId =
+  Deno.env.get("APPLE_ANNUAL_PRODUCT_ID") ??
+  "com.nickyocom.klimb.pro.annual";
+const configuredProductIds = new Set([
+  configuredMonthlyProductId,
+  configuredAnnualProductId,
+]);
+
+export function planForProductId(productId?: string | null) {
+  return productId === configuredAnnualProductId
+    ? "pro_annual" as const
+    : "pro_monthly" as const;
+}
 
 export const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -53,7 +66,7 @@ export async function syncVerifiedTransaction({
   ) {
     throw new Error("The verified transaction is missing required fields.");
   }
-  if (transaction.productId !== configuredProductId) {
+  if (!configuredProductIds.has(transaction.productId)) {
     throw new Error("This transaction is for an unknown Klimb product.");
   }
   if (expectedUserId && transaction.appAccountToken !== expectedUserId) {
@@ -102,7 +115,7 @@ export async function syncVerifiedTransaction({
       .upsert(
         {
           user_id: userId,
-          plan: isActive ? "pro_monthly" : "free",
+          plan: isActive ? planForProductId(transaction.productId) : "free",
           entitlement_type:
             entitlementStatus === "trial" ? "trial" : "subscription",
           entitlement_status: entitlementStatus,

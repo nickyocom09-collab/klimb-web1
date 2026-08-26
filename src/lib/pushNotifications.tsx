@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -17,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
 import type { Database } from "./database.types";
+import { notificationDestination } from "./notificationDestination";
 
 export type NotificationPreferences =
   Database["public"]["Tables"]["notification_preferences"]["Row"];
@@ -49,10 +51,6 @@ function deviceTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
 
-function notificationPath(value: unknown): string | null {
-  return typeof value === "string" && value.startsWith("/") ? value : null;
-}
-
 export function PushNotificationProvider({
   children,
 }: {
@@ -68,6 +66,7 @@ export function PushNotificationProvider({
   const [preferences, setPreferences] =
     useState<NotificationPreferences | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const enableDefaultsOnRegistration = useRef(false);
 
   const storeToken = useCallback(
     async (token: Token) => {
@@ -87,7 +86,26 @@ export function PushNotificationProvider({
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
-      setPreferences(preferenceRow as NotificationPreferences | null);
+      let resolvedPreferences = preferenceRow as NotificationPreferences | null;
+      if (enableDefaultsOnRegistration.current && resolvedPreferences) {
+        enableDefaultsOnRegistration.current = false;
+        const { data: updatedPreferences, error: defaultsError } = await supabase
+          .from("notification_preferences")
+          .update({
+            friend_requests: true,
+            friend_accepts: true,
+            weekly_recaps: true,
+            streak_risk: true,
+            inactivity: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId)
+          .select("*")
+          .single();
+        if (defaultsError) throw defaultsError;
+        resolvedPreferences = updatedPreferences as NotificationPreferences;
+      }
+      setPreferences(resolvedPreferences);
       setActive(true);
       setError(null);
     },
@@ -162,8 +180,7 @@ export function PushNotificationProvider({
       const action = await PushNotifications.addListener(
         "pushNotificationActionPerformed",
         (event) => {
-          const path = notificationPath(event.notification.data?.link);
-          if (path) navigate(path);
+          navigate(notificationDestination(event.notification.data?.link));
         },
       );
       if (cancelled) await action.remove();
@@ -200,6 +217,9 @@ export function PushNotificationProvider({
         setError(message);
         return { error: message };
       }
+      // A master-level enable always starts from the useful default: every
+      // category is on. Fine-grained changes remain available in Settings.
+      enableDefaultsOnRegistration.current = true;
       await PushNotifications.register();
       return { error: null };
     } catch (enableError) {
@@ -211,6 +231,28 @@ export function PushNotificationProvider({
       return { error: message };
     }
   }, []);
+
+  // Notifications default on for the next build. iOS still owns the system
+  // permission—the app can request it once, but can never bypass a denial.
+  // A per-account marker prevents repeated prompts across normal launches.
+  useEffect(() => {
+    if (!isNativeIos || !userId) return;
+    const marker = `klimb.push.auto-requested:${userId}`;
+    try {
+      if (localStorage.getItem(marker)) return;
+    } catch {
+      // Storage being unavailable should not prevent registration.
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(marker, "1");
+      } catch {
+        // Best effort only.
+      }
+      void enable();
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [enable, userId]);
 
   const disable = useCallback(async (): Promise<{ error: string | null }> => {
     try {

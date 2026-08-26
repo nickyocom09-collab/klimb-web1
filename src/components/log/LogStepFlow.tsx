@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Camera, ImagePlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, CheckCircle2, Eye, EyeOff, ImagePlus, Video } from "lucide-react";
 import { HOLD_COLORS, holdHex } from "../../lib/constants";
 import { type LogClimbState } from "../../lib/useLogClimb";
 import { Button, ErrorText, Input, Textarea } from "../ui";
 import { GradePicker } from "../GradePicker";
 import { Stars } from "../Stars";
 import { ClimbTypePicker } from "./ClimbTypePicker";
+import { IMAGE_ACCEPT } from "../../lib/uploadSecurity";
+import { ProBadge } from "../ProBadge";
 
 type Step = {
   key: string;
@@ -61,7 +63,7 @@ const STEPS: Step[] = [
         <input
           ref={s.photoRef}
           type="file"
-          accept="image/*"
+          accept={IMAGE_ACCEPT}
           onChange={s.onPickPhoto}
           className="hidden"
         />
@@ -88,7 +90,53 @@ const STEPS: Step[] = [
             <Camera size={15} /> Change photo
           </button>
         ) : null}
+        <p className="mt-3 text-xs leading-relaxed text-faint">
+          Route photos can appear with the shared gym route. Don&apos;t include
+          private information you would not want other climbers to see.
+        </p>
       </div>
+    ),
+  },
+  {
+    key: "video",
+    title: "Add a video",
+    hint: "Optional — one clip under three minutes.",
+    optional: true,
+    ready: () => true,
+    render: (s) => s.hasProAccess ? (
+      <div>
+        <input
+          ref={s.videoRef}
+          type="file"
+          accept="video/*"
+          onChange={(event) => void s.onPickVideo(event)}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => void s.pickVideo()}
+          className={`flex min-h-40 w-full flex-col items-center justify-center gap-3 rounded-3xl border transition active:scale-[0.99] ${
+            s.video ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface-2 text-faint"
+          }`}
+        >
+          {s.video ? <CheckCircle2 size={36} /> : <Video size={36} />}
+          <span className="max-w-[16rem] truncate text-sm font-bold">
+            {s.video?.name ?? "Choose from your videos"}
+          </span>
+          {s.video ? <span className="text-xs text-muted">Tap to choose a different clip</span> : null}
+        </button>
+      </div>
+    ) : (
+      <button
+        type="button"
+        onClick={() => s.navigate("/upgrade")}
+        className="flex w-full flex-col items-center rounded-3xl border border-accent/25 bg-accent/[0.06] px-6 py-8 text-center active:scale-[0.99]"
+      >
+        <Video size={32} className="text-accent" />
+        <span className="mt-3 flex items-center gap-2 font-extrabold text-chalk">Video logging <ProBadge compact /></span>
+        <span className="mt-1 text-xs leading-5 text-muted">Attach a clip to this Klimb and keep it in your video library.</span>
+        <span className="mt-4 rounded-full bg-accent px-4 py-2 text-xs font-extrabold text-bg">See Klimb Pro</span>
+      </button>
     ),
   },
   {
@@ -109,7 +157,7 @@ const STEPS: Step[] = [
               }`}
             >
               <span
-                className="h-7 w-7 rounded-full border border-white/15"
+                className={`h-7 w-7 rounded-full ${c.name === "White" ? "border border-black/15" : ""}`}
                 style={{ backgroundColor: holdHex(c.name) }}
               />
               <span className={`text-[10px] leading-none ${on ? "text-accent" : "text-faint"}`}>
@@ -157,7 +205,7 @@ const STEPS: Step[] = [
     ready: () => true,
     render: (s) => (
       <div className="flex flex-col gap-5">
-        <div>
+        {s.logbookPreferences.show_felt_grade ? <div>
           <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-faint">
             Felt grade
           </p>
@@ -168,11 +216,11 @@ const STEPS: Step[] = [
             system={s.system}
             emptyLabel="Not sure"
           />
-        </div>
-        <div className="flex items-center justify-between">
+        </div> : null}
+        {s.logbookPreferences.show_quality ? <div className="flex items-center justify-between">
           <p className="text-sm font-semibold uppercase tracking-wide text-faint">Quality</p>
           <Stars value={s.stars} onChange={s.setStars} size={24} />
-        </div>
+        </div> : null}
       </div>
     ),
   },
@@ -193,6 +241,48 @@ const STEPS: Step[] = [
         }
         maxLength={500}
       />
+    ),
+  },
+  {
+    key: "profile",
+    title: "Post this to your profile?",
+    hint: "Final step — your Klimb is saved either way.",
+    ready: () => true,
+    render: (s) => (
+      <div>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+          type="button"
+          onClick={() => s.setShareToProfile(true)}
+          className={`flex min-h-36 flex-col items-center justify-center gap-2 rounded-3xl border p-4 transition ${
+            s.shareToProfile
+              ? "border-accent bg-accent/10 text-accent"
+              : "border-border bg-surface-2 text-muted"
+          }`}
+        >
+          <Eye size={28} />
+          <span className="font-bold">Post it</span>
+          <span className="text-xs leading-relaxed text-faint">Friends can see it if your profile is public.</span>
+          </button>
+          <button
+          type="button"
+          onClick={() => s.setShareToProfile(false)}
+          className={`flex min-h-36 flex-col items-center justify-center gap-2 rounded-3xl border p-4 transition ${
+            !s.shareToProfile
+              ? "border-accent bg-accent/10 text-accent"
+              : "border-border bg-surface-2 text-muted"
+          }`}
+        >
+          <EyeOff size={28} />
+          <span className="font-bold">Just for me</span>
+          <span className="text-xs leading-relaxed text-faint">Still counts in your logbook, stats, and recap.</span>
+          </button>
+        </div>
+        <p className="mt-3 text-center text-xs leading-relaxed text-faint">
+          This controls your profile and friends feed. A route photo may still
+          appear with the shared gym route.
+        </p>
+      </div>
     ),
   },
 ];
@@ -217,9 +307,19 @@ const ROUTE_NAME_STEP: Step = {
 /** The stepped, one-question-at-a-time log flow. */
 export function LogStepFlow({ s }: { s: LogClimbState }) {
   const [i, setI] = useState(0);
-  const steps = s.routeNamesEnabled
+  const baseSteps = s.routeNamesEnabled && s.logbookPreferences.show_route_name
     ? [...STEPS.slice(0, 4), ROUTE_NAME_STEP, ...STEPS.slice(4)]
     : STEPS;
+  const steps = baseSteps.filter((candidate) => {
+    if (candidate.key === "photo") return s.logbookPreferences.show_photo;
+    if (candidate.key === "video") return !s.offGrid && s.logbookPreferences.show_video;
+    if (candidate.key === "hold") return s.logbookPreferences.show_hold_color;
+    if (candidate.key === "gymGrade") return s.logbookPreferences.show_gym_grade;
+    if (candidate.key === "take") return s.logbookPreferences.show_felt_grade || s.logbookPreferences.show_quality;
+    if (candidate.key === "note") return s.logbookPreferences.show_note;
+    if (candidate.key === "profile") return s.logbookPreferences.show_profile_visibility;
+    return true;
+  });
   const step = steps[i];
   const last = i === steps.length - 1;
   const canAdvance = useMemo(() => step.ready(s), [step, s]);
@@ -298,6 +398,8 @@ function changed(key: string, s: LogClimbState): boolean {
   switch (key) {
     case "photo":
       return !!s.photoPreview;
+    case "video":
+      return !!s.video;
     case "gymGrade":
       return s.gymGrade !== null;
     case "routeName":
@@ -306,6 +408,8 @@ function changed(key: string, s: LogClimbState): boolean {
       return s.feltGrade !== null || s.stars !== null;
     case "note":
       return s.note.trim().length > 0;
+    case "profile":
+      return true;
     default:
       return true;
   }

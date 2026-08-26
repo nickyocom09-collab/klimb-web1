@@ -160,6 +160,13 @@ export type LogStats = {
     toprope: LoggedItem | null;
     lead: LoggedItem | null;
   };
+  /** Rounded mean send grade per discipline — a steadier picture of the level
+   * the climber usually climbs than a single personal best. */
+  averageGrade: {
+    boulder: number | null;
+    toprope: number | null;
+    lead: number | null;
+  };
   /** How many sends of each discipline — drives the "what you climb" mix. */
   typeCounts: { boulder: number; toprope: number; lead: number };
   weeks: number[];
@@ -237,6 +244,22 @@ export function computeLogStats(
     return { boulder, toprope, lead };
   };
 
+  const averageGrade = {
+    boulder: null as number | null,
+    toprope: null as number | null,
+    lead: null as number | null,
+  };
+  for (const type of ["boulder", "toprope", "lead"] as const) {
+    const values = sent
+      .filter((item) => item.route.climbing_type === type && item.ordinal !== null)
+      .map((item) => item.ordinal!);
+    if (values.length > 0) {
+      averageGrade[type] = Math.round(
+        values.reduce((sum, value) => sum + value, 0) / values.length,
+      );
+    }
+  }
+
   // Discipline mix across all sends — for the "what you like to climb" view.
   const typeCounts = { boulder: 0, toprope: 0, lead: 0 };
   for (const l of sent) {
@@ -282,6 +305,7 @@ export function computeLogStats(
     pyramids,
     hardestSend: hardest(sent),
     hardestFlash: hardest(flashes),
+    averageGrade,
     typeCounts,
     weeks,
   };

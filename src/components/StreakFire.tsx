@@ -15,8 +15,10 @@ export function StreakFire({
   return (
     <div
       className="relative flex shrink-0 items-center justify-center"
-      style={{ width: size, height: size }}
-      aria-hidden
+      style={{ width: size, height: size, WebkitTouchCallout: "none", userSelect: "none" }}
+      onContextMenu={(event) => event.preventDefault()}
+      role="img"
+      aria-label={lit ? `${streak} week streak` : "Start your streak"}
     >
       <style>{STREAK_FIRE_CSS}</style>
       {lit ? (
@@ -43,6 +45,8 @@ export function StreakFire({
               height: "100%",
               objectFit: "contain",
               transformOrigin: "bottom center",
+              pointerEvents: "none",
+              WebkitTouchCallout: "none",
             }}
           />
         </>
@@ -58,6 +62,8 @@ export function StreakFire({
               height: "100%",
               objectFit: "contain",
               opacity: 0.85,
+              pointerEvents: "none",
+              WebkitTouchCallout: "none",
             }}
           />
           <div

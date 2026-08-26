@@ -6,6 +6,7 @@ import { registerPlugin, Capacitor } from "@capacitor/core";
 // so we can exchange them with Supabase via signInWithIdToken.
 export interface AppleSignInResult {
   identityToken: string;
+  authorizationCode: string;
   nonce: string;
   userIdentifier: string;
   email?: string;

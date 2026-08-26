@@ -4,6 +4,12 @@ import { useAuth } from "../lib/auth";
 import { Button, ErrorText, Input, PasswordInput } from "../components/ui";
 import { OAuthButtons } from "../components/OAuthButtons";
 import { profileNameError } from "../lib/nameModeration";
+import {
+  MIN_PASSWORD_LENGTH,
+  passwordValidationError,
+} from "../lib/authSecurity";
+import { EmailVerificationPending } from "../components/EmailVerificationPending";
+import { rememberLegalAcceptance } from "../lib/legalAcceptance";
 
 export function Signup() {
   const { signUp } = useAuth();
@@ -12,13 +18,17 @@ export function Signup() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setNotice(null);
+    if (!acceptedLegal) {
+      setError("Confirm your age and accept the Terms and Privacy Policy to continue.");
+      return;
+    }
     if (displayName.trim().length < 2) {
       setError("Pick a display name (at least 2 characters).");
       return;
@@ -28,14 +38,16 @@ export function Signup() {
       setError(moderationError);
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    const passwordError = passwordValidationError(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (password !== confirmPassword) {
       setError("Those passwords don't match.");
       return;
     }
+    rememberLegalAcceptance();
     setBusy(true);
     const { error, needsConfirmation } = await signUp(
       email,
@@ -48,11 +60,18 @@ export function Signup() {
       return;
     }
     if (needsConfirmation) {
-      setNotice(
-        "Account created. Check your inbox to confirm your email, then log in.",
-      );
+      setPendingEmail(email.trim());
     }
     // Otherwise auth state flips and the router redirects to gym selection.
+  }
+
+  if (pendingEmail) {
+    return (
+      <EmailVerificationPending
+        email={pendingEmail}
+        onChangeEmail={() => setPendingEmail(null)}
+      />
+    );
   }
 
   return (
@@ -81,46 +100,83 @@ export function Signup() {
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <Input
           label="Display name"
+          name="display-name"
+          autoComplete="name"
+          maxLength={60}
+          required
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="The name other climbers see"
         />
         <Input
           label="Email"
+          name="email"
           type="email"
           autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
         />
         <PasswordInput
           label="Password"
+          name="new-password"
           autoComplete="new-password"
+          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 6 characters"
+          placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
         />
         <PasswordInput
           label="Confirm password"
+          name="confirm-password"
           autoComplete="new-password"
+          required
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           placeholder="Type it again"
         />
         <ErrorText>{error}</ErrorText>
-        {notice ? (
-          <p className="ml-1 text-sm text-accent">{notice}</p>
-        ) : null}
-        <Button type="submit" loading={busy}>
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-surface p-3 text-xs leading-relaxed text-muted">
+          <input
+            type="checkbox"
+            checked={acceptedLegal}
+            onChange={(event) => setAcceptedLegal(event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--c-accent))]"
+          />
+          <span>
+            I confirm I am at least 13 and agree to the{" "}
+            <Link to="/terms" className="font-semibold text-chalk underline">
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link to="/privacy" className="font-semibold text-chalk underline">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+        <Button type="submit" loading={busy} disabled={!acceptedLegal}>
           Create my account
         </Button>
-        <p className="text-center text-xs text-faint">
-          By continuing you agree to Klimb responsibly and log honestly.
-        </p>
       </form>
 
       <div className="relative mt-5">
-        <OAuthButtons />
+        <OAuthButtons
+          disabled={!acceptedLegal}
+          onBeforeSignIn={() => {
+            if (!acceptedLegal) {
+              setError(
+                "Confirm your age and accept the Terms and Privacy Policy to continue.",
+              );
+              return false;
+            }
+            rememberLegalAcceptance();
+            return true;
+          }}
+        />
       </div>
 
       <p className="mt-6 text-center text-muted">

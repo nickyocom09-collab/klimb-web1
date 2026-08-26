@@ -4,9 +4,11 @@ import {
   verifyTransaction,
 } from "../_shared/apple-verifier.ts";
 import {
+  planForProductId,
   serviceClient,
   syncVerifiedTransaction,
 } from "../_shared/entitlement-sync.ts";
+import { readJsonBody, safeErrorType } from "../_shared/request.ts";
 
 Deno.serve(async (request) => {
   if (request.method !== "POST") {
@@ -14,7 +16,7 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const body = (await request.json()) as { signedPayload?: string };
+    const body = await readJsonBody<{ signedPayload?: string }>(request);
     if (!body.signedPayload) throw new Error("Missing signedPayload.");
 
     const notification = await verifyNotification(body.signedPayload);
@@ -62,7 +64,7 @@ Deno.serve(async (request) => {
           await serviceClient
             .from("user_entitlements")
             .update({
-              plan: "pro_monthly",
+              plan: planForProductId(entitlement.subscription_product_id),
               entitlement_type: "subscription",
               entitlement_status: graceStatus,
               current_period_ends_at:
@@ -114,9 +116,9 @@ Deno.serve(async (request) => {
     // notifications are safe because transaction_id is the idempotency key.
     return Response.json({ accepted: true });
   } catch (error) {
-    console.error(error);
+    console.error("App Store notification rejected", { type: safeErrorType(error) });
     return Response.json(
-      { error: error instanceof Error ? error.message : "Invalid notification." },
+      { error: "Invalid notification." },
       { status: 400 },
     );
   }

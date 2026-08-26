@@ -341,6 +341,8 @@ export function GymMap() {
   const navigate = useNavigate();
   const mapRef = useRef<L.Map | null>(null);
   const [locating, setLocating] = useState(false);
+  const [nearOpen, setNearOpen] = useState(false);
+  const [countryCollectionOpen, setCountryCollectionOpen] = useState(false);
   const [gyms, setGyms] = useState<GymWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -450,7 +452,7 @@ export function GymMap() {
         hold_color: string;
         climbing_type: "boulder" | "toprope" | "lead";
         gym_grade: number | null;
-        gyms: { grading_style: "classic" | "bands" } | null;
+        gyms: { grading_style: "classic" | "bands" | "brew_bands" } | null;
       };
       const routeMap = new Map(
         ((routeRows ?? []) as unknown as RR[]).map((r) => [r.id, r]),
@@ -561,6 +563,15 @@ export function GymMap() {
     };
   }, [gyms, collected, home]);
 
+  const homeCountryCollectedGyms = useMemo(() => {
+    if (!homeCountryProgress.cc) return [];
+    return gyms
+      .filter((gym) =>
+        gym.cc?.toLowerCase() === homeCountryProgress.cc && collected.has(gym.id),
+      )
+      .sort((a, b) => (myStats.get(b.id)?.lastVisit ?? "").localeCompare(myStats.get(a.id)?.lastVisit ?? ""));
+  }, [collected, gyms, homeCountryProgress.cc, myStats]);
+
   function focusGym(gym: GymWithCount, zoom = 13) {
     setSelected(gym);
     mapRef.current?.flyTo([gym.latitude!, gym.longitude!], zoom, {
@@ -574,6 +585,7 @@ export function GymMap() {
     setLocating(true);
     try {
       const position = await getCurrentCoords();
+      setMyLoc(position);
       mapRef.current?.flyTo([position.lat, position.lng], 11, {
         duration: 0.9,
         easeLinearity: 0.22,
@@ -584,6 +596,24 @@ export function GymMap() {
           ? error.message
           : "Couldn't get your location — check location permissions for Klimb.",
       );
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function showNearby() {
+    setLocating(true);
+    try {
+      const position = myLoc ?? (await getCurrentCoords());
+      setMyLoc(position);
+      setSelected(null);
+      setNearOpen(true);
+      mapRef.current?.flyTo([position.lat, position.lng], 11, {
+        duration: 0.8,
+        easeLinearity: 0.22,
+      });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Couldn't find gyms near you.");
     } finally {
       setLocating(false);
     }
@@ -613,6 +643,14 @@ export function GymMap() {
     if (!myLoc || gym.latitude == null || gym.longitude == null) return null;
     return milesBetween(myLoc.lat, myLoc.lng, gym.latitude, gym.longitude);
   }
+
+  const nearbyGyms = useMemo(() => {
+    if (!myLoc) return [];
+    return gyms
+      .map((gym) => ({ gym, miles: milesBetween(myLoc.lat, myLoc.lng, gym.latitude!, gym.longitude!) }))
+      .sort((a, b) => a.miles - b.miles)
+      .slice(0, 6);
+  }, [gyms, myLoc]);
 
 
   async function setHome(gym: GymWithCount) {
@@ -687,7 +725,7 @@ export function GymMap() {
           maxZoom={19}
           ref={mapRef}
           zoomControl={false}
-          attributionControl={false}
+          attributionControl
           zoomSnap={0.5}
           zoomDelta={0.5}
           wheelPxPerZoomLevel={120}
@@ -700,6 +738,7 @@ export function GymMap() {
           <MapSizeSync />
           <TileLayer
             url={`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`}
+            attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}
             subdomains="abcd"
             maxZoom={19}
             keepBuffer={4}
@@ -766,7 +805,9 @@ export function GymMap() {
           doesn't sit on top of the results list. */}
       {!loading && !searching && homeCountryProgress.total > 0 ? (
         <div className="absolute left-4 top-20 z-10">
-          <div
+          <button
+            type="button"
+            onClick={() => setCountryCollectionOpen(true)}
             className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-bold text-chalk shadow-lg backdrop-blur"
             title={`Gyms collected in ${homeCountryProgress.country ?? "your home country"}`}
           >
@@ -786,7 +827,7 @@ export function GymMap() {
                 {homeCountryProgress.states === 1 ? "" : "s"}
               </span>
             ) : null}
-          </div>
+          </button>
         </div>
       ) : null}
 
@@ -821,11 +862,101 @@ export function GymMap() {
           <LocateFixed size={15} className={locating ? "animate-spin" : ""} />{" "}
           Me
         </button>
+        <button
+          onClick={() => void showNearby()}
+          aria-label="Show gyms near me"
+          className="flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-2 text-xs font-semibold text-chalk shadow-lg backdrop-blur transition active:scale-95 disabled:opacity-50"
+          disabled={locating}
+        >
+          <MapPin size={15} className="text-accent" /> Near me
+        </button>
       </div>
 
       {loading ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-bg/40">
           <CenterSpinner />
+        </div>
+      ) : null}
+
+      {nearOpen && !selected ? (
+        <div className="absolute inset-x-0 bottom-24 z-10 animate-fade-up p-4">
+          <div className="mx-auto max-w-app overflow-hidden rounded-3xl border border-border bg-surface/95 shadow-2xl backdrop-blur">
+            <div className="flex items-center justify-between px-5 pb-3 pt-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">Closest to you</p>
+                <h2 className="mt-0.5 text-lg font-extrabold text-chalk">Gyms nearby</h2>
+              </div>
+              <button type="button" onClick={() => setNearOpen(false)} aria-label="Close nearby gyms" className="rounded-full p-2 text-faint"><X size={20} /></button>
+            </div>
+            <div className="max-h-[42vh] divide-y divide-border/70 overflow-y-auto px-2 pb-2">
+              {nearbyGyms.map(({ gym, miles }) => (
+                <button
+                  key={gym.id}
+                  type="button"
+                  onClick={() => {
+                    setNearOpen(false);
+                    focusGym(gym, 13);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition active:bg-accent/10"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent"><MapPin size={18} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold text-chalk">{gym.name}</span>
+                    <span className="block truncate text-xs text-muted">{gymLocationLabel(gym)}</span>
+                  </span>
+                  <span className="shrink-0 text-xs font-bold tabular-nums text-accent">{miles < 10 ? miles.toFixed(1) : Math.round(miles)} mi</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {countryCollectionOpen ? (
+        <div className="absolute inset-0 z-30 flex items-end bg-black/60 p-4" onClick={() => setCountryCollectionOpen(false)}>
+          <section className="mx-auto w-full max-w-app overflow-hidden rounded-[1.75rem] border border-border bg-surface shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <header className="flex items-center justify-between px-5 pb-3 pt-5">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent">Your country collection</p>
+                <h2 className="mt-1 flex items-center gap-2 text-xl font-extrabold text-chalk">
+                  {homeCountryProgress.cc ? flagEmoji(homeCountryProgress.cc) : null}
+                  {homeCountryProgress.country ?? "Collected gyms"}
+                </h2>
+                <p className="mt-1 text-xs text-muted">{homeCountryProgress.gyms} of {homeCountryProgress.total} gyms climbed</p>
+              </div>
+              <button type="button" onClick={() => setCountryCollectionOpen(false)} aria-label="Close country collection" className="grid h-10 w-10 place-items-center rounded-full bg-bg text-muted">
+                <X size={20} />
+              </button>
+            </header>
+            <div className="max-h-[58vh] divide-y divide-border/70 overflow-y-auto px-2 pb-2">
+              {homeCountryCollectedGyms.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-muted">Log your first send here to collect a gym.</div>
+              ) : homeCountryCollectedGyms.map((gym) => {
+                const stats = myStats.get(gym.id);
+                return (
+                  <button
+                    key={gym.id}
+                    type="button"
+                    onClick={() => {
+                      setCountryCollectionOpen(false);
+                      focusGym(gym, 13);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition active:bg-accent/10"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#ffc24b]/10 text-[#ffc24b]"><Trophy size={17} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-chalk">{gym.name}</span>
+                      <span className="block truncate text-xs text-muted">{gymLocationLabel(gym)}</span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-xs font-bold text-accent">{stats?.sends ?? 0} sends</span>
+                      {stats ? <span className="block text-[10px] text-faint">Last {shortDate(stats.lastVisit)}</span> : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
       ) : null}
 

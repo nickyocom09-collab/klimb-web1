@@ -9,7 +9,7 @@ export const HOLD_COLORS: { name: string; hex: string }[] = [
   { name: "Pink", hex: "#EC4899" },
   { name: "Black", hex: "#1A1A1A" },
   { name: "White", hex: "#F5F5F2" },
-  { name: "Teal", hex: "#14B8A6" },
+  { name: "Tan", hex: "#C9A574" },
 ];
 
 export function holdHex(name: string): string {
@@ -79,8 +79,12 @@ export const LOG_STYLES: { value: LogStylePref; label: string }[] = [
 export const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
 
 // Media uploads ------------------------------------------------------------
-export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50 MB
-export const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime"];
+// The user-facing rule is duration, not a confusing codec/size checklist.
+// This generous ceiling is a transport safeguard; the picker accepts normal
+// videos from the iOS photo library and validates that they are under 3 min.
+export const MAX_VIDEO_BYTES = 250 * 1024 * 1024;
+export const MAX_VIDEO_DURATION_SECONDS = 3 * 60;
+export const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/x-m4v"];
 
 // Route report reasons -----------------------------------------------------
 export type ReportReason = "wrong_gym" | "duplicate" | "inappropriate";

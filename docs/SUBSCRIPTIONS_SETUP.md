@@ -8,23 +8,28 @@ below is configured and tested.
 
 | Setting | Temporary/default value | Where it must match |
 | --- | --- | --- |
-| Monthly product ID | `com.nickyocom.klimb.pro.monthly` | App Store Connect, `.env`, Supabase secrets, `entitlement_config` |
+| Monthly product ID | `com.nickyocom.klimb.pro.monthly` | App Store Connect, `.env`, and Supabase secrets |
+| Annual product ID | `com.nickyocom.klimb.pro.annual` | App Store Connect, `.env`, and Supabase secrets |
 | Bundle ID | `com.nickyocom.klimb` | Apple app record and Supabase secrets |
 | Apple app ID | `6792880012` | Supabase secrets |
-| Founder cutoff | `2026-08-31 23:59:59+00` | `entitlement_config.founders_cutoff_at` |
+| Launch-day Lifetime Pro window | `2026-08-17 00:00–23:59:59 America/Chicago` | `0032_launch_day_access_and_navigation.sql` |
 | Server notification URL | `https://qanfxjjiegqdmhmgwtxl.supabase.co/functions/v1/app-store-notifications` | App Store Connect production and sandbox notification URLs |
 
-The product ID and cutoff are intentionally configurable. The displayed price
-and billing period come from StoreKit product data.
+The displayed price, billing period, and yearly savings come from StoreKit
+product data. The U.S. reference prices are $3.99/month and $34.99/year; Apple
+supplies the localized storefront prices. The
+one-day founder window is closed and fixed in server time so its public terms
+cannot drift after the offer.
 
 ## 1. Apply the database migration
 
-Run `migrations/0016_entitlements_and_logging_repair.sql` in the Supabase SQL
-Editor or through your normal migration workflow. It:
+Run the entitlement migrations through
+`migrations/0032_launch_day_access_and_navigation.sql` in order. Together they:
 
 - creates the entitlement, transaction, analytics, admin, and audit tables;
 - backfills existing users without deleting any data;
-- permanently grants eligible pre-cutoff users Lifetime Pro;
+- permanently grant every verified account created during August 17, 2026 in
+  America/Chicago Lifetime Pro;
 - installs server-only founder/admin functions and row-level security; and
 - repairs `log_climb` so boulder, top-rope, and lead logs are saved atomically.
 
@@ -47,13 +52,28 @@ Do not expose the service-role key or allow normal clients to insert into
    `Klimb Pro`.
 3. Create a monthly auto-renewable subscription with product ID
    `com.nickyocom.klimb.pro.monthly`.
-4. Choose the monthly price tier in App Store Connect. The app will use Apple's
+4. Create a yearly auto-renewable subscription with product ID
+   `com.nickyocom.klimb.pro.annual`.
+5. Choose the price tiers in App Store Connect. The app will use Apple's
    localized `displayPrice`; there is no hard-coded `$2.99` label.
-5. Add a **7-day Free Trial** introductory offer for new eligible subscribers.
-6. Add localization, the subscription review screenshot, and review notes.
-7. Complete Paid Apps agreements, tax forms, and banking information.
-8. Add Klimb's Terms of Use and Privacy Policy URLs to the app metadata and
+6. Add a **7-day Free Trial** introductory offer for new eligible monthly
+   subscribers.
+7. Add localization, the subscription review screenshots, and review notes.
+8. Complete Paid Apps agreements, tax forms, and banking information.
+9. Add Klimb's Terms of Use and Privacy Policy URLs to the app metadata and
    confirm the in-app links point to the final published pages.
+
+As of August 21, 2026, both products have localized pricing and availability in
+175 App Store countries/regions, and the monthly product has a one-week free
+trial. Paid Apps, banking, and U.S. tax setup are active. Both products still
+show **Prepare for Submission** and must be attached to the next app version,
+given their review screenshots, and submitted for review before production
+purchases can be considered launch-ready.
+
+The Account Holder must also personally accept Apple's updated Developer
+Program License Agreement and complete the EU Digital Services Act trader
+status flow. Those are legal attestations and must not be completed by an
+automated build or development agent.
 
 ## 3. Configure Apple server notifications and credentials
 
@@ -64,22 +84,26 @@ production and sandbox notification fields:
 https://qanfxjjiegqdmhmgwtxl.supabase.co/functions/v1/app-store-notifications
 ```
 
+Both notification fields were configured with this URL on August 21, 2026.
+
 Create an App Store Connect In-App Purchase key for the secure administrator
 recheck endpoint. Download it once and store it only as a Supabase secret.
 
-Download Apple's current root certificates from Apple PKI. Convert each
-certificate to base64/PEM text and provide them as a JSON array. Never commit
-the private key or certificates to Git.
+Download the three current Apple root certificates from Apple PKI. Base64-encode
+the raw DER bytes of each `.cer` file and provide those strings as a JSON array.
+Do not encode a filename, placeholder, or JSON string a second time. These are
+public trust anchors; private App Store Connect keys must still never enter Git.
 
 ```bash
 supabase secrets set \
   APPLE_BUNDLE_ID=com.nickyocom.klimb \
   APPLE_APP_ID=6792880012 \
   APPLE_MONTHLY_PRODUCT_ID=com.nickyocom.klimb.pro.monthly \
+  APPLE_ANNUAL_PRODUCT_ID=com.nickyocom.klimb.pro.annual \
   APPLE_IAP_KEY_ID=YOUR_IN_APP_PURCHASE_KEY_ID \
   APPLE_IAP_ISSUER_ID=YOUR_ISSUER_ID \
   APPLE_IAP_PRIVATE_KEY='-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----' \
-  APPLE_ROOT_CA_CERTIFICATES_BASE64_JSON='["APPLE_ROOT_CERTIFICATE_TEXT"]'
+  APPLE_ROOT_CA_CERTIFICATES_BASE64_JSON='["APPLE_INC_ROOT_DER_BASE64","APPLE_G2_ROOT_DER_BASE64","APPLE_G3_ROOT_DER_BASE64"]'
 ```
 
 Supabase supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and
@@ -101,8 +125,11 @@ Klimb user; the latter also checks `entitlement_admins`.
 ## 5. Founder controls
 
 Founder access uses `auth.users.created_at` and database server time, not the
-device clock. To end future founder grants without touching existing members,
-call the secure admin function:
+device clock. Migration `0032` retired both the older date cutoff and first-100
+campaign. Existing lifetime grants remain permanent.
+
+The legacy secure control remains available for support and audit use, but it
+must not be re-enabled for the closed launch-day offer:
 
 ```sql
 select public.admin_set_founder_config(
@@ -142,7 +169,9 @@ written to `entitlement_audit_log`.
 2. Test purchase success, cancellation, Ask to Buy/pending, expiration,
    renewal, restore on another device, and an unverified transaction.
 3. Use App Store Connect sandbox testers to confirm the seven-day introductory
-   offer eligibility and Apple-localized price.
+   offer eligibility and Apple-localized price. The free trial still starts
+   through Apple's native confirmation sheet; verify that the sheet says the
+   first week is free and shows the later renewal price.
 4. Send a test App Store Server Notification from App Store Connect and confirm
    it is accepted.
 5. Confirm a founder account never sees upgrade prompts and remains Lifetime

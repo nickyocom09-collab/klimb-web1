@@ -56,3 +56,17 @@ export const US_STATES: { code: string; name: string }[] = [
 export const STATE_NAME: Record<string, string> = Object.fromEntries(
   US_STATES.map((s) => [s.code, s.name]),
 );
+
+const STATE_CODE: Record<string, string> = Object.fromEntries(
+  US_STATES.flatMap((state) => [
+    [state.code.toLowerCase(), state.code],
+    [state.name.toLowerCase(), state.code],
+  ]),
+);
+
+/** Return the postal abbreviation for either a full US state name or code. */
+export function normalizeUsState(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return STATE_CODE[trimmed.toLowerCase()] ?? trimmed;
+}

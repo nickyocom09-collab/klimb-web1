@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060a08">
+  <title>Open a Klimb friend invite</title>
+  <meta name="description" content="A climber invited you to connect on Klimb.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Klimb">
+  <meta property="og:title" content="Klimb together">
+  <meta property="og:description" content="A climber invited you to connect on Klimb.">
+  <meta property="og:image" content="https://qanfxjjiegqdmhmgwtxl.supabase.co/functions/v1/add/preview.png">
+  <meta name="twitter:card" content="summary">
+  <style>
+    :root { color-scheme: dark; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; overflow: hidden; color: #f4f8f5; background: #060a08; }
+    body::before { content: ""; position: fixed; inset: -20%; background: radial-gradient(circle at 50% 18%, rgba(74, 222, 128, .22), transparent 31%), radial-gradient(circle at 15% 84%, rgba(255, 255, 255, .05), transparent 24%); pointer-events: none; }
+    .rings { position: fixed; width: 520px; height: 520px; top: -360px; left: 50%; transform: translateX(-50%); border: 1px solid rgba(130, 240, 167, .12); border-radius: 50%; box-shadow: 0 0 0 58px rgba(130, 240, 167, .025), 0 0 0 116px rgba(130, 240, 167, .016); }
+    main { position: relative; width: min(calc(100% - 36px), 420px); padding: 38px 28px 26px; border: 1px solid rgba(165, 242, 190, .14); border-radius: 34px; text-align: center; background: linear-gradient(150deg, rgba(23, 36, 29, .94), rgba(10, 16, 12, .94)); box-shadow: 0 30px 90px rgba(0, 0, 0, .48); backdrop-filter: blur(18px); }
+    .mark { width: 72px; height: 72px; margin: 0 auto 24px; display: grid; place-items: center; border-radius: 25px; color: #061009; background: linear-gradient(145deg, #a3f7be, #54e487); box-shadow: 0 0 0 9px rgba(130, 240, 167, .07), 0 16px 48px rgba(74, 222, 128, .2); font: 900 36px/1 Georgia, serif; user-select: none; -webkit-touch-callout: none; }
+    .eyebrow { margin: 0 0 12px; color: #72e99a; font-size: 11px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; }
+    h1 { margin: 0; font: 700 clamp(38px, 11vw, 52px)/.96 Georgia, "Times New Roman", serif; letter-spacing: -.045em; }
+    p { margin: 16px auto 0; max-width: 310px; color: #a6b6ac; font-size: 15px; line-height: 1.55; }
+    button { width: 100%; margin-top: 30px; border: 0; border-radius: 20px; padding: 17px 20px; color: #07100b; background: linear-gradient(135deg, #6bea98, #43d979); box-shadow: 0 15px 38px rgba(74, 222, 128, .18); font: 800 17px/1.2 inherit; cursor: pointer; touch-action: manipulation; }
+    button:active { transform: scale(.985); }
+    button:disabled { opacity: .45; }
+    button:focus-visible { outline: 2px solid #f4f8f5; outline-offset: 3px; }
+    small { display: block; margin-top: 13px; color: #77877d; font-size: 11px; }
+    .store { display: inline-block; margin-top: 16px; color: #91efa9; font-size: 13px; font-weight: 750; text-decoration: none; }
+    #status { min-height: 20px; margin-top: 14px; color: #86a08f; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="rings" aria-hidden="true"></div>
+  <main>
+    <div class="mark" aria-hidden="true">K</div>
+    <p class="eyebrow">Klimb together</p>
+    <h1>Friend invite.</h1>
+    <p>A climber invited you to connect. Open Klimb to view their profile before you decide.</p>
+    <button id="open" type="button">Open in Klimb</button>
+    <small>Already have Klimb? This opens the inviter's profile.</small>
+    <a class="store" id="store" href="https://apps.apple.com/app/id6792880012">Get Klimb on the App Store</a>
+    <div id="status" role="status" aria-live="polite"></div>
+  </main>
+  <script>
+    const id = new URLSearchParams(location.search).get("id") || "";
+    const valid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const button = document.getElementById("open");
+    const status = document.getElementById("status");
+    if (!valid) {
+      button.disabled = true;
+      status.textContent = "This invitation link is incomplete.";
+    }
+    const storeUrl = "https://apps.apple.com/app/id6792880012";
+    button.addEventListener("click", () => {
+      if (!valid) return;
+      status.textContent = "Opening Klimb…";
+      let leftPage = false;
+      const onVisibility = () => { if (document.hidden) leftPage = true; };
+      document.addEventListener("visibilitychange", onVisibility, { once: true });
+      location.href = `klimb://profile/${id}`;
+      setTimeout(() => {
+        if (!leftPage && !document.hidden) location.href = storeUrl;
+      }, 1400);
+    });
+  </script>
+</body>
+</html>

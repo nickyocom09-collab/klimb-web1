@@ -10,7 +10,7 @@ APP_IDENTIFIER = "com.nickyocom.klimb"
 XCODEPROJ = "Klimb.xcodeproj"
 SCHEME = "Klimb"
 TEAM_ID = "6Z9QZ8CXJ6"
-APP_STORE_PROFILE = "Klimb App Store Push 2026-08-01"
+APP_STORE_PROFILE = "Klimb App Store Links 2026-08-22"
 # Repo root (klimb-web) — four levels up from this Fastfile.
 REPO_ROOT = File.expand_path("../../../..", __FILE__)
 
@@ -76,7 +76,9 @@ platform :ios do
       node_bin = ENV.fetch("NODE_BIN", "node")
       node_directory = File.dirname(node_bin)
       node_path = "PATH='#{node_directory}':$PATH"
-      if ENV["SKIP_WEB_BUILD"] == "1"
+      if ENV["SKIP_CAP_SYNC"] == "1"
+        UI.important("Skipping Capacitor sync because the native assets were already synced.")
+      elsif ENV["SKIP_WEB_BUILD"] == "1"
         UI.important("Skipping the web build and syncing the existing dist bundle.")
         sh("cd '#{REPO_ROOT}' && #{node_path} npx cap sync ios")
       else

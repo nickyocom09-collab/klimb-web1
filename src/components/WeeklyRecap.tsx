@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   Flame,
   Mountain,
@@ -8,114 +8,15 @@ import {
   X,
   Check,
   Share2,
+  ChevronDown,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import type { RecapRow } from "../lib/recaps";
-import type { RecapPayload } from "../lib/database.types";
 import { formatGradeStyled, type GradeSystem } from "../lib/grades";
+import { archetypeFor } from "../lib/weeklyRecapArchetype";
 import { StreakFire } from "./StreakFire";
-
-/* ---------------- 15 archetypes ---------------- */
-type Archetype = { key: string; label: string; sub: string; hue: string };
-
-const ARCHETYPES: Archetype[] = [
-  { key: "breakthrough", label: "Breakthrough", sub: "You sent a new personal best.", hue: "#4ADE80" },
-  { key: "grind", label: "The Grind", sub: "More time on the wall than ever.", hue: "#7CC5FF" },
-  { key: "project", label: "Project Hunter", sub: "You threw yourself at one line, again and again.", hue: "#E4B363" },
-  { key: "flash", label: "Flash Machine", sub: "First try, first send — over and over.", hue: "#FFD166" },
-  { key: "comeback", label: "Comeback Kid", sub: "You came back stronger.", hue: "#4ADE80" },
-  { key: "frontier", label: "Frontier", sub: "New gym, new ground.", hue: "#8EE6C8" },
-  { key: "endurance", label: "Endurance Beast", sub: "You just wouldn't come down.", hue: "#5EEAD4" },
-  { key: "technician", label: "The Technician", sub: "Precision over power all week.", hue: "#A5B4FC" },
-  { key: "power", label: "Power House", sub: "Steep, savage, and sent.", hue: "#F87171" },
-  { key: "metronome", label: "Metronome", sub: "You showed up day after day.", hue: "#4ADE80" },
-  { key: "crew", label: "Crew Leader", sub: "The best sessions are with the crew.", hue: "#C4B5FD" },
-  { key: "dawn", label: "Dawn Patrol", sub: "First on the wall, before the world woke up.", hue: "#FDBA74" },
-  { key: "plateau", label: "Plateau Breaker", sub: "You cracked the grade that's been haunting you.", hue: "#4ADE80" },
-  { key: "fresh", label: "Fresh Chalk", sub: "Welcome. Week one is in the books.", hue: "#94E2C4" },
-  { key: "ember", label: "Ember Keeper", sub: "You kept the streak alive.", hue: "#FB923C" },
-];
-
-/** Stable FNV-1a hash — used as a deterministic tie-breaker so near-tied
- *  weeks rotate between archetypes instead of always landing on the same one. */
-function hashStr(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/**
- * Score every archetype whose condition the week actually meets, pick the
- * strongest, and break near-ties (within 8 points) with a hash of the
- * period start + the week's stats so similar weeks rotate labels.
- */
-function archetypeFor(p: RecapPayload, seedKey: string): Archetype {
-  const byKey = (k: string) =>
-    ARCHETYPES.find((a) => a.key === k) ?? ARCHETYPES[1];
-  const wall = (p.top_wall ?? "").toLowerCase();
-  const ratio = p.climbs > 0 ? p.attempts / p.climbs : 0;
-  const noPreviousActivity = p.prev.climbs === 0 && p.prev.sends === 0;
-  const returningAfterGap =
-    noPreviousActivity &&
-    p.oldest_project_days !== null &&
-    p.oldest_project_days >= 7;
-  const firstActivePeriod = noPreviousActivity && !returningAfterGap;
-  const flashRate = p.flash_rate ?? 0;
-  const gradeBreadth = new Set(p.pyramid.map((r) => `${r.type}:${r.ordinal}`))
-    .size;
-  const bothDisciplines =
-    p.hardest_send.boulder !== null && p.hardest_send.toprope !== null;
-
-  const scores: [string, number][] = [];
-
-  // A first active period should feel like a beginning, not claim everyone
-  // had the same breakthrough. Returning weeks can earn Breakthrough, but it
-  // competes with the rest of that person's actual pattern instead of
-  // automatically overpowering every other archetype.
-  if (firstActivePeriod && p.climbs > 0) scores.push(["fresh", 88]);
-  if (returningAfterGap && p.climbs > 0) scores.push(["comeback", 82]);
-  if (!firstActivePeriod && p.new_grades.length > 0)
-    scores.push([
-      p.oldest_project_days !== null && p.oldest_project_days >= 21
-        ? "plateau"
-        : "breakthrough",
-      (p.oldest_project_days !== null && p.oldest_project_days >= 21 ? 76 : 62) +
-        Math.min(p.new_grades.length * 3, 9),
-    ]);
-
-  // Style of the week — each keyed off a real field, scored by strength.
-  if (flashRate >= 50 && p.flashes >= 3)
-    scores.push(["flash", 40 + flashRate / 2]);
-  if (ratio >= 2.5 && p.attempts >= 10)
-    scores.push(["project", 40 + Math.min(ratio * 6, 30)]);
-  if (wall.includes("overhang") || wall.includes("cave") || wall.includes("roof"))
-    scores.push(["power", 55]);
-  if (wall.includes("slab") || (flashRate >= 40 && ratio <= 1.5 && p.sends >= 4))
-    scores.push(["technician", 52]);
-  if (p.attempts >= 25 || p.climbs >= 20)
-    scores.push(["endurance", 40 + Math.min(p.attempts / 2, 25)]);
-  if (p.sessions >= 4) scores.push(["metronome", 42 + p.sessions * 3]);
-  if (p.streak >= 3) scores.push(["ember", 38 + Math.min(p.streak * 3, 24)]);
-  if (bothDisciplines || gradeBreadth >= 6) scores.push(["frontier", 46]);
-  if (p.sessions >= 2 && p.climbs >= p.sessions * 5) scores.push(["crew", 44]);
-  if (p.sessions >= 2 && p.climbs > 0 && p.climbs <= p.sessions * 3)
-    scores.push(["dawn", 43]);
-  if (p.prev.climbs > 0 && p.climbs >= p.prev.climbs * 1.4)
-    scores.push(["grind", 50]);
-  if (scores.length === 0) scores.push(["grind", 10]);
-
-  scores.sort((a, b) => b[1] - a[1]);
-  const pool = scores.filter(([, s]) => scores[0][1] - s <= 8);
-  const seed = hashStr(
-    `${seedKey}|${p.climbs}|${p.sends}|${p.attempts}|${p.sessions}|${p.streak}`,
-  );
-  return byKey(pool[seed % pool.length][0]);
-}
 
 /* The numbers a recap card / story image needs, pulled from the payload. */
 type WeekData = {
@@ -530,8 +431,8 @@ export function WeeklyRecap({
   const mixTotal = mix.reduce((sum, item) => sum + item.n, 0);
 
   const arch = useMemo(
-    () => archetypeFor(p, `${recap.period}:${recap.period_start}`),
-    [p, recap.period, recap.period_start],
+    () => archetypeFor(p),
+    [p],
   );
   const week: WeekData = {
     climbs: p.climbs,
@@ -555,24 +456,25 @@ export function WeeklyRecap({
 
   const [i, setI] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const next = () => setI((v) => Math.min(v + 1, cards.length - 1));
-  const prev = () => setI((v) => Math.max(v - 1, 0));
-  const onTap = (e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (e.clientX - rect.left < rect.width * 0.3) prev();
-    else next();
-  };
+  const goTo = useCallback((index: number) => {
+    const nextIndex = Math.max(0, Math.min(index, cards.length - 1));
+    setI(nextIndex);
+    const scroller = scrollRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: scroller.clientHeight * nextIndex, behavior: "smooth" });
+    }
+  }, [cards.length]);
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowUp" || e.key === "PageUp") goTo(i - 1);
+      if (e.key === "ArrowDown" || e.key === "PageDown") goTo(i + 1);
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards.length]);
+  }, [goTo, i, onClose]);
 
   const shareViaSheet = async (
     canvas: HTMLCanvasElement,
@@ -638,24 +540,26 @@ export function WeeklyRecap({
     );
   };
 
-  const card = cards[i];
-
   return (
     <div style={S.root}>
       <style>{CSS}</style>
-      <div style={S.phone} onClick={onTap}>
-        <div style={S.segs} onClick={(e) => e.stopPropagation()}>
-          {cards.map((_, k) => (
-            <div key={k} style={S.seg}>
-              <div style={{ ...S.segFill, width: k <= i ? "100%" : "0%", opacity: k <= i ? 1 : 0.25 }} />
-            </div>
-          ))}
-        </div>
-
-        <button style={S.close} onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close recap">
+      <div style={S.phone}>
+        <button style={S.close} onClick={onClose} aria-label="Close recap">
           <X size={18} color="#B8C4BD" />
         </button>
 
+        <div
+          ref={scrollRef}
+          className="klimb-recap-pages"
+          style={S.pages}
+          onScroll={(event) => {
+            const element = event.currentTarget;
+            const nextIndex = Math.round(element.scrollTop / Math.max(1, element.clientHeight));
+            if (nextIndex !== i) setI(nextIndex);
+          }}
+        >
+        {cards.map((card) => (
+          <section key={card} style={S.page} aria-label={`${cards.indexOf(card) + 1} of ${cards.length}`}>
         {card === "arch" && (
           <div style={S.card}>
             <RocksCanvas />
@@ -664,6 +568,10 @@ export function WeeklyRecap({
               <div style={S.kicker}>THIS {periodWord.toUpperCase()} YOU WERE</div>
               <h1 style={{ ...S.archTitle, color: arch.hue, textShadow: `0 0 34px ${arch.hue}66` }}>{arch.label}</h1>
               <p style={S.archSub}>{arch.sub}</p>
+            </div>
+            <div className="klimb-recap-cue" style={S.scrollCue} aria-hidden="true">
+              <span style={S.scrollCueLabel}>Scroll</span>
+              <ChevronDown size={19} />
             </div>
           </div>
         )}
@@ -782,17 +690,16 @@ export function WeeklyRecap({
             style={{
               ...S.card,
               background:
-                "radial-gradient(circle at 50% 8%, #204d35 0%, #0d1b14 34%, #080B0A 72%)",
+                "radial-gradient(circle at 50% -2%, #235f3e 0%, #113522 30%, #08140e 58%, #050807 100%)",
             }}
           >
-            <div style={S.finishGlow} />
             <div style={S.finishOrbit} />
-            <div style={{ ...S.cardInner, ...S.finishInner }}>
+            <div className="klimb-recap-finish" style={{ ...S.cardInner, ...S.finishInner }}>
               <div style={S.finishHero}>
                 <div style={S.finishMark}>
-                  <Check size={24} strokeWidth={2.8} />
+                  <Check size={30} strokeWidth={3.1} />
                 </div>
-                <div style={{ ...S.kicker, margin: "15px 0 10px" }}>
+                <div style={S.finishKicker}>
                   THAT&apos;S A WRAP
                 </div>
                 <h2 style={S.wrapTitle}>
@@ -858,12 +765,15 @@ export function WeeklyRecap({
                   void shareRecap();
                 }}
               >
-                <Share2 size={18} strokeWidth={2.4} /> Share your recap
+                <Share2 size={20} strokeWidth={2.5} /> Share your recap
               </button>
               <span style={S.shareHint}>Opens your iOS share menu</span>
             </div>
           </div>
         )}
+          </section>
+        ))}
+        </div>
       </div>
 
       {preview && (
@@ -922,10 +832,9 @@ const serif = 'Cambria, Georgia, "Times New Roman", serif';
 const sans = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const S: Record<string, React.CSSProperties> = {
   root: { position: "fixed", inset: 0, zIndex: 50, background: "#050706", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: sans },
-  phone: { position: "relative", width: "100%", maxWidth: 480, height: "100%", overflow: "hidden", background: "#080B0A", cursor: "pointer", userSelect: "none", margin: "0 auto" },
-  segs: { position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 12px)", left: 12, right: 12, zIndex: 20, display: "flex", gap: 5 },
-  seg: { flex: 1, height: 3, borderRadius: 3, background: "rgba(255,255,255,0.16)", overflow: "hidden" },
-  segFill: { height: "100%", background: "#4ADE80", transition: "width .3s ease" },
+  phone: { position: "relative", width: "100%", maxWidth: 480, height: "100%", overflow: "hidden", background: "#080B0A", userSelect: "none", margin: "0 auto" },
+  pages: { width: "100%", height: "100%", display: "flex", flexDirection: "column", overflowX: "hidden", overflowY: "auto", scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehaviorY: "contain" },
+  page: { position: "relative", width: "100%", minHeight: "100%", height: "100%", flex: "0 0 100%", scrollSnapAlign: "start", scrollSnapStop: "always", overflow: "hidden" },
   close: { position: "absolute", top: "calc(env(safe-area-inset-top, 0px) + 24px)", right: 14, zIndex: 25, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 999, width: 34, height: 34, display: "grid", placeItems: "center", cursor: "pointer" },
   card: { position: "absolute", inset: 0, overflow: "hidden" },
   scrim: { position: "absolute", inset: 0, background: "radial-gradient(circle at 50% 45%, rgba(8,11,10,0.35), rgba(8,11,10,0.86))" },
@@ -933,6 +842,8 @@ const S: Record<string, React.CSSProperties> = {
   kicker: { fontSize: 11, letterSpacing: "0.3em", color: "#7C8C84", fontWeight: 600, marginBottom: 14 },
   archTitle: { fontFamily: serif, fontSize: 52, fontWeight: 700, lineHeight: 1.02, margin: 0 },
   archSub: { fontSize: 15, color: "#B8C4BD", marginTop: 16, maxWidth: 280, lineHeight: 1.45 },
+  scrollCue: { position: "absolute", zIndex: 8, left: "50%", bottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, color: "rgba(184,196,189,.74)", animation: "klimb-recap-cue 1.7s ease-in-out infinite", pointerEvents: "none" },
+  scrollCueLabel: { fontSize: 9, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase" },
   numGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, width: "100%", maxWidth: 320, marginTop: 10 },
   num: { background: "rgba(74,222,128,0.05)", border: "1px solid rgba(74,222,128,0.16)", borderRadius: 16, padding: "20px 14px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 },
   numV: { fontFamily: serif, fontSize: 30, fontWeight: 700, color: "#E8F0EB", fontVariantNumeric: "lining-nums tabular-nums" },
@@ -954,30 +865,30 @@ const S: Record<string, React.CSSProperties> = {
   mixTrack: { width: "100%", height: 8, borderRadius: 999, background: "rgba(255,255,255,0.07)", overflow: "hidden" },
   mixFill: { height: "100%", borderRadius: 999, minWidth: 8 },
   mixNote: { margin: "30px 0 0", color: "#B8C4BD", fontFamily: serif, fontSize: 16, fontStyle: "italic" },
-  finishGlow: { position: "absolute", width: 310, height: 310, top: -164, left: "50%", transform: "translateX(-50%)", borderRadius: "50%", background: "rgba(74,222,128,0.14)", filter: "blur(72px)", pointerEvents: "none" },
-  finishOrbit: { position: "absolute", width: 330, height: 330, top: -205, left: "50%", transform: "translateX(-50%)", borderRadius: "50%", border: "1px solid rgba(130,240,167,0.12)", boxShadow: "0 0 0 42px rgba(130,240,167,0.025), 0 0 0 84px rgba(130,240,167,0.018)", pointerEvents: "none" },
-  finishInner: { justifyContent: "center", padding: "calc(env(safe-area-inset-top, 0px) + 62px) 24px calc(env(safe-area-inset-bottom, 0px) + 22px)" },
+  finishOrbit: { position: "absolute", width: "118vw", maxWidth: 560, height: "118vw", maxHeight: 560, top: "calc(env(safe-area-inset-top, 0px) - 53vw)", left: "50%", transform: "translateX(-50%)", borderRadius: "50%", border: "1px solid rgba(130,240,167,0.12)", boxShadow: "0 0 0 42px rgba(130,240,167,0.028), 0 0 0 86px rgba(130,240,167,0.018)", pointerEvents: "none" },
+  finishInner: { justifyContent: "flex-start", overflow: "hidden", padding: "calc(env(safe-area-inset-top, 0px) + clamp(98px, 13vh, 138px)) 24px calc(env(safe-area-inset-bottom, 0px) + 18px)" },
   finishHero: { display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 },
-  finishMark: { width: 50, height: 50, borderRadius: 25, display: "flex", alignItems: "center", justifyContent: "center", color: "#07110B", background: "linear-gradient(145deg, #A3F7BE, #65E995)", border: "1px solid rgba(255,255,255,0.38)", boxShadow: "0 0 0 7px rgba(130,240,167,0.08), 0 14px 42px rgba(74,222,128,0.26)" },
-  wrapTitle: { fontFamily: serif, fontSize: "clamp(35px, 10.4vw, 44px)", lineHeight: 1.01, fontWeight: 700, color: "#F4FAF6", margin: 0, letterSpacing: -1.35 },
-  wrapSub: { color: "#ABC2B3", fontSize: "clamp(12px, 3.5vw, 14px)", margin: "11px 0 0" },
-  finishPanel: { width: "100%", maxWidth: 350, margin: "clamp(20px, 4vh, 30px) 0 18px", padding: "18px 17px 16px", borderRadius: 22, background: "linear-gradient(155deg, rgba(255,255,255,0.07), rgba(255,255,255,0.025))", border: "1px solid rgba(166,242,190,0.13)", boxShadow: "0 18px 52px rgba(0,0,0,0.22)", backdropFilter: "blur(14px)" },
+  finishMark: { width: 60, height: 60, borderRadius: 30, display: "flex", alignItems: "center", justifyContent: "center", color: "#07110B", background: "linear-gradient(145deg, #A3F7BE, #65E995)", border: "1px solid rgba(255,255,255,0.45)", boxShadow: "0 0 0 8px rgba(130,240,167,0.08), 0 14px 42px rgba(74,222,128,0.24)" },
+  finishKicker: { color: "#7C8C84", fontSize: 11, fontWeight: 700, letterSpacing: "0.3em", margin: "22px 0 14px" },
+  wrapTitle: { fontFamily: serif, fontSize: "clamp(43px, 12vw, 54px)", lineHeight: 0.95, fontWeight: 700, color: "#F4FAF6", margin: 0, letterSpacing: -1.65 },
+  wrapSub: { color: "#ABC2B3", fontSize: "clamp(13px, 3.8vw, 16px)", margin: "18px 0 0", letterSpacing: "0.01em" },
+  finishPanel: { width: "100%", maxWidth: 390, margin: "clamp(18px, 3.2vh, 30px) 0 16px", padding: "clamp(16px, 2.6vh, 22px) 20px 18px", borderRadius: 24, background: "rgba(18,29,23,0.8)", border: "1px solid rgba(166,242,190,0.18)", boxShadow: "0 18px 52px rgba(0,0,0,0.18)", backdropFilter: "blur(14px)" },
   finishStats: { width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 },
-  finishStat: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "2px 6px 15px", borderBottom: "1px solid rgba(255,255,255,0.075)" },
-  finishStatValue: { color: "#F1F8F2", fontFamily: serif, fontSize: 24, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
-  finishStatLabel: { color: "#7C8C84", fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" },
-  finishMixBlock: { marginTop: 15 },
-  finishSectionLabel: { color: "#6F8177", fontSize: 8.5, fontWeight: 750, letterSpacing: "0.2em", textAlign: "left" },
-  finishMixBar: { display: "flex", gap: 4, width: "100%", height: 7, marginTop: 10 },
+  finishStat: { display: "flex", flexDirection: "column", alignItems: "center", gap: 7, padding: "2px 6px 21px", borderBottom: "1px solid rgba(255,255,255,0.09)" },
+  finishStatValue: { color: "#F1F8F2", fontFamily: serif, fontSize: 29, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
+  finishStatLabel: { color: "#7C8C84", fontSize: 10.5, fontWeight: 750, textTransform: "uppercase", letterSpacing: "0.1em" },
+  finishMixBlock: { marginTop: 20 },
+  finishSectionLabel: { color: "#7D9085", fontSize: 9.5, fontWeight: 750, letterSpacing: "0.24em", textAlign: "left" },
+  finishMixBar: { display: "flex", gap: 5, width: "100%", height: 8, marginTop: 13 },
   finishMixSegment: { display: "block", minWidth: 8, borderRadius: 999, boxShadow: "0 0 14px rgba(255,255,255,0.05)" },
-  finishMix: { width: "100%", display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "7px 13px", marginTop: 10 },
-  finishMixItem: { display: "inline-flex", alignItems: "center", gap: 5, color: "#9EAEA4", fontSize: 10, fontWeight: 650 },
-  finishMixDot: { display: "inline-block", width: 6, height: 6, borderRadius: 999 },
-  finishBest: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginTop: 14, paddingTop: 13, borderTop: "1px solid rgba(255,255,255,0.075)" },
-  finishBestLabel: { color: "#6F8177", fontSize: 8.5, fontWeight: 750, letterSpacing: "0.18em" },
-  finishBestGrade: { color: "#E4B363", fontSize: 20, lineHeight: 1, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" },
-  shareBtn: { width: "100%", maxWidth: 350, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 10, fontSize: 15, fontWeight: 800, color: "#07110B", background: "linear-gradient(135deg, #64E992, #43D979)", border: "1px solid rgba(255,255,255,0.24)", padding: "15px 18px", borderRadius: 17, boxShadow: "0 14px 34px rgba(74,222,128,0.19)", cursor: "pointer" },
-  shareHint: { color: "#607168", fontSize: 10.5, marginTop: 8, letterSpacing: "0.01em" },
+  finishMix: { width: "100%", display: "flex", flexWrap: "wrap", justifyContent: "flex-start", gap: "8px 16px", marginTop: 13 },
+  finishMixItem: { display: "inline-flex", alignItems: "center", gap: 6, color: "#A8B7AE", fontSize: 11.5, fontWeight: 650 },
+  finishMixDot: { display: "inline-block", width: 7, height: 7, borderRadius: 999 },
+  finishBest: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginTop: 18, paddingTop: 17, borderTop: "1px solid rgba(255,255,255,0.09)" },
+  finishBestLabel: { color: "#7D9085", fontSize: 9.5, fontWeight: 750, letterSpacing: "0.22em" },
+  finishBestGrade: { color: "#E4B363", fontSize: 24, lineHeight: 1, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" },
+  shareBtn: { width: "100%", maxWidth: 390, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 12, fontSize: 17, fontWeight: 800, color: "#07110B", background: "linear-gradient(135deg, #64E992, #43D979)", border: "1px solid rgba(255,255,255,0.3)", padding: "18px 20px", borderRadius: 22, boxShadow: "0 14px 38px rgba(74,222,128,0.21)", cursor: "pointer", flexShrink: 0 },
+  shareHint: { color: "#607168", fontSize: 11.5, marginTop: 10, letterSpacing: "0.01em", flexShrink: 0 },
   overlay: { position: "fixed", inset: 0, background: "rgba(4,6,5,0.85)", backdropFilter: "blur(4px)", display: "grid", placeItems: "center", zIndex: 60, padding: 20 },
   previewCard: { width: "100%", maxWidth: 300, background: "#0E1512", border: "1px solid rgba(74,222,128,0.2)", borderRadius: 18, padding: 14 },
   previewHead: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
@@ -991,4 +902,18 @@ const S: Record<string, React.CSSProperties> = {
 
 const CSS = `
 button:hover{filter:brightness(1.08);}
+.klimb-recap-pages{scrollbar-width:none;overscroll-behavior-y:contain;}
+.klimb-recap-pages::-webkit-scrollbar{display:none;}
+@keyframes klimb-recap-cue {
+  0%, 100% { transform: translate(-50%, 0); opacity: .55; }
+  50% { transform: translate(-50%, 7px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .klimb-recap-cue { animation: none !important; }
+}
+@media (max-height: 760px) {
+  .klimb-recap-finish { padding-top: calc(env(safe-area-inset-top, 0px) + 76px) !important; }
+  .klimb-recap-finish h2 { font-size: 38px !important; }
+  .klimb-recap-finish > div:nth-child(2) { margin-top: 14px !important; padding-top: 14px !important; padding-bottom: 14px !important; }
+}
 `;

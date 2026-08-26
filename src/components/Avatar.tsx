@@ -16,8 +16,10 @@ export function Avatar({
         alt={name ?? "avatar"}
         width={size}
         height={size}
+        draggable={false}
+        onContextMenu={(event) => event.preventDefault()}
         style={{ width: size, height: size }}
-        className="shrink-0 rounded-full object-cover"
+        className="pointer-events-none shrink-0 select-none rounded-full object-cover [-webkit-touch-callout:none]"
       />
     );
   }

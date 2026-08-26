@@ -1,9 +1,10 @@
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
+import { supabase } from "./supabase";
 
 // Anti-cheat: you have to actually be near a gym to make it your home gym, so
 // people can't swap to a far-away gym and pad their logbook there.
-export const MAX_HOME_GYM_MILES = 25;
+export const MAX_HOME_GYM_MILES = 30;
 
 /** Great-circle distance in miles between two lat/lng points. */
 export function milesBetween(
@@ -137,4 +138,49 @@ export async function assertNearGym(gym: {
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Location check failed." };
   }
+}
+
+/**
+ * A device only has to pass the radius check for its first log at a gym. Once
+ * that gym is unlocked, logging and the full logbook work from anywhere. We
+ * persist only the user/gym pair — never the device's coordinates.
+ */
+export async function ensureGymUnlocked(
+  userId: string,
+  gymId: string,
+  gym: {
+    name?: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  },
+): Promise<{ ok: boolean; unlockedNow?: boolean; error?: string }> {
+  const { data, error: lookupError } = await supabase
+    .from("gym_unlocks")
+    .select("gym_id")
+    .eq("user_id", userId)
+    .eq("gym_id", gymId)
+    .maybeSingle();
+  if (lookupError) {
+    return { ok: false, error: "Klimb needs the latest gym-unlock database update." };
+  }
+  if (data) return { ok: true, unlockedNow: false };
+
+  const near = await assertNearGym(gym);
+  if (!near.ok) {
+    return {
+      ok: false,
+      error:
+        near.error ??
+        `Your first log at this gym must be within ${MAX_HOME_GYM_MILES} miles.`,
+    };
+  }
+
+  const { error } = await supabase.from("gym_unlocks").insert({
+    user_id: userId,
+    gym_id: gymId,
+  });
+  if (error && error.code !== "23505") {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, unlockedNow: true };
 }

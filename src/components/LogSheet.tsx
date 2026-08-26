@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { climbTypeLabel, holdHex } from "../lib/constants";
 import { toggleBookmark } from "../lib/bookmarks";
 import { pickPhotoNative } from "../lib/photo";
+import { contentTextError } from "../lib/nameModeration";
 import { formatGradeStyled, gymGradeOptions } from "../lib/grades";
 import type { RouteWithStats } from "../lib/routes";
 import type { SendType } from "../lib/database.types";
@@ -12,6 +13,13 @@ import type { ClimbingType } from "../lib/grades";
 import { Button, Input, Spinner } from "./ui";
 import { routeLabel } from "../lib/routeLabel";
 import { GradePicker } from "./GradePicker";
+import {
+  IMAGE_ACCEPT,
+  imageContentError,
+  imageUploadError,
+} from "../lib/uploadSecurity";
+import { secureImageUpload } from "../lib/secureImageUpload";
+import { useEntitlements } from "../lib/entitlements";
 
 export type LogOutcome = "flash" | "send" | "topped" | "attempt" | "project";
 
@@ -84,6 +92,7 @@ export function LogSheet({
   editing?: boolean;
 }) {
   const { profile } = useAuth();
+  const { hasProAccess } = useEntitlements();
   const system = profile?.grade_system ?? "american";
   const outcomeOptions = outcomesFor(route.climbing_type);
 
@@ -95,7 +104,7 @@ export function LogSheet({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [reward, setReward] = useState<LogOutcome | null>(null);
-  const canNameRoute = profile?.route_names_enabled || !!route.name;
+  const canNameRoute = hasProAccess;
 
   // Add / change the climb's photo, independent of logging an outcome.
   const [photoUrl, setPhotoUrl] = useState(route.photo_url);
@@ -119,17 +128,18 @@ export function LogSheet({
 
   async function uploadPhoto(file: File) {
     if (!profile) return;
+    const validationError = imageUploadError(file);
+    if (validationError) {
+      setPhotoError(validationError);
+      return;
+    }
     setPhotoBusy(true);
     setPhotoError(null);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${profile.id}/${Date.now()}-photo.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("route-photos")
-        .upload(path, file, { contentType: file.type });
-      if (upErr) throw upErr;
-      const url = supabase.storage.from("route-photos").getPublicUrl(path).data
-        .publicUrl;
+      const contentError = await imageContentError(file);
+      if (contentError) throw new Error(contentError);
+      const upload = await secureImageUpload(file, "route");
+      const { path, publicUrl: url } = upload;
       const { error: routeError } = await supabase
         .from("routes")
         .update({ photo_url: url })
@@ -169,6 +179,14 @@ export function LogSheet({
 
   async function save() {
     if (!profile || !outcome) return;
+    const moderationError = contentTextError([
+      { label: "the route name", value: routeName },
+      { label: "the note", value: note },
+    ]);
+    if (moderationError) {
+      setSaveError(moderationError);
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -201,7 +219,7 @@ export function LogSheet({
       }
 
       const name = routeName.trim() || null;
-      if (name !== route.name) {
+      if (hasProAccess && name !== route.name) {
         const { error } = await supabase
           .from("routes")
           .update({ name })
@@ -273,7 +291,7 @@ export function LogSheet({
           <input
             ref={photoInputRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_ACCEPT}
             onChange={onPickFile}
             className="hidden"
           />

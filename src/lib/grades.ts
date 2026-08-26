@@ -87,7 +87,7 @@ export function formatGrade(
 // display like V0-V2 has been retired — climbers pick the exact grade they
 // felt.) `GradeStyle` and the `style` params below are kept for backwards
 // compatibility with existing call sites, but are ignored.
-export type GradeStyle = "classic" | "bands";
+export type GradeStyle = "classic" | "bands" | "brew_bands";
 
 /** Format a stored ordinal as its full-scale label (V4, 5.11a, …). */
 export function formatGradeStyled(
@@ -122,6 +122,17 @@ export const GYM_GRADE_BANDS: { label: string; rep: number }[] = [
   { label: "V8-V10+", rep: 9 },
 ];
 
+/** Boulders & Brews' posted circuit bands. */
+export const BREW_GRADE_BANDS: { label: string; rep: number }[] = [
+  { label: "V0-V1", rep: 0 },
+  { label: "V1-V2", rep: 1 },
+  { label: "V2-V3", rep: 2 },
+  { label: "V3-V4", rep: 3 },
+  { label: "V4-V6", rep: 5 },
+  { label: "V6-V8", rep: 7 },
+  { label: "V8+", rep: 9 },
+];
+
 // Top-rope GYM grades use a coarser plus/minus scale (no a/b/c/d letters):
 // gyms post "5.11-" / "5.11" / "5.11+", not "5.11c". Your *felt* grade still
 // uses the full lettered YDS. Each entry maps to a representative ordinal on
@@ -152,6 +163,9 @@ export function gymGradeOptions(
   if (style === "bands" && type === "boulder") {
     return GYM_GRADE_BANDS.map((b) => ({ value: b.rep, label: b.label }));
   }
+  if (style === "brew_bands" && type === "boulder") {
+    return BREW_GRADE_BANDS.map((b) => ({ value: b.rep, label: b.label }));
+  }
   return pickerOptions(type, system);
 }
 
@@ -181,6 +195,13 @@ export function formatGymGrade(
     );
     return nearest.label;
   }
+  if (style === "brew_bands" && type === "boulder") {
+    const exact = BREW_GRADE_BANDS.find((b) => b.rep === grade);
+    if (exact) return exact.label;
+    const nearest = BREW_GRADE_BANDS.reduce((a, b) =>
+      Math.abs(b.rep - grade) < Math.abs(a.rep - grade) ? b : a,
+    );
+    return nearest.label;
+  }
   return formatGrade(grade, type, system);
 }
-

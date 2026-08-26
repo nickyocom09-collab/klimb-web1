@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Ban, Bookmark, Check, ChevronLeft, ChevronRight, Clock, Flag, Lock, Stamp, UserPlus, Zap } from "lucide-react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Ban, Bookmark, Check, ChevronLeft, ChevronRight, Clock, Flag, Lock, Stamp, UserPlus, UsersRound, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { fetchRoutesByIds, type RouteWithStats } from "../lib/routes";
@@ -8,9 +8,13 @@ import type { GradeSystem } from "../lib/grades";
 import {
   acceptFriendRequest,
   addFriendById,
+  fetchMutualFriends,
+  fetchProfileFriends,
   friendshipStatus,
   removeFriend,
+  type FriendProfile,
   type FriendStatus,
+  type MutualFriend,
 } from "../lib/friends";
 import { blockUser, reportContent, unblockUser } from "../lib/moderation";
 import {
@@ -20,6 +24,15 @@ import {
 import { Avatar } from "../components/Avatar";
 import { RouteCard } from "../components/RouteCard";
 import { Button, CenterSpinner, ConfirmDialog } from "../components/ui";
+import { ActivityReactions } from "../components/ActivityReactions";
+import { normalizeStoredReaction, type ReactionCounts } from "../lib/reactions";
+import { fetchProUserIds } from "../lib/proBadges";
+import { ProBadge } from "../components/ProBadge";
+import { ProfileBadge } from "../components/ProfileBadge";
+import {
+  fetchProfileBadges,
+  type ProfileBadge as ProfileBadgeRecord,
+} from "../lib/profileBadges";
 
 type PubProfile = {
   id: string;
@@ -29,24 +42,65 @@ type PubProfile = {
   bio: string | null;
   sends_public: boolean;
   projects_public: boolean;
+  notes_public: boolean;
+  friends_public: boolean;
+  is_pro: boolean;
 };
+
+type ProfileActivityReaction = {
+  kind: "send" | "project";
+  sourceId: string;
+  routeId: string;
+  counts: ReactionCounts;
+  mine: string | null;
+};
+
+type ProfileNavigationState = { person?: FriendProfile };
+
+function profilePreview(person: FriendProfile): PubProfile {
+  return {
+    ...person,
+    bio: null,
+    notes_public: false,
+  };
+}
+
+function firstName(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0] || displayName;
+}
 
 export function PublicProfile() {
   const { id } = useParams<{ id: string }>();
   const { profile: me } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromKlimbCode = new URLSearchParams(location.search).get("friendRequest") === "1";
   const system = me?.grade_system ?? "american";
+  const meId = me?.id ?? null;
+  const navigationPerson = (location.state as ProfileNavigationState | null)?.person;
+  const preview = navigationPerson?.id === id ? navigationPerson : null;
 
-  const [person, setPerson] = useState<PubProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [person, setPerson] = useState<PubProfile | null>(() =>
+    preview ? profilePreview(preview) : null,
+  );
+  const [loading, setLoading] = useState(!preview);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [relationshipReady, setRelationshipReady] = useState(false);
+  const [specialBadge, setSpecialBadge] = useState<ProfileBadgeRecord | null>(null);
   const [sends, setSends] = useState<RouteWithStats[]>([]);
   const [flashes, setFlashes] = useState<RouteWithStats[]>([]);
   const [projects, setProjects] = useState<RouteWithStats[]>([]);
   const [personGrades, setPersonGrades] = useState<Map<string, number>>(
     new Map(),
   );
+  const [visibleNotes, setVisibleNotes] = useState<Map<string, string>>(new Map());
   const [tab, setTab] = useState<"sends" | "flashes" | "projects">("sends");
   const [status, setStatus] = useState<FriendStatus>("none");
+  const [mutuals, setMutuals] = useState<MutualFriend[]>([]);
+  const [profileFriends, setProfileFriends] = useState<MutualFriend[]>([]);
+  const [profileFriendsOpen, setProfileFriendsOpen] = useState(false);
+  const [activityReactions, setActivityReactions] = useState<Map<string, ProfileActivityReaction>>(new Map());
+  const [reactingId, setReactingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
@@ -64,80 +118,186 @@ export function PublicProfile() {
   useEffect(() => {
     if (!id) return;
     let active = true;
-    setLoading(true);
-    (async () => {
-      const { data } = await supabase
+    const cached = preview ? profilePreview(preview) : null;
+    setPerson(cached);
+    setLoading(!cached);
+    setContentLoading(true);
+    setRelationshipReady(meId === id);
+    setSends([]);
+    setFlashes([]);
+    setProjects([]);
+    setVisibleNotes(new Map());
+    setMutuals([]);
+    setProfileFriends([]);
+    setProfileFriendsOpen(false);
+    setActivityReactions(new Map());
+
+    void (async () => {
+      const profileRequest = supabase
         .from("profiles")
-        .select("id, display_name, username, avatar_url, bio, sends_public, projects_public")
+        .select("id, display_name, username, avatar_url, bio, sends_public, projects_public, notes_public, friends_public")
         .eq("id", id)
         .maybeSingle();
-      if (!active) return;
-      setPerson(data as PubProfile | null);
-
-      const { data: gradeRows } = await supabase
+      const gradesRequest = supabase
         .from("grades")
         .select("route_id, grade")
         .eq("user_id", id);
-      if (active) {
-        setPersonGrades(
-          new Map((gradeRows ?? []).map((row) => [row.route_id, row.grade])),
-        );
-      }
+      const blockRequest = meId && meId !== id
+        ? supabase
+            .from("blocks")
+            .select("blocker_id", { count: "exact", head: true })
+            .eq("blocker_id", meId)
+            .eq("blocked_id", id)
+        : Promise.resolve({ count: 0 });
+      const friendshipRequest = meId && meId !== id
+        ? friendshipStatus(meId, id)
+        : Promise.resolve<FriendStatus>("none");
+      const mutualsRequest = meId && meId !== id
+        ? fetchMutualFriends(id)
+        : Promise.resolve<MutualFriend[]>([]);
+      const profileFriendsRequest = fetchProfileFriends(id);
 
-      // Have I blocked this climber?
-      if (me && me.id !== id) {
-        const { count: bc } = await supabase
-          .from("blocks")
-          .select("blocker_id", { count: "exact", head: true })
-          .eq("blocker_id", me.id)
-          .eq("blocked_id", id);
-        if (active) setBlocked((bc ?? 0) > 0);
-      }
+      const [profileResult, gradesResult, blockResult, nextStatus, nextMutuals, nextProfileFriends, proIds, badges] =
+        await Promise.all([
+          profileRequest,
+          gradesRequest,
+          blockRequest,
+          friendshipRequest,
+          mutualsRequest,
+          profileFriendsRequest,
+          fetchProUserIds([id]),
+          fetchProfileBadges([id]),
+        ]);
+      if (!active) return;
 
-      if (me && me.id !== id) setStatus(await friendshipStatus(me.id, id));
-
-      const canSeeSends = (data?.sends_public ?? false) || me?.id === id;
-      if (canSeeSends) {
-        const { data: sendRows } = await supabase
-          .from("sends")
-          .select("route_id, send_type, created_at")
-          .eq("user_id", id)
-          .neq("send_type", "attempt")
-          .order("created_at", { ascending: false });
-        const rows = sendRows ?? [];
-        const routes = await fetchRoutesByIds(rows.map((s) => s.route_id));
-        const byId = new Map(routes.map((r) => [r.id, r]));
-        if (active) {
-          setSends(routes);
-          setFlashes(
-            rows
-              .filter((s) => s.send_type === "flash")
-              .map((s) => byId.get(s.route_id))
-              .filter((r): r is RouteWithStats => !!r),
-          );
-        }
-      }
-
-      const canSeeProjects = (data?.projects_public ?? false) || me?.id === id;
-      if (canSeeProjects) {
-        // RLS also enforces this, but we gate the query to avoid an empty round-trip.
-        const { data: projRows } = await supabase
-          .from("bookmarks")
-          .select("route_id, created_at")
-          .eq("user_id", id)
-          .eq("kind", "project")
-          .order("created_at", { ascending: false });
-        const routes = await fetchRoutesByIds(
-          (projRows ?? []).map((b) => b.route_id),
-        );
-        if (active) setProjects(routes);
+      const loadedPerson = profileResult.data
+        ? { ...profileResult.data, is_pro: proIds.has(id) } as PubProfile
+        : null;
+      const resolvedPerson = loadedPerson ?? cached;
+      setPerson(resolvedPerson);
+      setSpecialBadge(badges.get(id) ?? null);
+      setPersonGrades(
+        new Map((gradesResult.data ?? []).map((row) => [row.route_id, row.grade])),
+      );
+      const isBlocked = (blockResult.count ?? 0) > 0;
+      setBlocked(isBlocked);
+      setStatus(nextStatus);
+      setMutuals(nextMutuals);
+      setProfileFriends(nextProfileFriends);
+      setRelationshipReady(true);
+      if (!resolvedPerson || isBlocked) {
+        setLoading(false);
+        setContentLoading(false);
+        return;
       }
       setLoading(false);
+
+      const canSeeSends = resolvedPerson.sends_public || meId === id;
+      const canSeeProjects = resolvedPerson.projects_public || meId === id;
+      const canSeeNotes = resolvedPerson.notes_public || meId === id;
+      const sendsRequest = canSeeSends
+        ? (async () => {
+            const { data: rows } = await supabase
+              .from("sends")
+              .select("id, route_id, send_type, note, created_at")
+              .eq("user_id", id)
+              .eq("profile_visible", true)
+              .neq("send_type", "attempt")
+              .order("created_at", { ascending: false });
+            const sendRows = rows ?? [];
+            return {
+              rows: sendRows,
+              routes: await fetchRoutesByIds(sendRows.map((row) => row.route_id)),
+            };
+          })()
+        : Promise.resolve({ rows: [], routes: [] as RouteWithStats[] });
+      const projectsRequest = canSeeProjects
+        ? (async () => {
+            const { data: rows } = await supabase
+              .from("bookmarks")
+              .select("id, route_id, created_at")
+              .eq("user_id", id)
+              .eq("kind", "project")
+              .eq("profile_visible", true)
+              .order("created_at", { ascending: false });
+            const projectRows = rows ?? [];
+            const projectIds = projectRows.map((row) => row.route_id);
+            const [routes, notesResult] = await Promise.all([
+              fetchRoutesByIds(projectIds),
+              canSeeNotes && projectIds.length > 0
+                ? supabase
+                    .from("project_notes")
+                    .select("route_id, body")
+                    .eq("user_id", id)
+                    .in("route_id", projectIds)
+                : Promise.resolve({ data: [] }),
+            ]);
+            return { rows: projectRows, routes, notes: notesResult.data ?? [] };
+          })()
+        : Promise.resolve({
+          routes: [] as RouteWithStats[],
+          rows: [] as { id: string; route_id: string; created_at: string }[],
+          notes: [] as { route_id: string; body: string }[],
+          });
+
+      const [sendData, projectData] = await Promise.all([
+        sendsRequest,
+        projectsRequest,
+      ]);
+      if (!active) return;
+      const routeById = new Map(sendData.routes.map((route) => [route.id, route]));
+      setSends(sendData.routes);
+      setFlashes(
+        sendData.rows
+          .filter((row) => row.send_type === "flash")
+          .map((row) => routeById.get(row.route_id))
+          .filter((route): route is RouteWithStats => !!route),
+      );
+      setProjects(projectData.routes);
+      if (canSeeNotes) {
+        const notes = new Map<string, string>();
+        for (const row of sendData.rows) {
+          if (row.note?.trim()) notes.set(row.route_id, row.note);
+        }
+        for (const note of projectData.notes) {
+          if (note.body.trim()) notes.set(note.route_id, note.body);
+        }
+        setVisibleNotes(notes);
+      }
+      const activityRows = [
+        ...sendData.rows.map((row) => ({ kind: "send" as const, sourceId: row.id, routeId: row.route_id })),
+        ...projectData.rows.map((row) => ({ kind: "project" as const, sourceId: row.id, routeId: row.route_id })),
+      ];
+      const reactionResult = activityRows.length
+        ? await supabase
+            .from("activity_reactions")
+            .select("activity_kind, activity_id, reactor_id, reaction")
+            .in("activity_id", activityRows.map((row) => row.sourceId))
+        : { data: [] as { activity_kind: "send" | "project"; activity_id: string; reactor_id: string; reaction: string }[] };
+      if (!active) return;
+      const nextReactions = new Map<string, ProfileActivityReaction>();
+      for (const activity of activityRows) {
+        const key = `${activity.kind}:${activity.routeId}`;
+        if (!nextReactions.has(key)) {
+          nextReactions.set(key, { ...activity, counts: {}, mine: null });
+        }
+      }
+      for (const row of reactionResult.data ?? []) {
+        const reaction = normalizeStoredReaction(row.reaction);
+        const activity = activityRows.find((item) => item.kind === row.activity_kind && item.sourceId === row.activity_id);
+        if (!activity) continue;
+        const summary = nextReactions.get(`${activity.kind}:${activity.routeId}`);
+        if (!summary) continue;
+        summary.counts[reaction] = (summary.counts[reaction] ?? 0) + 1;
+        if (row.reactor_id === meId) summary.mine = reaction;
+      }
+      setActivityReactions(nextReactions);
+      setContentLoading(false);
     })();
     return () => {
       active = false;
     };
-  }, [id, me]);
+  }, [id, location.key, meId, preview]);
 
   // One button, four states: send request, cancel a sent request, accept an
   // incoming one, or remove an existing friend.
@@ -213,6 +373,36 @@ export function PublicProfile() {
     setReportMessage("Report sent. Thanks for helping keep Klimb safe.");
   }
 
+  async function reactToActivity(activity: ProfileActivityReaction, nextReaction: string) {
+    if (!meId || !id || reactingId === activity.sourceId) return;
+    const previous = activity;
+    const removing = activity.mine === nextReaction;
+    const mapKey = `${activity.kind}:${activity.routeId}`;
+    setReactingId(activity.sourceId);
+    setActivityReactions((current) => {
+      const next = new Map(current);
+      const counts = { ...activity.counts };
+      if (activity.mine) counts[activity.mine] = Math.max(0, (counts[activity.mine] ?? 0) - 1);
+      if (!removing) counts[nextReaction] = (counts[nextReaction] ?? 0) + 1;
+      next.set(mapKey, { ...activity, counts, mine: removing ? null : nextReaction });
+      return next;
+    });
+    const result = removing
+      ? await supabase.from("activity_reactions").delete().eq("activity_kind", activity.kind).eq("activity_id", activity.sourceId).eq("reactor_id", meId)
+      : await supabase.from("activity_reactions").upsert({
+          activity_kind: activity.kind,
+          activity_id: activity.sourceId,
+          route_id: activity.routeId,
+          activity_owner_id: id,
+          reactor_id: meId,
+          reaction: nextReaction,
+        }, { onConflict: "activity_kind,activity_id,reactor_id" });
+    if (result.error) {
+      setActivityReactions((current) => new Map(current).set(mapKey, previous));
+    }
+    setReactingId(null);
+  }
+
   if (loading) {
     return (
       <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
@@ -249,11 +439,17 @@ export function PublicProfile() {
       <div className="flex-1 overflow-y-auto px-5 pb-8">
         <div className="flex flex-col items-center pt-2 text-center">
           <Avatar name={person.display_name} url={person.avatar_url} size={88} />
-          <h2 className="mt-3 text-2xl font-extrabold text-chalk">
-            {person.display_name}
-          </h2>
+          <div className="mt-3 flex items-center gap-2">
+            <h2 className="text-2xl font-extrabold text-chalk">
+              {person.display_name}
+            </h2>
+            {person.is_pro ? <ProBadge /> : null}
+          </div>
           {person.username ? (
-            <p className="mt-0.5 text-sm text-muted">@{person.username}</p>
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+              <p className="text-sm text-muted">@{person.username}</p>
+              {specialBadge ? <ProfileBadge badge={specialBadge} /> : null}
+            </div>
           ) : null}
           {person.bio ? (
             <p className="mt-2 max-w-xs whitespace-pre-line text-sm text-chalk/90">
@@ -261,7 +457,42 @@ export function PublicProfile() {
             </p>
           ) : null}
 
-          {!isMe && me && !blocked ? (
+          {fromKlimbCode && !isMe && me && !blocked ? (
+            <div className="mt-4 w-full rounded-2xl border border-accent/25 bg-accent/10 px-4 py-3 text-left">
+              <p className="text-sm font-bold text-accent">Klimb code scanned</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted">
+                Send {firstName(person.display_name)} a friend request below.
+              </p>
+            </div>
+          ) : null}
+
+          {!isMe && mutuals.length > 0 ? (
+            <div className="mt-4 flex max-w-full items-center gap-3 rounded-full border border-border/80 bg-surface px-3 py-2 text-left shadow-card">
+              <div className="flex shrink-0 -space-x-2">
+                {mutuals.slice(0, 3).map((mutual) => (
+                  <button
+                    key={mutual.id}
+                    type="button"
+                    onClick={() => navigate(`/u/${mutual.id}`)}
+                    aria-label={`View ${mutual.display_name}`}
+                    className="rounded-full ring-2 ring-surface transition active:scale-95"
+                  >
+                    <Avatar name={mutual.display_name} url={mutual.avatar_url} size={28} />
+                  </button>
+                ))}
+              </div>
+              <p className="min-w-0 truncate text-xs font-semibold text-muted">
+                <UsersRound size={13} className="mr-1 inline text-accent" />
+                {mutuals.length === 1
+                  ? `Mutual friend: ${mutuals[0].display_name}`
+                  : `${mutuals.length} mutual friends`}
+              </p>
+            </div>
+          ) : null}
+
+          {!isMe && me && !blocked && !relationshipReady ? (
+            <div className="mt-4 h-11 w-36 animate-pulse rounded-2xl bg-surface-2" />
+          ) : !isMe && me && !blocked ? (
             <Button
               variant={status === "none" || status === "pending_in" ? "primary" : "secondary"}
               className="mt-4 px-6"
@@ -282,7 +513,7 @@ export function PublicProfile() {
                 </>
               ) : (
                 <>
-                  <UserPlus size={16} className="mr-1.5" /> Add friend
+                  <UserPlus size={16} className="mr-1.5" /> {fromKlimbCode ? "Send friend request" : "Add friend"}
                 </>
               )}
             </Button>
@@ -307,6 +538,7 @@ export function PublicProfile() {
                 label="Sends"
                 icon={Check}
                 value={sends.length}
+                loading={contentLoading}
                 active={tab === "sends"}
                 onClick={() => setTab("sends")}
               />
@@ -314,6 +546,7 @@ export function PublicProfile() {
                 label="Flashes"
                 icon={Zap}
                 value={flashes.length}
+                loading={contentLoading}
                 active={tab === "flashes"}
                 onClick={() => setTab("flashes")}
               />
@@ -321,6 +554,7 @@ export function PublicProfile() {
                 label="Projects"
                 icon={Bookmark}
                 value={projects.length}
+                loading={contentLoading}
                 locked={!canSeeProjects}
                 active={tab === "projects"}
                 onClick={() => setTab("projects")}
@@ -333,14 +567,65 @@ export function PublicProfile() {
                 className="mt-4 flex w-full items-center justify-between rounded-2xl bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
               >
                 <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
-                  <Stamp size={18} style={{ color: "#ffc24b" }} /> View passport
+                  <Stamp size={18} style={{ color: "#ffc24b" }} /> View {firstName(person.display_name)}&apos;s passport
                 </span>
                 <ChevronRight size={18} className="text-faint" />
               </button>
             ) : null}
 
+            <div className="mt-3 overflow-hidden rounded-2xl bg-surface shadow-card">
+              <button
+                type="button"
+                disabled={!person.friends_public && !isMe}
+                onClick={() => setProfileFriendsOpen((open) => !open)}
+                aria-expanded={profileFriendsOpen}
+                className="flex w-full items-center justify-between px-4 py-4 text-left disabled:cursor-default"
+              >
+              <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+                {person.friends_public || isMe ? <UsersRound size={18} className="text-accent" /> : <Lock size={18} className="text-faint" />}
+                {person.friends_public || isMe
+                  ? `${firstName(person.display_name)}'s friends`
+                  : "Friends list is private"}
+              </span>
+                {person.friends_public || isMe ? (
+                  <ChevronRight size={18} className={`text-faint transition-transform ${profileFriendsOpen ? "rotate-90" : ""}`} />
+                ) : null}
+              </button>
+              {(person.friends_public || isMe) && profileFriendsOpen ? (
+              <div className="border-t border-border/70">
+                {contentLoading ? (
+                  <div className="space-y-2 px-4 py-4" aria-label="Loading friends">
+                    <div className="h-11 animate-pulse rounded-xl bg-surface-2" />
+                    <div className="h-11 animate-pulse rounded-xl bg-surface-2" />
+                  </div>
+                ) : profileFriends.length === 0 ? (
+                  <p className="px-4 py-5 text-center text-sm text-faint">No friends to show yet.</p>
+                ) : profileFriends.map((friend) => (
+                  <button
+                    key={friend.id}
+                    type="button"
+                    onClick={() => navigate(`/u/${friend.id}`)}
+                    className="flex w-full items-center gap-3 border-b border-border/60 px-4 py-3 text-left last:border-0 active:bg-surface-2"
+                  >
+                    <Avatar name={friend.display_name} url={friend.avatar_url} size={38} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-center gap-1.5 text-sm font-bold text-chalk">
+                        <span className="truncate">{friend.display_name}</span>
+                        {friend.is_pro ? <ProBadge compact /> : null}
+                      </span>
+                      {friend.username ? <span className="block truncate text-xs text-muted">@{friend.username}</span> : null}
+                    </span>
+                    <ChevronRight size={17} className="text-faint" />
+                  </button>
+                ))}
+              </div>
+              ) : null}
+            </div>
+
             <div className="mt-6">
-              {tab === "projects" ? (
+              {contentLoading ? (
+                <div className="h-72 animate-pulse rounded-3xl bg-surface" />
+              ) : tab === "projects" ? (
                 !canSeeProjects ? (
                   <PrivateNote text="This climber's projects are private." />
                 ) : projects.length === 0 ? (
@@ -352,6 +637,10 @@ export function PublicProfile() {
                     grades={personGrades}
                     authorName={person.display_name}
                     gradePerspective={isMe ? "You" : "They"}
+                    notes={visibleNotes}
+                    reactionFor={(route) => activityReactions.get(`project:${route.id}`)}
+                    reactingId={reactingId}
+                    onReact={status === "friends" && !isMe ? reactToActivity : undefined}
                   />
                 )
               ) : !canSeeSends ? (
@@ -366,6 +655,10 @@ export function PublicProfile() {
                     grades={personGrades}
                     authorName={person.display_name}
                     gradePerspective={isMe ? "You" : "They"}
+                    notes={visibleNotes}
+                    reactionFor={(route) => activityReactions.get(`send:${route.id}`)}
+                    reactingId={reactingId}
+                    onReact={status === "friends" && !isMe ? reactToActivity : undefined}
                   />
                 )
               ) : sends.length === 0 ? (
@@ -377,6 +670,10 @@ export function PublicProfile() {
                   grades={personGrades}
                   authorName={person.display_name}
                   gradePerspective={isMe ? "You" : "They"}
+                  notes={visibleNotes}
+                  reactionFor={(route) => activityReactions.get(`send:${route.id}`)}
+                  reactingId={reactingId}
+                  onReact={status === "friends" && !isMe ? reactToActivity : undefined}
                 />
               )}
             </div>
@@ -503,6 +800,7 @@ function TabTile({
   label,
   icon: Icon,
   value,
+  loading = false,
   locked = false,
   active,
   onClick,
@@ -510,6 +808,7 @@ function TabTile({
   label: string;
   icon: typeof Check;
   value: number;
+  loading?: boolean;
   locked?: boolean;
   active: boolean;
   onClick: () => void;
@@ -523,7 +822,13 @@ function TabTile({
     >
       <Icon size={16} className={active ? "text-accent" : "text-faint"} />
       <span className={`text-2xl font-extrabold ${active ? "text-accent" : "text-chalk"}`}>
-        {locked ? <Lock size={23} strokeWidth={2.4} aria-label="Private" /> : value}
+        {loading ? (
+          <span className="block h-7 w-8 animate-pulse rounded-lg bg-surface-2" />
+        ) : locked ? (
+          <Lock size={23} strokeWidth={2.4} aria-label="Private" />
+        ) : (
+          <span className="inline-block tabular-nums">{value}</span>
+        )}
       </span>
       <span className="text-xs text-muted">{label}</span>
     </button>
@@ -536,26 +841,51 @@ function RouteList({
   grades,
   authorName,
   gradePerspective,
+  notes,
+  reactionFor,
+  reactingId,
+  onReact,
 }: {
   routes: RouteWithStats[];
   system: GradeSystem;
   grades: Map<string, number>;
   authorName: string;
   gradePerspective: "You" | "They";
+  notes: Map<string, string>;
+  reactionFor?: (route: RouteWithStats) => ProfileActivityReaction | undefined;
+  reactingId?: string | null;
+  onReact?: (activity: ProfileActivityReaction, reaction: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {routes.map((route, i) => (
-        <RouteCard
-          key={route.id}
-          route={route}
-          system={system}
-          index={i}
-          myGrade={grades.get(route.id) ?? null}
-          authorName={authorName}
-          gradePerspective={gradePerspective}
-        />
-      ))}
+      {routes.map((route, i) => {
+        const reaction = reactionFor?.(route);
+        return (
+        <div key={`${route.id}:${i}`}>
+          <RouteCard
+            route={route}
+            system={system}
+            index={i}
+            myGrade={grades.get(route.id) ?? null}
+            authorName={authorName}
+            gradePerspective={gradePerspective}
+          />
+          {notes.has(route.id) ? (
+            <p className="-mt-5 rounded-b-3xl border-t border-border/60 bg-surface px-4 pb-4 pt-8 text-sm italic leading-relaxed text-muted">
+              “{notes.get(route.id)}”
+            </p>
+          ) : null}
+          {reaction && onReact ? (
+            <div className="-mt-5 overflow-hidden rounded-b-3xl bg-surface pt-5">
+              <ActivityReactions
+                mine={reaction.mine}
+                busy={reactingId === reaction.sourceId}
+                onReact={(nextReaction) => onReact(reaction, nextReaction)}
+              />
+            </div>
+          ) : null}
+        </div>
+      );})}
     </div>
   );
 }

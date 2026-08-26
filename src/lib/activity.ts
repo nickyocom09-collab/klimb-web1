@@ -60,6 +60,7 @@ export async function fetchGymActivity(
         .from("sends")
         .select("id, route_id, user_id, created_at")
         .in("route_id", routeIds)
+        .eq("profile_visible", true)
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase

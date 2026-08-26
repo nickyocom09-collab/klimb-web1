@@ -4,15 +4,17 @@ import {
   serviceClient,
   syncVerifiedTransaction,
 } from "../_shared/entitlement-sync.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersFor, preflightResponse } from "../_shared/cors.ts";
+import {
+  readJsonBody,
+  RequestError,
+  safeErrorType,
+} from "../_shared/request.ts";
 
 Deno.serve(async (request) => {
+  const corsHeaders = corsHeadersFor(request);
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return preflightResponse(request);
   }
   if (request.method !== "POST") {
     return Response.json(
@@ -23,7 +25,7 @@ Deno.serve(async (request) => {
 
   try {
     const authorization = request.headers.get("Authorization");
-    if (!authorization) throw new Error("Sign in before restoring a purchase.");
+    if (!authorization) throw new RequestError("Sign in before restoring a purchase.", 401);
 
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -34,11 +36,11 @@ Deno.serve(async (request) => {
       },
     );
     const { data: authData, error: authError } = await userClient.auth.getUser();
-    if (authError || !authData.user) throw new Error("Your session has expired.");
+    if (authError || !authData.user) throw new RequestError("Your session has expired.", 401);
 
-    const body = (await request.json()) as { signedTransaction?: string };
+    const body = await readJsonBody<{ signedTransaction?: string }>(request);
     if (!body.signedTransaction) {
-      throw new Error("A signed Apple transaction is required.");
+      throw new RequestError("A signed Apple transaction is required.");
     }
 
     const transaction = await verifyTransaction(body.signedTransaction);
@@ -54,11 +56,15 @@ Deno.serve(async (request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error(error);
+    console.error("Transaction verification failed", { type: safeErrorType(error) });
     return Response.json(
-      { error: error instanceof Error ? error.message : "Verification failed." },
       {
-        status: 400,
+        error: error instanceof RequestError
+          ? error.message
+          : "Apple could not verify that purchase.",
+      },
+      {
+        status: error instanceof RequestError ? error.status : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

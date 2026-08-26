@@ -1,9 +1,25 @@
 import UIKit
 import Capacitor
 import StoreKit
+import Security
+import PhotosUI
+import UniformTypeIdentifiers
 #if canImport(GoogleSignIn)
 import GoogleSignIn
 #endif
+
+/// Resolve the foreground scene's key window without relying on the deprecated
+/// process-wide `UIApplication.windows` API. Multi-window iOS sessions can
+/// otherwise present sign-in or Messages from the wrong scene.
+private func klimbKeyWindow() -> UIWindow? {
+    let scenes = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+    let foregroundWindow = scenes
+        .first(where: { $0.activationState == .foregroundActive })?
+        .windows.first(where: \.isKeyWindow)
+    return foregroundWindow
+        ?? scenes.lazy.flatMap(\.windows).first(where: \.isKeyWindow)
+}
 
 // MARK: - Bridge view controller with explicit local-plugin registration
 //
@@ -95,6 +111,194 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(ThemeAppearancePlugin())
         bridge?.registerPluginInstance(LaunchOverlayPlugin())
         bridge?.registerPluginInstance(KlimbStoreKitPlugin())
+        bridge?.registerPluginInstance(KlimbSecureStoragePlugin())
+        bridge?.registerPluginInstance(VideoLibraryPickerPlugin())
+    }
+}
+
+// MARK: - Photo-library-only video picker
+//
+// `<input type=file accept=video/*>` is allowed to offer "Take Video" in an
+// iOS WKWebView. That browser handoff has been crash-prone, so Klimb uses
+// PHPicker instead: it is limited to existing library videos and returns a
+// temporary local copy that the WebView can upload normally.
+@objc(VideoLibraryPickerPlugin)
+public class VideoLibraryPickerPlugin: CAPPlugin, CAPBridgedPlugin, PHPickerViewControllerDelegate {
+    public let identifier = "VideoLibraryPickerPlugin"
+    public let jsName = "VideoLibraryPicker"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "pick", returnType: CAPPluginReturnPromise),
+    ]
+
+    private var currentCall: CAPPluginCall?
+
+    @objc func pick(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  let presenter = self.bridge?.viewController else {
+                call.reject("Klimb could not open your video library")
+                return
+            }
+            guard self.currentCall == nil else {
+                call.reject("A video picker is already open")
+                return
+            }
+
+            var configuration = PHPickerConfiguration(photoLibrary: .shared())
+            configuration.filter = .videos
+            configuration.selectionLimit = 1
+            configuration.preferredAssetRepresentationMode = .current
+
+            let picker = PHPickerViewController(configuration: configuration)
+            picker.delegate = self
+            self.currentCall = call
+            presenter.present(picker, animated: true)
+        }
+    }
+
+    public func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+        guard let call = currentCall else { return }
+        currentCall = nil
+        guard let result = results.first else {
+            call.resolve(["uri": NSNull()])
+            return
+        }
+
+        let provider = result.itemProvider
+        let typeIdentifier = provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier)
+            ? UTType.movie.identifier
+            : UTType.video.identifier
+
+        provider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { url, error in
+            if let error {
+                call.reject("Klimb could not read that video", nil, error)
+                return
+            }
+            guard let url else {
+                call.reject("Klimb could not read that video")
+                return
+            }
+
+            do {
+                let originalName = url.lastPathComponent
+                let extensionName = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+                let destination = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("klimb-video-\(UUID().uuidString).\(extensionName)")
+                try FileManager.default.copyItem(at: url, to: destination)
+                guard let webPath = self.bridge?.portablePath(fromLocalURL: destination) else {
+                    call.reject("Klimb could not prepare that video")
+                    return
+                }
+                let mime = UTType(filenameExtension: extensionName)?.preferredMIMEType
+                    ?? "video/quicktime"
+                call.resolve([
+                    "uri": destination.absoluteString,
+                    "webPath": webPath.absoluteString,
+                    "name": originalName,
+                    "mime": mime,
+                ])
+            } catch {
+                call.reject("Klimb could not prepare that video", nil, error)
+            }
+        }
+    }
+}
+
+// MARK: - Keychain-backed Supabase session storage
+
+// Access and refresh tokens must not live in WKWebView localStorage, where any
+// script running in the web view could read them. This tiny app-local plugin
+// gives the Supabase storage adapter only the get/set/remove operations it
+// needs, backed by an app-scoped Keychain service.
+@objc(KlimbSecureStoragePlugin)
+public class KlimbSecureStoragePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "KlimbSecureStoragePlugin"
+    public let jsName = "KlimbSecureStorage"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "get", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "set", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "remove", returnType: CAPPluginReturnPromise),
+    ]
+
+    private let service = "com.nickyocom.klimb.auth"
+
+    private func baseQuery(for key: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+        ]
+    }
+
+    @objc func get(_ call: CAPPluginCall) {
+        guard let key = call.getString("key"), !key.isEmpty else {
+            call.reject("A storage key is required")
+            return
+        }
+
+        var query = baseQuery(for: key)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            call.resolve(["value": NSNull()])
+            return
+        }
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            call.reject("Secure session storage is unavailable")
+            return
+        }
+        call.resolve(["value": value])
+    }
+
+    @objc func set(_ call: CAPPluginCall) {
+        guard let key = call.getString("key"), !key.isEmpty,
+              let value = call.getString("value"),
+              let data = value.data(using: .utf8) else {
+            call.reject("A storage key and value are required")
+            return
+        }
+
+        let query = baseQuery(for: key)
+        let updateStatus = SecItemUpdate(
+            query as CFDictionary,
+            [kSecValueData as String: data] as CFDictionary
+        )
+        if updateStatus == errSecSuccess {
+            call.resolve()
+            return
+        }
+        guard updateStatus == errSecItemNotFound else {
+            call.reject("Secure session storage is unavailable")
+            return
+        }
+
+        var newItem = query
+        newItem[kSecValueData as String] = data
+        newItem[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        let addStatus = SecItemAdd(newItem as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            call.reject("Secure session storage is unavailable")
+            return
+        }
+        call.resolve()
+    }
+
+    @objc func remove(_ call: CAPPluginCall) {
+        guard let key = call.getString("key"), !key.isEmpty else {
+            call.reject("A storage key is required")
+            return
+        }
+        let status = SecItemDelete(baseQuery(for: key) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            call.reject("Secure session storage is unavailable")
+            return
+        }
+        call.resolve()
     }
 }
 
@@ -174,15 +378,29 @@ public class KlimbStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        Task {
+        Task { @MainActor in
             do {
                 guard let product = try await Product.products(for: [productId]).first else {
                     call.reject("This subscription is not available from Apple")
                     return
                 }
-                let result = try await product.purchase(options: [
-                    .appAccountToken(accountToken),
-                ])
+                guard let viewController = self.bridge?.viewController else {
+                    call.reject("Klimb could not find an active screen for Apple's purchase sheet")
+                    return
+                }
+                // On iOS 18.2+, anchor the confirmation sheet to the active
+                // Capacitor view controller. Older supported iOS versions use
+                // StoreKit's standard sheet while retaining the account token.
+                let options: Set<Product.PurchaseOption> = [.appAccountToken(accountToken)]
+                let result: Product.PurchaseResult
+                if #available(iOS 18.2, *) {
+                    result = try await product.purchase(
+                        confirmIn: viewController,
+                        options: options
+                    )
+                } else {
+                    result = try await product.purchase(options: options)
+                }
                 switch result {
                 case .success(let verification):
                     switch verification {
@@ -208,7 +426,11 @@ public class KlimbStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Apple returned an unknown purchase state")
                 }
             } catch {
-                call.reject("The purchase could not be completed", nil, error)
+                let reason = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                let message = reason.isEmpty
+                    ? "The purchase could not be completed"
+                    : "Apple could not complete the purchase: \(reason)"
+                call.reject(message, nil, error)
             }
         }
     }
@@ -295,6 +517,8 @@ public class KlimbStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
             "displayName": product.displayName,
             "description": product.description,
             "displayPrice": product.displayPrice,
+            "price": NSDecimalNumber(decimal: product.price).doubleValue,
+            "currencyCode": product.priceFormatStyle.currencyCode,
         ]
         guard let subscription = product.subscription else { return payload }
 
@@ -655,7 +879,7 @@ public class WebAuthenticationPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
 
     public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         return bridge?.viewController?.view.window
-            ?? UIApplication.shared.windows.first { $0.isKeyWindow }
+            ?? klimbKeyWindow()
             ?? UIWindow()
     }
 }
@@ -690,14 +914,16 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
     }
 
     public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        return UIApplication.shared.windows.first { $0.isKeyWindow } ?? UIWindow()
+        return bridge?.viewController?.view.window ?? klimbKeyWindow() ?? UIWindow()
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let identityTokenData = credential.identityToken,
-              let identityToken = String(data: identityTokenData, encoding: .utf8) else {
-            pendingCall?.reject("Missing identity token")
+              let identityToken = String(data: identityTokenData, encoding: .utf8),
+              let authorizationCodeData = credential.authorizationCode,
+              let authorizationCode = String(data: authorizationCodeData, encoding: .utf8) else {
+            pendingCall?.reject("Apple did not provide the credentials needed to sign in")
             pendingCall = nil
             currentNonce = nil
             return
@@ -705,6 +931,7 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
 
         var result: [String: Any] = [
             "identityToken": identityToken,
+            "authorizationCode": authorizationCode,
             "nonce": currentNonce ?? "",
             "userIdentifier": credential.user,
         ]
@@ -785,10 +1012,12 @@ public class MessageComposePlugin: CAPPlugin, CAPBridgedPlugin, MFMessageCompose
             if let imageBase64 = call.getString("imageBase64"),
                let imageData = Data(base64Encoded: imageBase64),
                MFMessageComposeViewController.canSendAttachments() {
-                composer.addAttachmentData(imageData, typeIdentifier: "public.png", filename: "klimb-week.png")
+                let filename = call.getString("attachmentFilename") ?? "klimb-share.png"
+                composer.addAttachmentData(imageData, typeIdentifier: "public.png", filename: filename)
             }
 
-            guard var top = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            guard var top = self.bridge?.viewController
+                ?? klimbKeyWindow()?.rootViewController else {
                 call.reject("No root view controller")
                 self.pendingCall = nil
                 return

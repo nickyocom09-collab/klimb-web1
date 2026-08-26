@@ -20,6 +20,9 @@ export const ENTITLEMENT_FEATURES = {
     // Ready for the next packaging pass.
     "premium_share_cards",
     "project_insights",
+    "customize_logbook",
+    "video_library_upload",
+    "monthly_yearly_recaps",
   ],
   usageLimits: {
     // `null` means unlimited. These placeholders make later packaging a config
@@ -34,6 +37,9 @@ export const ENTITLEMENT_FEATURES = {
     unlimited_recap_history: "Rewatch every weekly recap in your Pro archive.",
     premium_share_cards: "Share your week with premium recap layouts.",
     project_insights: "See more detail across your open projects.",
+    customize_logbook: "Choose exactly which questions appear when you log.",
+    video_library_upload: "Attach videos while logging and keep a personal technique library.",
+    monthly_yearly_recaps: "Unlock monthly, yearly, and complete recap history.",
   },
 } as const;
 
@@ -45,6 +51,11 @@ export const STOREKIT_CONFIG = {
   monthlyProductId:
     import.meta.env.VITE_STOREKIT_MONTHLY_PRODUCT_ID ||
     "com.nickyocom.klimb.pro.monthly",
+  annualProductId:
+    import.meta.env.VITE_STOREKIT_ANNUAL_PRODUCT_ID ||
+    "com.nickyocom.klimb.pro.annual",
+  monthlyFallbackPrice: "$3.99",
+  annualFallbackPrice: "$34.99",
   privacyUrl: "https://klimb-privacy.vercel.app/",
   termsUrl:
     "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/",

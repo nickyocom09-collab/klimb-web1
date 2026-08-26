@@ -1,12 +1,13 @@
 import { supabase } from "./supabase";
 import type { GymRow } from "./database.types";
+import { normalizeUsState } from "./states";
 
 // PostgREST/Supabase projects commonly cap a single response at 1,000 rows.
 // Keep the directory complete as the gym catalogue grows, rather than quietly
 // dropping countries from pickers, passports, searches, or the map.
 const DIRECTORY_PAGE_SIZE = 500;
 
-type GymLocation = Pick<GymRow, "city" | "state" | "country" | "cc">;
+type GymLocation = Pick<GymRow, "address" | "city" | "state" | "country" | "cc">;
 
 function clean(value: string | null | undefined): string | null {
   const result = value?.trim();
@@ -22,6 +23,20 @@ function normalized(value: string | null | undefined): string {
     .trim();
 }
 
+function canonicalGymName(value: string): string {
+  return normalized(value)
+    .replace(/^hanger 18\b/, "hangar 18")
+    .replace(/^boulders? (?:and|in) brews?(?: climbing and coffee)?$/, "boulders brews");
+}
+
+function normalizeDirectoryGym(gym: GymRow): GymRow {
+  const isUnitedStates =
+    gym.cc?.toLowerCase() === "us" ||
+    normalized(gym.country) === "united states";
+  if (!isUnitedStates) return gym;
+  return { ...gym, cc: "us", state: normalizeUsState(gym.state) };
+}
+
 /**
  * A short, human-readable location for every gym card.  Imported listings do
  * not always include a city, so fall back through state and country rather
@@ -29,7 +44,7 @@ function normalized(value: string | null | undefined): string {
  */
 export function gymLocationLabel(gym: GymLocation): string {
   const city = clean(gym.city);
-  const state = clean(gym.state);
+  const state = normalizeUsState(clean(gym.state));
   const country = clean(gym.country);
   const unique = (values: Array<string | null>) =>
     values.filter(
@@ -45,7 +60,7 @@ export function gymLocationLabel(gym: GymLocation): string {
 }
 
 function directoryKey(gym: GymRow): string {
-  const name = normalized(gym.name);
+  const name = canonicalGymName(gym.name);
   if (gym.latitude !== null && gym.longitude !== null) {
     // Three decimal places is roughly 110 m: close enough to merge imported
     // copies of the same building, while keeping different branches separate.
@@ -65,10 +80,11 @@ export function dedupeGymDirectory(gyms: GymRow[]): GymRow[] {
   const byLocation = new Map<string, GymRow>();
 
   for (const gym of gyms) {
-    const key = directoryKey(gym);
+    const normalizedGym = normalizeDirectoryGym(gym);
+    const key = directoryKey(normalizedGym);
     const existing = byLocation.get(key);
-    if (!existing || gymCompleteness(gym) > gymCompleteness(existing)) {
-      byLocation.set(key, gym);
+    if (!existing || gymCompleteness(normalizedGym) > gymCompleteness(existing)) {
+      byLocation.set(key, normalizedGym);
     }
   }
 

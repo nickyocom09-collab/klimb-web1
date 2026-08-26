@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07100b" />
+  <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
+  <title>Email verified — Klimb</title>
+  <style>
+    :root { color-scheme: dark; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100svh;
+      overflow: hidden;
+      color: #f4f8f5;
+      background:
+        radial-gradient(ellipse at 5% 12%, transparent 0 90px, rgba(111,239,154,.08) 91px 92px, transparent 93px 128px, rgba(111,239,154,.045) 129px 130px, transparent 131px),
+        radial-gradient(ellipse at 96% 82%, transparent 0 118px, rgba(111,239,154,.075) 119px 120px, transparent 121px 168px, rgba(111,239,154,.04) 169px 170px, transparent 171px),
+        radial-gradient(circle at 50% -12%, rgba(57,255,136,.2), transparent 42%),
+        #07100b;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -25%;
+      pointer-events: none;
+      background: repeating-radial-gradient(ellipse at 22% 30%, transparent 0 53px, rgba(124,241,164,.035) 54px 55px, transparent 56px 84px);
+      transform: rotate(-9deg);
+    }
+    main {
+      position: relative;
+      width: min(100% - 36px, 440px);
+      min-height: 100svh;
+      margin: 0 auto;
+      padding: max(42px, env(safe-area-inset-top)) 0 max(32px, env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .brand {
+      position: absolute;
+      top: max(28px, env(safe-area-inset-top));
+      left: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #f4f8f5;
+      font-weight: 850;
+      letter-spacing: -.03em;
+      font-size: 20px;
+    }
+    .card {
+      position: relative;
+      padding: 38px 26px 24px;
+      border: 1px solid rgba(163,247,190,.13);
+      border-radius: 34px;
+      text-align: center;
+      background: linear-gradient(150deg, rgba(23,36,29,.94), rgba(10,16,12,.96));
+      box-shadow: 0 35px 110px rgba(0,0,0,.5);
+      backdrop-filter: blur(20px);
+      animation: arrive .62s cubic-bezier(.22,1,.36,1) both;
+    }
+    .seal {
+      position: relative;
+      width: 78px;
+      height: 78px;
+      margin: 0 auto 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 27px;
+      color: #07100b;
+      background: linear-gradient(145deg, #9af7b8, #39ff88);
+      box-shadow: 0 0 0 10px rgba(57,255,136,.065), 0 20px 55px rgba(57,255,136,.2);
+    }
+    .seal::before { content: ""; width: 13px; height: 25px; border: solid currentColor; border-width: 0 5px 5px 0; transform: translateY(-3px) rotate(45deg); }
+    .eyebrow { margin: 0 0 13px; color: #70e99a; font-size: 11px; font-weight: 850; letter-spacing: .24em; text-transform: uppercase; }
+    h1 { margin: 0; font: 700 clamp(42px, 12vw, 56px)/.98 Georgia, "Times New Roman", serif; letter-spacing: -.05em; }
+    .copy { max-width: 330px; margin: 18px auto 0; color: #a9b7ae; font-size: 16px; line-height: 1.6; }
+    .button {
+      width: 100%;
+      margin-top: 30px;
+      border: 0;
+      border-radius: 19px;
+      padding: 17px 20px;
+      color: #07100b;
+      background: #39ff88;
+      box-shadow: 0 16px 42px rgba(57,255,136,.18);
+      font-family: inherit;
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: transform .16s ease, background .16s ease;
+    }
+    .button:active { transform: scale(.985); }
+    .button:hover { background: #70f5a0; }
+    .hint { min-height: 18px; margin: 13px 0 0; color: #65766b; font-size: 12px; }
+    .footer { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); width: 100%; text-align: center; color: #53635a; font-size: 12px; letter-spacing: .04em; }
+    @keyframes arrive { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand" aria-label="Klimb">Klimb</div>
+
+    <section class="card" aria-live="polite">
+      <div class="seal" aria-hidden="true"></div>
+      <p class="eyebrow" id="eyebrow">You're all set</p>
+      <h1 id="title">Email verified.</h1>
+      <p class="copy" id="copy">Your Klimb account is ready. Open the app and finish setting up your climbing profile.</p>
+      <button class="button" id="open" type="button">Open Klimb</button>
+      <p class="hint" id="hint">Klimb must be installed on this iPhone.</p>
+    </section>
+
+    <p class="footer">KLIMB · YOUR CLIMBING LOGBOOK</p>
+  </main>
+  <script>
+    (() => {
+      const query = new URLSearchParams(location.search);
+      const error = query.get("error") || query.get("error_code");
+      const errorDescription = query.get("error_description");
+      const button = document.getElementById("open");
+      const hint = document.getElementById("hint");
+
+      if (error || errorDescription) {
+        document.getElementById("eyebrow").textContent = "Link unavailable";
+        document.getElementById("title").textContent = "That link expired.";
+        document.getElementById("copy").textContent = "Open Klimb and request a fresh verification email to keep going.";
+        button.textContent = "Back to Klimb";
+      }
+
+      button.addEventListener("click", () => {
+        const callback = `klimb://auth-callback${location.search}${location.hash}`;
+        hint.textContent = "Opening Klimb…";
+        location.href = callback;
+        setTimeout(() => {
+          hint.textContent = "If Klimb did not open, make sure it is installed.";
+        }, 1500);
+      });
+    })();
+  </script>
+</body>
+</html>

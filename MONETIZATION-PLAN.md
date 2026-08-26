@@ -17,7 +17,7 @@ rules. Keep everything dormant until Nick explicitly approves activation.
 
 ## Pricing (decided)
 - **Monthly:** $3.99 / month
-- **Annual:** $23.99 / year (~$2/mo — anchor the monthly against this to push annual)
+- **Annual:** $34.99 / year (~$2.92/mo; saves $12.89 versus 12 monthly payments)
 - **Founding Members:** Pro **free for life** (see rules below)
 - **Launch lifetime deal (optional test):** one-time ~$49.99 ("pay once, never pay
   again"), offered only for a **limited window or limited quantity** to create
@@ -123,7 +123,7 @@ explicitly move **monthly recaps** into Pro, and add export/flair when ready.
    `lifetimeProductId = com.nickyocom.klimb.pro.lifetime`. Update
    `entitlements.tsx` to load all product IDs and add `purchaseAnnual()` /
    `purchaseLifetime()` mirroring `purchaseMonthly()`.
-2. **Paywall UI:** update `Upgrade.tsx` to show Monthly / Annual (with "50% off"
+2. **Paywall UI:** update `Upgrade.tsx` to show Monthly / Annual (with localized savings
    framing) / limited-time Lifetime, plus Restore Purchases and links to
    privacy + EULA (already in `STOREKIT_CONFIG`).
 3. **Founding cutoff:** implement `FOUNDING_CUTOFF` config + server-side lifetime
@@ -141,7 +141,7 @@ explicitly move **monthly recaps** into Pro, and add export/flair when ready.
 - Sign the **Paid Applications Agreement**; complete **banking + tax** forms
   (IAP won't work until this is done).
 - Create the **auto-renewable subscription group** with Monthly ($3.99) and
-  Annual ($23.99) products, and a **non-consumable** for Lifetime (~$49.99).
+  Annual ($34.99) products, and a **non-consumable** for Lifetime (~$49.99).
 - Add the **7-day free-trial** introductory offer to the subscription.
 - Fill product metadata + localized display names/descriptions + review screenshot.
 - Ship the update that turns the paywall on (IAP requires an app-review pass).

@@ -26,7 +26,8 @@ export async function fetchOffGridLogs(
     .select("*")
     .eq("user_id", userId)
     .is("transferred_at", null)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(1000);
   if (error) throw error;
   return data ?? [];
 }

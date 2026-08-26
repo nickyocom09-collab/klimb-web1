@@ -5,13 +5,23 @@ import { useAuth } from "./auth";
 import { supabase } from "./supabase";
 import { pickPhotoNative, type PhotoSource } from "./photo";
 import type { ClimbType } from "./constants";
-import { assertNearGym } from "./location";
+import { ensureGymUnlocked } from "./location";
 import { PLACEHOLDER_PHOTO } from "./personalLogs";
+import { contentTextError } from "./nameModeration";
+import {
+  imageContentError,
+  imageUploadError,
+} from "./uploadSecurity";
+import { secureImageUpload } from "./secureImageUpload";
+import { pickVideoFromLibrary } from "./videoPicker";
 import {
   gymGradeOptions,
   pickerOptions,
   type GradeStyle,
 } from "./grades";
+import { DEFAULT_LOGBOOK_PREFERENCES, useLogbookPreferences } from "./logbookPreferences";
+import { useEntitlements } from "./entitlements";
+import { secureVideoUpload, validateVideoForUpload } from "./secureVideoUpload";
 
 export const NOT_SET = "Not set";
 export const OTHER = "Other…";
@@ -47,10 +57,19 @@ export const REWARD: Record<Outcome, { title: string; sub: string }> = {
  */
 export function useLogClimb() {
   const { profile } = useAuth();
+  const { hasProAccess } = useEntitlements();
+  const { preferences } = useLogbookPreferences();
+  const routeNamesEnabled = profile?.route_names_enabled ?? false;
+  const logbookPreferences = hasProAccess
+    ? { ...preferences, show_route_name: routeNamesEnabled }
+    : DEFAULT_LOGBOOK_PREFERENCES;
   const navigate = useNavigate();
   const photoRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
   const system = profile?.grade_system ?? "american";
-  const routeNamesEnabled = profile?.route_names_enabled ?? false;
+  // Route names are a core Free preference. Pro mirrors this value into the
+  // customizable logbook record, while the profile flag remains the single
+  // source of truth used by both logging layouts.
   // Log at the gym you're actually at — a "visiting" gym wins over home.
   const gymId = profile?.visiting_gym_id ?? profile?.home_gym_id ?? null;
   // Off-grid: a user who chose to log without a gym (no home gym, but a gym
@@ -68,6 +87,7 @@ export function useLogClimb() {
 
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [video, setVideo] = useState<File | null>(null);
   const [climbingType, setClimbingType] = useState<ClimbType>("boulder");
   const [holdColor, setHoldColor] = useState<string | null>(null);
   const [routeName, setRouteName] = useState("");
@@ -76,6 +96,7 @@ export function useLogClimb() {
   const [gymGrade, setGymGrade] = useState<number | null>(null);
   const [stars, setStars] = useState<number | null>(null);
   const [note, setNote] = useState("");
+  const [shareToProfile, setShareToProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reward, setReward] = useState<Outcome | null>(null);
@@ -98,6 +119,10 @@ export function useLogClimb() {
         );
       });
   }, [gymId]);
+
+  useEffect(() => {
+    setShareToProfile(logbookPreferences.default_profile_visible);
+  }, [logbookPreferences.default_profile_visible]);
 
   // Link personal logs to the user's pending gym suggestion when possible.
   // This gives the later transfer an exact gym id instead of relying only on a
@@ -139,6 +164,12 @@ export function useLogClimb() {
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    const validationError = imageUploadError(f);
+    if (validationError) {
+      e.target.value = "";
+      setError(validationError);
+      return;
+    }
     setError(null);
     setPhoto(f);
     setPhotoPreview(URL.createObjectURL(f));
@@ -152,12 +183,49 @@ export function useLogClimb() {
     setPhotoSourceOpen(true);
   }
 
+  async function setSelectedVideo(selected: File | null) {
+    if (!selected) return;
+    const validationError = await validateVideoForUpload(selected);
+    if (validationError) {
+      setVideo(null);
+      setError(validationError);
+      return;
+    }
+    setError(null);
+    setVideo(selected);
+  }
+
+  async function onPickVideo(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    // Reset the browser fallback so the same clip can be selected again after
+    // trimming it. Native iOS selection does not use this input.
+    e.target.value = "";
+    await setSelectedVideo(selected);
+  }
+
+  async function pickVideo() {
+    try {
+      const selected = await pickVideoFromLibrary();
+      if (selected === undefined) {
+        videoRef.current?.click();
+        return;
+      }
+      await setSelectedVideo(selected);
+    } catch (videoError) {
+      const message =
+        videoError instanceof Error ? videoError.message : String(videoError);
+      setError(`Couldn't open your video library: ${message}`);
+    }
+  }
+
   async function pickPhotoFrom(source: PhotoSource) {
     setPhotoSourceOpen(false);
     setError(null);
     try {
       const picked = await pickPhotoNative(source);
       if (!picked) return;
+      const validationError = imageUploadError(picked.file);
+      if (validationError) return setError(validationError);
       setPhoto(picked.file);
       setPhotoPreview(picked.previewUrl);
     } catch (err) {
@@ -174,27 +242,32 @@ export function useLogClimb() {
 
   async function save() {
     // Validate quietly and inline — no popups mid-form. Photo is optional.
-    if (!holdColor) return setError("Pick the hold color.");
+    if (logbookPreferences.show_hold_color && !holdColor) return setError("Pick the hold color.");
     if (!outcome) return setError("How'd it go? Flash, Sent, or Project.");
     if (!profile) return setError("You need to be signed in to log.");
     if (!gymId && !offGrid) return setError("Pick a home gym first.");
+    const moderationError = contentTextError([
+      { label: "the route name", value: routeName },
+      { label: "the note", value: note },
+    ]);
+    if (moderationError) return setError(moderationError);
     setError(null);
     setBusy(true);
     let uploadedPhotoPath: string | null = null;
     try {
-      // Anti-cheat: you must actually be at the gym to log a climb there. Off-
-      // grid climbs have no gym location, so there's nothing to be near — skip
-      // the proximity check entirely for them.
+      // The first log at a gym proves proximity and permanently unlocks it.
+      // Later logs (and the full logbook) work from anywhere. Off-grid climbs
+      // have no gym location and remain private until transferred.
       if (!offGrid) {
-        const near = await assertNearGym({
+        const unlock = await ensureGymUnlocked(profile.id, gymId!, {
           name: gymName,
           latitude: gymCoords?.latitude ?? null,
           longitude: gymCoords?.longitude ?? null,
         });
-        if (!near.ok) {
+        if (!unlock.ok) {
           setBusy(false);
           return setError(
-            near.error ?? "Get within range of your gym to log a Klimb.",
+            unlock.error ?? "Your first log must be within 30 miles of this gym.",
           );
         }
       }
@@ -202,16 +275,13 @@ export function useLogClimb() {
       // we store a quiet dark placeholder.
       let photoUrl = PLACEHOLDER_PHOTO;
       if (photo) {
-        const ext = photo.name.split(".").pop() || "jpg";
-        const path = `${profile.id}/${Date.now()}-photo.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("route-photos")
-          .upload(path, photo, { contentType: photo.type });
-        if (upErr) throw upErr;
-        uploadedPhotoPath = path;
-        photoUrl = supabase.storage
-          .from("route-photos")
-          .getPublicUrl(path).data.publicUrl;
+        const validationError = imageUploadError(photo);
+        if (validationError) throw new Error(validationError);
+        const contentError = await imageContentError(photo);
+        if (contentError) throw new Error(contentError);
+        const upload = await secureImageUpload(photo, "route");
+        uploadedPhotoPath = upload.path;
+        photoUrl = upload.publicUrl;
       }
 
       if (offGrid) {
@@ -224,7 +294,7 @@ export function useLogClimb() {
           gym_label: offgridLabel,
           pending_gym_id: pendingGymId,
           climbing_type: climbingType,
-          hold_color: holdColor,
+          hold_color: holdColor ?? NOT_SET,
           route_name: routeName.trim() || null,
           gym_grade: gymGrade,
           felt_grade: feltGrade,
@@ -232,15 +302,16 @@ export function useLogClimb() {
           stars,
           note: note.trim() || null,
           photo_url: photoUrl,
+          profile_visible: shareToProfile,
         });
         if (plError) throw plError;
       } else {
         // Save every database row as one transaction. A failure in the grade,
         // rating, send, bookmark, or project note rolls the new route back too.
-        const { error: logError } = await supabase.rpc("log_climb", {
+        const { data: loggedRouteId, error: logError } = await supabase.rpc("log_climb", {
           p_gym_id: gymId!,
           p_photo_url: photoUrl,
-          p_hold_color: holdColor,
+          p_hold_color: holdColor ?? NOT_SET,
           p_climbing_type: climbingType,
           p_gym_grade: gymGrade,
           p_felt_grade: feltGrade,
@@ -248,8 +319,22 @@ export function useLogClimb() {
           p_outcome: outcome,
           p_note: note,
           p_name: routeName.trim() || null,
+          p_profile_visible: shareToProfile,
         });
         if (logError) throw logError;
+        if (video && hasProAccess && loggedRouteId) {
+          try {
+            await secureVideoUpload(video, loggedRouteId, "");
+          } catch (videoError) {
+            // The Klimb is already committed atomically. A media-network error
+            // must never encourage a retry that would duplicate the log.
+            setError(
+              videoError instanceof Error
+                ? `Your Klimb was saved, but the video wasn't added: ${videoError.message}`
+                : "Your Klimb was saved, but the video wasn't added.",
+            );
+          }
+        }
       }
 
       // The reward moment lives HERE, on the initial log — identical off-grid.
@@ -287,10 +372,14 @@ export function useLogClimb() {
     offgridLabel,
     system,
     routeNamesEnabled,
+    logbookPreferences,
     photoRef,
+    videoRef,
+    hasProAccess,
     // state
     photo,
     photoPreview,
+    video,
     climbingType,
     holdColor,
     routeName,
@@ -299,6 +388,7 @@ export function useLogClimb() {
     gymGrade,
     stars,
     note,
+    shareToProfile,
     error,
     busy,
     reward,
@@ -311,6 +401,7 @@ export function useLogClimb() {
     setGymGrade,
     setStars,
     setNote,
+    setShareToProfile,
     setError,
     setPhotoSourceOpen,
     // derived
@@ -319,6 +410,8 @@ export function useLogClimb() {
     gymGradeLabel,
     // actions
     onPickPhoto,
+    onPickVideo,
+    pickVideo,
     pickPhoto,
     pickPhotoFrom,
     changeType,

@@ -1,0 +1,25 @@
+# Authentication is explicit so future deploys cannot accidentally expose a
+# user/admin function or block Apple's signed webhook and the private cron.
+[functions.verify-app-store-transaction]
+verify_jwt = true
+
+[functions.admin-recheck-entitlement]
+verify_jwt = true
+
+[functions.revoke-apple-authorization]
+verify_jwt = true
+
+[functions.upload-image]
+verify_jwt = true
+
+[functions.upload-video]
+verify_jwt = true
+
+[functions.app-store-notifications]
+verify_jwt = false
+
+[functions.push-dispatch]
+verify_jwt = false
+
+[functions.add]
+verify_jwt = false

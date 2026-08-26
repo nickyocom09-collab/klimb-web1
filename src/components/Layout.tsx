@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { IntroTutorial, INTRO_SEEN_KEY } from "./IntroTutorial";
 import { BarChart3, BookOpen, MapPin, Plus, User } from "lucide-react";
+import { ProWelcomePrompt } from "./ProWelcomePrompt";
 
 function introAlreadySeenLocally(): boolean {
   try {
@@ -46,12 +47,19 @@ export function Layout() {
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
+      <a
+        href="#main-content"
+        className="fixed left-3 top-3 z-[100] -translate-y-24 rounded-xl bg-accent px-4 py-2 font-bold text-bg transition-transform focus:translate-y-0"
+      >
+        Skip to Content
+      </a>
       {showIntro ? <IntroTutorial /> : null}
-      <main className="flex-1 overflow-y-auto pb-28">
+      <ProWelcomePrompt blocked={showIntro} />
+      <main id="main-content" className="flex-1 overflow-y-auto pb-28" tabIndex={-1}>
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-app px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
+      <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-app px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
         {/* Fade the page out behind the floating bar. Without this, content
             scrolling past shows through the transparent gap around the pill. */}
         <span
@@ -83,7 +91,7 @@ export function Layout() {
                     <span
                       className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-bg shadow-lg ring-4 ring-surface"
                     >
-                      <Icon size={26} strokeWidth={2.6} />
+                      <Icon aria-hidden="true" size={26} strokeWidth={2.6} />
                     </span>
                     <span className="text-accent">{label}</span>
                   </>
@@ -105,6 +113,7 @@ export function Layout() {
                 {({ isActive }) => (
                   <>
                     <Icon
+                      aria-hidden="true"
                       size={22}
                       strokeWidth={isActive ? 2.4 : 2}
                       className={`transition-transform ${isActive ? "scale-105" : ""}`}

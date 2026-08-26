@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Camera,
   ChevronRight,
+  Crown,
   Settings as SettingsIcon,
   Stamp,
   Trophy,
@@ -13,12 +14,27 @@ import { AppHeader } from "../components/Layout";
 import { Avatar } from "../components/Avatar";
 import { AvatarCropper } from "../components/AvatarCropper";
 import { Button, ConfirmDialog } from "../components/ui";
+import {
+  AVATAR_SOURCE_MAX_BYTES,
+  IMAGE_ACCEPT,
+  imageContentError,
+  imageUploadError,
+} from "../lib/uploadSecurity";
+import { secureImageUpload } from "../lib/secureImageUpload";
+import { useEntitlements } from "../lib/entitlements";
+import { ProBadge } from "../components/ProBadge";
+import { ProfileBadge } from "../components/ProfileBadge";
+import {
+  fetchProfileBadges,
+  type ProfileBadge as ProfileBadgeRecord,
+} from "../lib/profileBadges";
 
 // Profile is intentionally simple: who you are, your headline numbers, and a
 // couple of doors (friends, logbook, settings). The logbook itself lives on
 // the Sends tab.
 export function Profile() {
   const { profile, updateProfile, signOut } = useAuth();
+  const { hasProAccess } = useEntitlements();
   const navigate = useNavigate();
   const avatarRef = useRef<HTMLInputElement>(null);
 
@@ -29,6 +45,21 @@ export function Profile() {
   const [uploading, setUploading] = useState(false);
   const [avatarToCrop, setAvatarToCrop] = useState<File | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [specialBadge, setSpecialBadge] = useState<ProfileBadgeRecord | null>(null);
+
+  useEffect(() => {
+    if (!profile) {
+      setSpecialBadge(null);
+      return;
+    }
+    let active = true;
+    void fetchProfileBadges([profile.id]).then((badges) => {
+      if (active) setSpecialBadge(badges.get(profile.id) ?? null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile]);
 
   useEffect(() => {
     if (!profile) return;
@@ -81,22 +112,25 @@ export function Profile() {
   function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
-    if (f) setAvatarToCrop(f);
+    if (!f) return;
+    const validationError = imageUploadError(f, AVATAR_SOURCE_MAX_BYTES);
+    if (validationError) {
+      window.alert(validationError);
+      return;
+    }
+    setAvatarToCrop(f);
   }
 
   async function uploadAvatar(f: File) {
     if (!f || !profile) return;
     setUploading(true);
     try {
-      const ext = f.name.split(".").pop() || "jpg";
-      const path = `${profile.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("avatars")
-        .upload(path, f, { contentType: f.type, upsert: true });
-      if (upErr) throw upErr;
-      const url = supabase.storage.from("avatars").getPublicUrl(path).data
-        .publicUrl;
-      await updateProfile({ avatar_url: url });
+      const validationError = imageUploadError(f, 5 * 1024 * 1024);
+      if (validationError) throw new Error(validationError);
+      const contentError = await imageContentError(f);
+      if (contentError) throw new Error(contentError);
+      const upload = await secureImageUpload(f, "avatar");
+      await updateProfile({ avatar_url: upload.publicUrl });
     } catch (err) {
       window.alert(
         err instanceof Error ? err.message : "Could not upload photo.",
@@ -126,7 +160,7 @@ export function Profile() {
         <input
           ref={avatarRef}
           type="file"
-          accept="image/*"
+          accept={IMAGE_ACCEPT}
           onChange={onPickAvatar}
           className="hidden"
         />
@@ -148,11 +182,17 @@ export function Profile() {
             )}
           </span>
         </button>
-        <h2 className="text-2xl font-extrabold text-chalk">
-          {profile?.display_name ?? "Climber"}
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-2xl font-extrabold text-chalk">
+            {profile?.display_name ?? "Climber"}
+          </h2>
+          {hasProAccess ? <ProBadge /> : null}
+        </div>
         {profile?.username ? (
-          <p className="mt-0.5 text-sm text-muted">@{profile.username}</p>
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-1.5">
+            <p className="text-sm text-muted">@{profile.username}</p>
+            {specialBadge ? <ProfileBadge badge={specialBadge} /> : null}
+          </div>
         ) : (
           <button
             onClick={() => navigate("/settings")}
@@ -172,6 +212,16 @@ export function Profile() {
             className="mt-1 text-sm text-faint"
           >
             {gymName}
+          </button>
+        ) : null}
+
+        {!hasProAccess ? (
+          <button
+            type="button"
+            onClick={() => navigate("/upgrade")}
+            className="mt-4 flex items-center gap-2 rounded-full border border-accent/35 bg-accent/10 px-4 py-2.5 text-sm font-extrabold text-accent transition active:scale-[0.98]"
+          >
+            <Crown size={16} /> Get Klimb Pro
           </button>
         ) : null}
 
@@ -239,8 +289,52 @@ export function Profile() {
 function Stat({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="rounded-2xl bg-surface py-4 text-center shadow-card">
-      <p className="text-2xl font-extrabold text-accent">{value ?? "—"}</p>
+      <div className="flex h-7 items-center justify-center text-2xl font-extrabold text-accent">
+        {value === null ? "—" : <RollingNumber value={value} />}
+      </div>
       <p className="mt-0.5 text-xs text-muted">{label}</p>
     </div>
+  );
+}
+
+/** Personal-profile-only odometer. Every digit rolls twice, then settles on
+ * the fetched total. Public profiles deliberately use completely static text. */
+function RollingNumber({ value }: { value: number }) {
+  const digits = String(Math.max(0, value)).split("");
+  return (
+    <span key={value} className="inline-flex tabular-nums" aria-label={String(value)}>
+      <style>{`
+        @keyframes klimb-personal-stat-roll {
+          from { transform: translateY(0); filter: blur(1.5px); }
+          to { transform: translateY(calc(var(--roll-stop) * -1em)); filter: blur(0); }
+        }
+        .klimb-personal-stat-track {
+          animation: klimb-personal-stat-roll .82s cubic-bezier(.18,.78,.22,1) both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .klimb-personal-stat-track { animation-duration: 0.01ms; }
+        }
+      `}</style>
+      {digits.map((digit, index) => {
+        const stop = 20 + Number(digit);
+        return (
+          <span key={`${index}:${digit}`} className="h-[1em] w-[0.62em] overflow-hidden leading-[1em]" aria-hidden="true">
+            <span
+              className="klimb-personal-stat-track flex flex-col"
+              style={{
+                "--roll-stop": stop,
+                animationDelay: `${index * 45}ms`,
+              } as React.CSSProperties}
+            >
+              {Array.from({ length: 30 }, (_, number) => (
+                <span key={number} className="h-[1em] shrink-0 leading-[1em]">
+                  {number % 10}
+                </span>
+              ))}
+            </span>
+          </span>
+        );
+      })}
+    </span>
   );
 }

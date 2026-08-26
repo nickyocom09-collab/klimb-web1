@@ -73,3 +73,14 @@ export function profileNameError(
   }
   return null;
 }
+
+/** Shared client-side first line of defense for public or potentially-public
+ * user text. Reports and server-side auto-hiding remain the backstop. */
+export function contentTextError(
+  fields: { label: string; value: string }[],
+): string | null {
+  const blocked = fields.find(({ value }) => containsProfanity(value));
+  return blocked
+    ? `Please remove profanity or hateful language from ${blocked.label}.`
+    : null;
+}

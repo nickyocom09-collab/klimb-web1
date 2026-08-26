@@ -209,13 +209,13 @@ export function GymSelect() {
   // Submit a gym we don't have yet. It lands as a `pending` row Nick reviews in
   // Supabase (Table editor → gyms → status = 'pending') before it goes live.
   async function submitSuggestion() {
-    if (!profile || !sgName.trim()) return;
+    if (!profile || !sgName.trim() || !sgCity.trim()) return;
     setSgSaving(true);
     const country =
       countryList.find((c) => c.cc === openCountry)?.name ?? null;
     const { error } = await supabase.from("gyms").insert({
       name: sgName.trim(),
-      city: sgCity.trim() || null,
+      city: sgCity.trim(),
       state: openState ?? null,
       country,
       cc: openCountry ? openCountry.toUpperCase() : null,
@@ -498,7 +498,7 @@ export function GymSelect() {
                   placeholder="e.g. Movement Englewood"
                 />
                 <Input
-                  label="City (optional)"
+                  label="City"
                   value={sgCity}
                   onChange={(e) => setSgCity(e.target.value)}
                   placeholder="e.g. Denver"
@@ -506,7 +506,7 @@ export function GymSelect() {
                 <Button
                   className="mt-1 w-full"
                   loading={sgSaving}
-                  disabled={sgName.trim().length < 2}
+                  disabled={sgName.trim().length < 2 || sgCity.trim().length < 2}
                   onClick={submitSuggestion}
                 >
                   Submit gym

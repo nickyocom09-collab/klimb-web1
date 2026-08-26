@@ -4,7 +4,8 @@ export type NotificationKind =
   | "friend_request"
   | "friend_accept"
   | "recap"
-  | "climb_share";
+  | "climb_share"
+  | "reaction";
 
 export type Notification = {
   id: string;
@@ -30,11 +31,21 @@ export async function fetchNotifications(
   clearedAt: string | null,
   limit = 30,
 ): Promise<Notification[]> {
-  const seen = seenAt ? new Date(seenAt).getTime() : 0;
-  const cleared = clearedAt ? new Date(clearedAt).getTime() : 0;
+  // Profile context can remain mounted after these markers are updated. Read
+  // the authoritative values before deriving the feed so cleared items stay
+  // cleared across navigation, relaunches, and other signed-in devices.
+  const { data: markers } = await supabase
+    .from("profiles")
+    .select("notifications_seen_at, notifications_cleared_at")
+    .eq("id", userId)
+    .maybeSingle();
+  const authoritativeSeenAt = markers?.notifications_seen_at ?? seenAt;
+  const authoritativeClearedAt = markers?.notifications_cleared_at ?? clearedAt;
+  const seen = authoritativeSeenAt ? new Date(authoritativeSeenAt).getTime() : 0;
+  const cleared = authoritativeClearedAt ? new Date(authoritativeClearedAt).getTime() : 0;
   const notes: Notification[] = [];
 
-  const [{ data: requests }, { data: accepts }, { data: recaps }, { data: shares }] =
+  const [{ data: requests }, { data: accepts }, { data: recaps }, { data: shares }, { data: reactions }] =
     await Promise.all([
       supabase
         .from("friendships")
@@ -63,12 +74,19 @@ export async function fetchNotifications(
         .eq("to_user", userId)
         .order("created_at", { ascending: false })
         .limit(limit),
+      supabase
+        .from("activity_reactions")
+        .select("id, route_id, reactor_id, reaction, created_at")
+        .eq("activity_owner_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(limit),
     ]);
 
   const actorIds = new Set<string>([
     ...(requests ?? []).map((f) => f.requester_id),
     ...(accepts ?? []).map((f) => f.addressee_id),
     ...(shares ?? []).map((s) => s.from_user),
+    ...(reactions ?? []).map((r) => r.reactor_id),
   ]);
   const nameMap = new Map<string, string>();
   if (actorIds.size > 0) {
@@ -84,8 +102,8 @@ export async function fetchNotifications(
     notes.push({
       id: `freq-${f.id}`,
       kind: "friend_request",
-      text: `${name(f.requester_id)} sent you a friend request`,
-      link: "/friends",
+      text: `${name(f.requester_id)} wants to Klimb with you`,
+      link: `/u/${f.requester_id}`,
       createdAt: f.created_at,
       unread: new Date(f.created_at).getTime() > seen,
     });
@@ -119,6 +137,18 @@ export async function fetchNotifications(
       link: `/route/${s.route_id}`,
       createdAt: s.created_at,
       unread: new Date(s.created_at).getTime() > seen,
+    });
+  }
+  const reactionLabel = (reaction: string) =>
+    reaction === "fire" ? "🔥" : reaction === "strong" ? "💪" : reaction === "clap" ? "👏" : reaction;
+  for (const reaction of reactions ?? []) {
+    notes.push({
+      id: `reaction-${reaction.id}`,
+      kind: "reaction",
+      text: `${name(reaction.reactor_id)} reacted ${reactionLabel(reaction.reaction)} to your Klimb`,
+      link: `/route/${reaction.route_id}`,
+      createdAt: reaction.created_at,
+      unread: new Date(reaction.created_at).getTime() > seen,
     });
   }
 

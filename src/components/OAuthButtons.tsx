@@ -40,13 +40,20 @@ function AppleMark() {
  * signup screens. Kicks off a Supabase OAuth redirect; on return the app
  * routes new users through onboarding.
  */
-export function OAuthButtons() {
+export function OAuthButtons({
+  disabled = false,
+  onBeforeSignIn,
+}: {
+  disabled?: boolean;
+  onBeforeSignIn?: () => boolean;
+} = {}) {
   const { signInWithProvider } = useAuth();
   const [busy, setBusy] = useState<"google" | "apple" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function go(provider: "google" | "apple") {
     setError(null);
+    if (onBeforeSignIn && !onBeforeSignIn()) return;
     setBusy(provider);
     try {
       const { error } = await signInWithProvider(provider);
@@ -73,7 +80,7 @@ export function OAuthButtons() {
       <button
         type="button"
         onClick={() => go("google")}
-        disabled={busy !== null}
+        disabled={disabled || busy !== null}
         className="flex h-12 items-center justify-center gap-3 rounded-2xl border border-border bg-surface-2 font-semibold text-chalk transition hover:border-faint active:scale-[0.99] disabled:opacity-60"
       >
         {busy === "google" ? <Spinner className="text-chalk" /> : <GoogleMark />}
@@ -83,7 +90,7 @@ export function OAuthButtons() {
       <button
         type="button"
         onClick={() => go("apple")}
-        disabled={busy !== null}
+        disabled={disabled || busy !== null}
         className="flex h-12 items-center justify-center gap-2.5 rounded-2xl border border-border bg-surface-2 font-semibold text-chalk transition hover:border-faint active:scale-[0.99] disabled:opacity-60"
       >
         {busy === "apple" ? <Spinner className="text-chalk" /> : <AppleMark />}

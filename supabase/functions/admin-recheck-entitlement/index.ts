@@ -8,12 +8,12 @@ import {
   serviceClient,
   syncVerifiedTransaction,
 } from "../_shared/entitlement-sync.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersFor, preflightResponse } from "../_shared/cors.ts";
+import {
+  readJsonBody,
+  RequestError,
+  safeErrorType,
+} from "../_shared/request.ts";
 
 function requiredSecret(name: string): string {
   const value = Deno.env.get(name);
@@ -22,8 +22,9 @@ function requiredSecret(name: string): string {
 }
 
 Deno.serve(async (request) => {
+  const corsHeaders = corsHeadersFor(request);
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return preflightResponse(request);
   }
   if (request.method !== "POST") {
     return Response.json(
@@ -34,7 +35,7 @@ Deno.serve(async (request) => {
 
   try {
     const authorization = request.headers.get("Authorization");
-    if (!authorization) throw new Error("Administrator sign-in is required.");
+    if (!authorization) throw new RequestError("Administrator sign-in is required.", 401);
 
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -45,17 +46,17 @@ Deno.serve(async (request) => {
       },
     );
     const { data: authData, error: authError } = await userClient.auth.getUser();
-    if (authError || !authData.user) throw new Error("Your session has expired.");
+    if (authError || !authData.user) throw new RequestError("Your session has expired.", 401);
 
     const { data: administrator } = await serviceClient
       .from("entitlement_admins")
       .select("user_id")
       .eq("user_id", authData.user.id)
       .maybeSingle();
-    if (!administrator) throw new Error("Administrator access is required.");
+    if (!administrator) throw new RequestError("Administrator access is required.", 403);
 
-    const body = (await request.json()) as { userId?: string };
-    if (!body.userId) throw new Error("A target user is required.");
+    const body = await readJsonBody<{ userId?: string }>(request, 16 * 1024);
+    if (!body.userId) throw new RequestError("A target user is required.");
 
     const { data: current, error: readError } = await serviceClient
       .from("user_entitlements")
@@ -119,16 +120,16 @@ Deno.serve(async (request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error(error);
+    console.error("Entitlement recheck failed", { type: safeErrorType(error) });
     return Response.json(
       {
         error:
-          error instanceof Error
+          error instanceof RequestError
             ? error.message
             : "The entitlement could not be rechecked.",
       },
       {
-        status: 400,
+        status: error instanceof RequestError ? error.status : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

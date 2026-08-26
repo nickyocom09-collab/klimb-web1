@@ -1,0 +1,7 @@
+{
+  "name": "klimb-legal-site",
+  "private": true,
+  "scripts": {
+    "build": "mkdir -p public/.well-known && cp privacy.html public/index.html && cp privacy.html public/privacy.html && cp terms.html public/terms.html && cp support.html public/support.html && cp verified.html public/verified.html && cp add.html public/add.html && cp apple-app-site-association public/apple-app-site-association && cp apple-app-site-association public/.well-known/apple-app-site-association"
+  }
+}

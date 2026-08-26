@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronRight,
   Clapperboard,
+  Lock,
   Sparkles,
   TrendingUp,
   Trophy,
@@ -16,6 +17,7 @@ import {
   type LoggedItem,
 } from "../lib/logstats";
 import { offGridToLoggedItems } from "../lib/personalLogs";
+import { formatGradeStyled } from "../lib/grades";
 import {
   fetchRecaps,
   markRecapSeen,
@@ -26,6 +28,8 @@ import { AppHeader } from "../components/Layout";
 import { WeeklyRecap } from "../components/WeeklyRecap";
 import { StreakFire } from "../components/StreakFire";
 import { CenterSpinner } from "../components/ui";
+import { useEntitlements } from "../lib/entitlements";
+import { supabase } from "../lib/supabase";
 
 function periodLabel(r: RecapRow): string {
   const d = new Date(`${r.period_start}T00:00:00`);
@@ -39,12 +43,18 @@ function periodLabel(r: RecapRow): string {
 // place to celebrate progress, and where weekly/monthly recaps live on.
 export function Stats() {
   const { profile } = useAuth();
+  const { hasProAccess } = useEntitlements();
+  const navigate = useNavigate();
   const system = profile?.grade_system ?? "american";
 
   const [logged, setLogged] = useState<LoggedItem[]>([]);
   const [recaps, setRecaps] = useState<RecapRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [story, setStory] = useState<RecapRow | null>(null);
+  const [favoriteGym, setFavoriteGym] = useState<string | null>(null);
+  const [gymInsights, setGymInsights] = useState<{ name: string; count: number }[]>([]);
+  const [trendRange, setTrendRange] = useState<"8w" | "6m" | "1y" | "all">("8w");
+  const [showAllRecaps, setShowAllRecaps] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -60,8 +70,26 @@ export function Stats() {
       // Off-grid climbs are real climbs — fold them into every all-time number,
       // streak, and pyramid, exactly like gym-linked climbs.
       const off = offGridToLoggedItems(book.offGrid).logged;
-      setLogged([...book.logged, ...off]);
+      const allLogged = [...book.logged, ...off];
+      setLogged(allLogged);
       setRecaps(rec.history);
+      const gymCounts = new Map<string, number>();
+      for (const item of book.logged) {
+        gymCounts.set(item.route.gym_id, (gymCounts.get(item.route.gym_id) ?? 0) + 1);
+      }
+      const rankedGyms = [...gymCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      if (rankedGyms.length > 0) {
+        const { data: gyms } = await supabase.from("gyms").select("id, name").in("id", rankedGyms.map(([id]) => id));
+        const names = new Map((gyms ?? []).map((gym) => [gym.id, gym.name]));
+        const insights = rankedGyms.map(([id, count]) => ({ name: names.get(id) ?? "Gym", count }));
+        if (active) {
+          setFavoriteGym(insights[0]?.name ?? null);
+          setGymInsights(insights);
+        }
+      } else {
+        setFavoriteGym(null);
+        setGymInsights([]);
+      }
       setLoading(false);
     })();
     return () => {
@@ -73,10 +101,28 @@ export function Stats() {
     () => computeLogStats(logged, system),
     [logged, system],
   );
-  const latest = recaps[0] ?? null;
-  const weekMax = Math.max(...stats.weeks, 1);
+  const latestWeekly = recaps.find((recap) => recap.period === "weekly") ?? null;
+  const latest = hasProAccess ? (recaps[0] ?? null) : latestWeekly;
+  const trendBuckets = useMemo(() => buildTrendBuckets(logged, trendRange), [logged, trendRange]);
+  const trendMax = Math.max(...trendBuckets, 1);
+  const logsWithAttempts = logged.filter((item) => item.attempts && item.attempts > 0);
+  const attemptsPerSend = logsWithAttempts.length
+    ? logsWithAttempts.reduce((sum, item) => sum + (item.attempts ?? 0), 0) / logsWithAttempts.length
+    : null;
+  const timeOfDay = useMemo(() => favoriteTimeOfDay(logged), [logged]);
+  const thisMonth = logged.filter((item) => {
+    const date = new Date(item.date);
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  }).length;
+  const pastRecaps = recaps.filter((recap) => recap.id !== latest?.id);
+  const visiblePastRecaps = showAllRecaps ? pastRecaps : pastRecaps.slice(0, 10);
 
   function openStory(r: RecapRow) {
+    if (!hasProAccess && r.id !== latestWeekly?.id) {
+      navigate("/upgrade");
+      return;
+    }
     setStory(r);
     if (!r.seen_at) {
       markRecapSeen(r.id);
@@ -172,12 +218,49 @@ export function Stats() {
               <Metric value={stats.total} label="Sends" />
               <Metric value={stats.flashes} label="Flashes" />
             </div>
-            {stats.flashRate !== null ? (
+            {hasProAccess && stats.flashRate !== null ? (
               <p className="mt-4 border-t border-border/50 pt-3 text-center text-xs text-muted">
                 {stats.flashRate}% of your sends happened first try
               </p>
             ) : null}
           </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-surface px-3 py-4 text-center shadow-card">
+              <p className="text-xl font-extrabold tabular-nums text-chalk">{stats.thisWeek}</p>
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-faint">This week</p>
+            </div>
+            <div className="rounded-2xl bg-surface px-3 py-4 text-center shadow-card">
+              <p className="text-xl font-extrabold tabular-nums text-chalk">{thisMonth}</p>
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-faint">This month</p>
+            </div>
+            <div className="min-w-0 rounded-2xl bg-surface px-3 py-4 text-center shadow-card">
+              <p className="break-words text-xs font-extrabold leading-tight text-chalk">{favoriteGym ?? "None yet"}</p>
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-faint">Favorite gym</p>
+            </div>
+          </div>
+
+          {/* A compact read on the grades this climber usually sends. */}
+          {logged.length > 0 ? (
+            <div className="overflow-hidden rounded-3xl border border-accent/15 bg-surface p-5 shadow-card">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-faint">Average grade</p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {(["boulder", "toprope", "lead"] as const).map((type) => {
+                  const grade = stats.averageGrade[type];
+                  return (
+                    <div key={type} className="flex min-h-24 flex-col items-center justify-center rounded-2xl bg-surface-2 px-2 py-3 text-center">
+                      <p className={`klimb-grade font-extrabold ${grade === null ? "text-xs leading-tight text-muted" : "text-2xl text-accent"}`}>
+                        {grade === null ? "None logged yet" : formatGradeStyled(grade, type, system, "classic")}
+                      </p>
+                      <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-faint">
+                        {type === "boulder" ? "Boulder" : type === "toprope" ? "Top Rope" : "Lead"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           {/* ---- Streak: an animated flame, counted in days ---- */}
           <div className="flex items-center gap-4 rounded-3xl bg-surface p-4 shadow-card">
@@ -211,7 +294,7 @@ export function Stats() {
                   tone="text-accent"
                 />
               </div>
-              <div className="py-3">
+              {hasProAccess ? <div className="py-3">
                 <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
                   <Zap size={16} className="text-accent" /> Hardest flash
                 </span>
@@ -219,7 +302,7 @@ export function Stats() {
                   parts={hardestParts(stats.hardestFlash, system)}
                   tone="text-chalk"
                 />
-              </div>
+              </div> : null}
             </div>
           </div>
 
@@ -248,33 +331,55 @@ export function Stats() {
             </div>
           ) : null}
 
-          {/* Weekly volume — one chart, one takeaway */}
-          <div className="rounded-3xl bg-surface p-5 shadow-card">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">
-              Last 8 weeks
-            </h2>
-            <p className="mb-4 mt-1 text-sm text-muted">
-              {stats.thisWeek - stats.lastWeek > 0
-                ? "You're climbing more than last week — keep it rolling."
-                : stats.thisWeek - stats.lastWeek < 0
-                  ? "A quieter week than last — the wall will be there."
-                  : stats.thisWeek > 0
-                    ? "Steady as she goes — same pace as last week."
-                    : "Nothing logged yet this week."}
-            </p>
-            <div className="flex h-16 items-end gap-2">
-              {stats.weeks.map((n, i) => (
-                <div
-                  key={i}
-                  className={`flex-1 rounded-t-md ${
-                    i === 7 ? "bg-accent" : "bg-surface-2"
-                  }`}
-                  style={{
-                    height: `${Math.max((n / weekMax) * 100, n > 0 ? 18 : 6)}%`,
-                  }}
-                />
-              ))}
+          <div className="relative overflow-hidden rounded-3xl">
+            <div className={`${hasProAccess ? "" : "pointer-events-none select-none blur-[5px] opacity-60"}`} aria-hidden={!hasProAccess}>
+              <div className="rounded-3xl bg-surface p-5 shadow-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">Progress over time</h2>
+                    <p className="mt-1 text-sm text-muted">Every bar comes directly from your saved Klimbs.</p>
+                  </div>
+                  <span className="rounded-full bg-accent/10 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-accent">Pro</span>
+                </div>
+                <div className="mt-4 grid grid-cols-4 gap-1 rounded-xl bg-bg p-1">
+                  {([['8w', '8W'], ['6m', '6M'], ['1y', '1Y'], ['all', 'All']] as const).map(([value, label]) => (
+                    <button key={value} type="button" onClick={() => setTrendRange(value)} className={`rounded-lg py-2 text-[10px] font-extrabold ${trendRange === value ? 'bg-accent text-bg' : 'text-faint'}`}>{label}</button>
+                  ))}
+                </div>
+                <div className="mt-5 flex h-24 items-end gap-1.5">
+                  {trendBuckets.map((count, index) => (
+                    <div key={index} className={`flex-1 rounded-t-md ${index === trendBuckets.length - 1 ? 'bg-accent' : 'bg-surface-2'}`} style={{ height: `${Math.max((count / trendMax) * 100, count > 0 ? 12 : 4)}%` }} title={`${count} Klimbs`} />
+                  ))}
+                </div>
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  <InsightMetric value={stats.flashRate === null ? '—' : `${stats.flashRate}%`} label="Flash rate" />
+                  <InsightMetric value={attemptsPerSend === null ? '—' : attemptsPerSend.toFixed(1)} label="Attempts / send" />
+                  <InsightMetric value={timeOfDay} label="Best time" />
+                </div>
+                {gymInsights.length > 0 ? (
+                  <div className="mt-5 border-t border-border/60 pt-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-faint">Your gyms</p>
+                    <div className="mt-2 grid gap-2">
+                      {gymInsights.map((gym, index) => (
+                        <div key={gym.name} className="flex items-start justify-between gap-3 rounded-xl bg-bg px-3 py-2.5 text-sm"><span className="min-w-0 flex-1 break-words font-semibold leading-snug text-chalk">{index + 1}. {gym.name}</span><span className="shrink-0 pt-0.5 text-xs font-bold text-accent">{gym.count} Klimbs</span></div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
+            {!hasProAccess ? (
+              <button
+                type="button"
+                onClick={() => navigate("/upgrade")}
+                className="absolute inset-0 flex flex-col items-center justify-center bg-bg/35 px-8 text-center"
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-2xl bg-accent text-bg"><Lock size={19} /></span>
+                <span className="mt-3 text-lg font-extrabold text-chalk">See how your climbing changes</span>
+                <span className="mt-1 max-w-xs text-xs leading-5 text-muted">Pro unlocks time ranges, flash rate, attempts per send, preferred time, and gym insights.</span>
+                <span className="mt-4 rounded-full bg-accent px-5 py-2.5 text-xs font-extrabold text-bg">Explore Klimb Pro</span>
+              </button>
+            ) : null}
           </div>
 
             </>
@@ -287,7 +392,7 @@ export function Stats() {
                 Past recaps
               </h2>
               <ul className="flex flex-col gap-1.5">
-                {recaps.slice(1).map((r) => (
+                {visiblePastRecaps.map((r) => (
                   <li key={r.id}>
                     <button
                       onClick={() => openStory(r)}
@@ -301,11 +406,16 @@ export function Stats() {
                           {r.payload.climbs} climbs · {r.payload.sends} sends
                         </span>
                       </span>
-                      <ChevronRight size={16} className="text-faint" />
+                      {hasProAccess ? <ChevronRight size={16} className="text-faint" /> : <Lock size={15} className="text-accent" />}
                     </button>
                   </li>
                 ))}
               </ul>
+              {pastRecaps.length > 10 ? (
+                <button type="button" onClick={() => setShowAllRecaps((current) => !current)} className="mt-3 w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-bold text-accent">
+                  {showAllRecaps ? "Show less" : `View all ${pastRecaps.length} recaps`}
+                </button>
+              ) : null}
             </section>
           ) : null}
 
@@ -328,19 +438,16 @@ function HardestValue({
   tone: string;
 }) {
   const items = [
-    parts.boulder ? { g: parts.boulder, t: "Boulder" } : null,
-    parts.toprope ? { g: parts.toprope, t: "Top Rope" } : null,
-    parts.lead ? { g: parts.lead, t: "Lead" } : null,
-  ].filter(Boolean) as { g: string; t: string }[];
-  if (items.length === 0) {
-    return <span className={`mt-3 block text-2xl font-extrabold ${tone}`}>—</span>;
-  }
+    { g: parts.boulder, t: "Boulder" },
+    { g: parts.toprope, t: "Top Rope" },
+    { g: parts.lead, t: "Lead" },
+  ];
   return (
     <div className="mt-3 grid grid-cols-3 gap-2">
       {items.map((it) => (
         <div key={it.t} className="rounded-xl bg-surface-2 px-3 py-2.5 text-left leading-none">
-          <p className={`klimb-grade text-xl font-extrabold ${tone}`}>
-            {it.g}
+          <p className={`klimb-grade font-extrabold ${it.g ? `text-xl ${tone}` : "text-[10px] leading-tight text-muted"}`}>
+            {it.g ?? "None logged yet"}
           </p>
           <p className="mt-1.5 truncate text-[9px] font-semibold uppercase tracking-wide text-faint">
             {it.t}
@@ -372,6 +479,56 @@ function Metric({
   );
 }
 
+function InsightMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="min-w-0 rounded-2xl bg-bg px-2 py-3 text-center">
+      <p className="truncate text-lg font-extrabold tabular-nums text-chalk">{value}</p>
+      <p className="mt-1 text-[8px] font-bold uppercase leading-tight tracking-wide text-faint">{label}</p>
+    </div>
+  );
+}
+
+function favoriteTimeOfDay(logged: LoggedItem[]) {
+  if (logged.length === 0) return "—";
+  const counts = { Morning: 0, Afternoon: 0, Evening: 0 };
+  for (const item of logged) {
+    const hour = new Date(item.date).getHours();
+    if (hour < 12) counts.Morning += 1;
+    else if (hour < 17) counts.Afternoon += 1;
+    else counts.Evening += 1;
+  }
+  return (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—");
+}
+
+function buildTrendBuckets(
+  logged: LoggedItem[],
+  range: "8w" | "6m" | "1y" | "all",
+) {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const earliest = logged.reduce(
+    (min, item) => Math.min(min, new Date(item.date).getTime()),
+    now,
+  );
+  const config = range === "8w"
+    ? { buckets: 8, duration: 56 * day }
+    : range === "6m"
+      ? { buckets: 12, duration: 182 * day }
+      : range === "1y"
+        ? { buckets: 12, duration: 365 * day }
+        : { buckets: 12, duration: Math.max(now - earliest + day, 12 * day) };
+  const start = now - config.duration;
+  const width = config.duration / config.buckets;
+  const buckets = Array.from({ length: config.buckets }, () => 0);
+  for (const item of logged) {
+    const timestamp = new Date(item.date).getTime();
+    if (timestamp < start || timestamp > now) continue;
+    const index = Math.min(config.buckets - 1, Math.floor((timestamp - start) / width));
+    if (index >= 0) buckets[index] += 1;
+  }
+  return buckets;
+}
+
 function PyramidChart({
   label,
   rows,
@@ -400,7 +557,7 @@ function PyramidChart({
             </span>
             <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-2">
               <div
-                className="h-full min-w-2 rounded-full bg-accent transition-all"
+                className="h-full min-w-2 rounded-full bg-accent transition-[width]"
                 style={{ width: `${(row.count / max) * 100}%` }}
               />
             </div>

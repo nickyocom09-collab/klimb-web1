@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { Button, ErrorText, PasswordInput } from "../components/ui";
+import { passwordValidationError } from "../lib/authSecurity";
 
 export function ResetPassword() {
   const navigate = useNavigate();
@@ -13,8 +14,9 @@ export function ResetPassword() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    const passwordError = passwordValidationError(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (password !== confirm) {
@@ -43,14 +45,18 @@ export function ResetPassword() {
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <PasswordInput
           label="New password"
+          name="new-password"
           autoComplete="new-password"
+          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
         />
         <PasswordInput
           label="Confirm password"
+          name="confirm-password"
           autoComplete="new-password"
+          required
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           placeholder="••••••••"

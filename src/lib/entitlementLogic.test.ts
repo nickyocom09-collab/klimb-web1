@@ -128,6 +128,16 @@ describe("Klimb entitlement policy", () => {
     expect(accessFromEntitlement(subscriber, NOW).hasProAccess).toBe(false);
   });
 
+  it("8a. gives an active annual subscriber the same Pro access", () => {
+    const subscriber = record({
+      plan: "pro_annual",
+      entitlement_type: "subscription",
+      entitlement_status: "active",
+      expiration_date: "2027-07-29T12:00:00Z",
+    });
+    expect(accessFromEntitlement(subscriber, NOW).hasProAccess).toBe(true);
+  });
+
   it("9. accepts a newer restored entitlement from another device", () => {
     const cached = record({ updated_at: "2026-07-20T00:00:00Z" });
     const restored = record({

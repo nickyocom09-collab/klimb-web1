@@ -15,9 +15,18 @@ export function Login() {
     e.preventDefault();
     setError(null);
     setBusy(true);
-    const { error } = await signIn(email, password);
-    setBusy(false);
-    if (error) setError(error);
+    try {
+      const { error } = await signIn(email, password);
+      if (error) setError(error);
+    } catch (signInError) {
+      setError(
+        signInError instanceof Error
+          ? signInError.message
+          : "Login couldn't connect. Check your connection and try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -37,15 +46,21 @@ export function Login() {
       >
         <Input
           label="Email"
+          name="email"
           type="email"
           autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
         />
         <PasswordInput
           label="Password"
+          name="password"
           autoComplete="current-password"
+          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"

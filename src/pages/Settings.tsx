@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   BookOpen,
+  ChevronDown,
   ChevronRight,
+  Crown,
   AtSign,
   Bell,
   BellOff,
@@ -16,7 +18,8 @@ import {
   Palette,
   Route,
   Shield,
-  Sparkles,
+  SlidersHorizontal,
+  Video,
   Trash2,
   UserCheck,
   UserPlus,
@@ -46,18 +49,54 @@ import {
   usePushNotifications,
   type NotificationPreferenceKey,
 } from "../lib/pushNotifications";
+import { useEntitlements } from "../lib/entitlements";
+import {
+  prepareAppleAuthorizationRevocation,
+  revokeAppleAuthorizationForDeletion,
+} from "../lib/appleAccountDeletion";
+import { ProBadge } from "../components/ProBadge";
+import { useLogbookPreferences } from "../lib/logbookPreferences";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
+
+/** Delete every object in a user's flat storage folder before removing the
+ * account. Keeping the account alive until this succeeds means a temporary
+ * network error can be retried instead of leaving public orphaned uploads. */
+async function removeUserUploads(
+  bucket: "avatars" | "route-photos" | "climb-videos",
+  userId: string,
+) {
+  const batchSize = 100;
+  for (;;) {
+    const { data, error: listError } = await supabase.storage
+      .from(bucket)
+      .list(userId, { limit: batchSize, offset: 0 });
+    if (listError) throw listError;
+
+    const paths = (data ?? [])
+      .filter((file) => file.id)
+      .map((file) => `${userId}/${file.name}`);
+    if (paths.length === 0) return;
+
+    const { error: removeError } = await supabase.storage
+      .from(bucket)
+      .remove(paths);
+    if (removeError) throw removeError;
+    if (paths.length < batchSize) return;
+  }
+}
 
 /** A compact, high-contrast segmented control shared by every preference. */
 function Segmented<T extends string>({
   value,
   options,
   onChange,
+  disabled = false,
 }: {
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="grid auto-cols-fr grid-flow-col gap-1 rounded-2xl border border-border/80 bg-bg/45 p-1">
@@ -67,9 +106,10 @@ function Segmented<T extends string>({
           <button
             key={o.value}
             type="button"
+            disabled={disabled}
             onClick={() => onChange(o.value)}
             aria-pressed={active}
-            className={`relative min-w-0 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
+            className={`relative min-w-0 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,opacity] duration-200 disabled:cursor-wait disabled:opacity-65 ${
               active
                 ? "border-accent/50 bg-accent/10 text-accent shadow-[0_6px_18px_-12px_rgb(var(--c-accent)/0.75)]"
                 : "border-transparent text-muted hover:bg-surface-2/70 hover:text-chalk"
@@ -125,14 +165,14 @@ function ToggleSwitch({ enabled }: { enabled: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className={`relative h-7 w-12 shrink-0 rounded-full border transition-all duration-200 ${
+      className={`relative h-7 w-12 shrink-0 rounded-full border transition-[background-color,border-color] duration-200 ${
         enabled
           ? "border-control/70 bg-control shadow-[0_0_0_3px_rgb(var(--c-control)/0.1)]"
           : "border-border bg-bg/55"
       }`}
     >
       <span
-        className={`absolute top-[3px] h-5 w-5 rounded-full transition-all duration-200 ${
+        className={`absolute top-[3px] h-5 w-5 rounded-full transition-[left,transform] duration-200 ${
           enabled
             ? "translate-x-[23px] bg-bg shadow-[0_2px_8px_rgb(0_0_0/0.4)]"
             : "translate-x-[3px] bg-muted shadow-sm"
@@ -189,10 +229,21 @@ function NotificationToggle({
 
 export function Settings() {
   const { profile, session, updateProfile, signOut } = useAuth();
+  const { entitlement, hasProAccess, manageSubscription } = useEntitlements();
+  const {
+    preferences: logbookPreferences,
+    loading: logbookPreferencesLoading,
+    save: saveLogbookPreferences,
+  } = useLogbookPreferences();
   const navigate = useNavigate();
   const push = usePushNotifications();
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const [notificationDetailsOpen, setNotificationDetailsOpen] = useState(false);
+  const [notesBusy, setNotesBusy] = useState(false);
+  const [notesMessage, setNotesMessage] = useState<string | null>(null);
+  const [routeNamesBusy, setRouteNamesBusy] = useState(false);
+  const [routeNamesMessage, setRouteNamesMessage] = useState<string | null>(null);
   const [name, setName] = useState(profile?.display_name ?? "");
 
   const [uname, setUname] = useState(profile?.username ?? "");
@@ -250,53 +301,106 @@ export function Settings() {
 
   async function deleteAccount() {
     setDeleting(true);
-    // Storage intentionally blocks direct SQL deletion. Remove avatar objects
-    // through its API while the user still has permission, then delete the
-    // database/auth account. A failed cleanup must not trap the account.
-    if (profile?.id) {
-      const { data: avatarFiles } = await supabase.storage
-        .from("avatars")
-        .list(profile.id);
-      if (avatarFiles?.length) {
-        await supabase.storage
-          .from("avatars")
-          .remove(avatarFiles.map((file) => `${profile.id}/${file.name}`));
-      }
-    }
-    const { error } = await supabase.rpc("delete_account");
-    if (error) {
+    try {
+      if (!profile?.id) throw new Error("Your account could not be identified.");
+      if (!session?.user) throw new Error("Your session has expired.");
+
+      // Ask for Apple confirmation before deleting anything. The short-lived
+      // authorization code is held only in memory until the account deletion
+      // is ready to finish.
+      const appleRevocation = await prepareAppleAuthorizationRevocation(
+        session.user,
+      );
+
+      // Supabase Storage objects must be removed through the Storage API, not
+      // by deleting storage.objects metadata in SQL. Delete both user-owned
+      // folders while RLS can still prove ownership, then remove DB/Auth data.
+      await Promise.all([
+        removeUserUploads("avatars", profile.id),
+        removeUserUploads("route-photos", profile.id),
+        removeUserUploads("climb-videos", profile.id),
+      ]);
+
+      await revokeAppleAuthorizationForDeletion(appleRevocation);
+
+      const { error } = await supabase.rpc("delete_account");
+      if (error) throw error;
+
+      await signOut();
+    } catch (error) {
       setDeleting(false);
-      window.alert(`Couldn't delete your account: ${error.message}`);
-      return;
+      const message = error instanceof Error ? error.message : String(error);
+      window.alert(
+        `Couldn't finish deleting your account. Nothing hidden was skipped; please check your connection and try again.\n\n${message}`,
+      );
     }
-    // Account is gone — sign out and drop back to login.
-    await signOut();
   }
 
   const theme = (profile?.theme ?? "dark") as ThemePref;
   const sendsPublic = profile?.sends_public ?? true;
   const projectsPublic = profile?.projects_public ?? true;
+  const notesPublic = profile?.notes_public ?? false;
+  const friendsPublic = profile?.friends_public ?? true;
+  const hasRenewingAppleSubscription =
+    (entitlement?.entitlement_type === "subscription" ||
+      entitlement?.entitlement_type === "trial") &&
+    !["inactive", "expired", "revoked"].includes(
+      entitlement.entitlement_status,
+    );
 
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
   const logStyle = (profile?.log_style ?? "steps") as LogStylePref;
   const routeNamesEnabled = profile?.route_names_enabled ?? false;
 
   async function setRouteNamesEnabled(next: boolean) {
+    if (routeNamesBusy || (hasProAccess && logbookPreferencesLoading)) return;
+    setRouteNamesBusy(true);
+    setRouteNamesMessage(null);
+
+    const previousPreferences = logbookPreferences;
+    if (hasProAccess) {
+      const { error } = await saveLogbookPreferences({
+        ...logbookPreferences,
+        show_route_name: next,
+      });
+      if (error) {
+        setRouteNamesBusy(false);
+        setRouteNamesMessage("Couldn't save route names. Check your connection and try again.");
+        return;
+      }
+    }
+
     const { error } = await updateProfile({ route_names_enabled: next });
-    if (error) window.alert("Couldn't save that setting. Please try again.");
+    if (error) {
+      if (hasProAccess) void saveLogbookPreferences(previousPreferences);
+      setRouteNamesMessage("Couldn't save route names. Check your connection and try again.");
+    }
+    setRouteNamesBusy(false);
+  }
+
+  async function setNotesPublic(next: boolean) {
+    setNotesBusy(true);
+    setNotesMessage(null);
+    const { error } = await updateProfile({ notes_public: next });
+    setNotesBusy(false);
+    if (error) {
+      setNotesMessage("Couldn't save note privacy. Check your connection and try again.");
+    }
   }
 
   async function togglePushMaster() {
+    const wasActive = push.active;
     setPushBusy(true);
     setPushMessage(null);
-    const result = push.active ? await push.disable() : await push.enable();
+    const result = wasActive ? await push.disable() : await push.enable();
     setPushBusy(false);
     setPushMessage(
       result.error ??
-        (push.active
+        (wasActive
           ? "Notifications are off on this device."
-          : "Notifications are enabled. You can choose what Klimb sends below."),
+          : "Notifications are on. Every Klimb notification starts enabled."),
     );
+    if (wasActive) setNotificationDetailsOpen(false);
   }
 
   async function setPushPreference(
@@ -371,6 +475,32 @@ export function Settings() {
     <div className="settings-page min-h-full">
       <AppHeader title="Settings" />
       <div className="flex flex-col gap-7 px-4 pb-12 pt-4">
+        {!hasProAccess ? (
+          <button
+            type="button"
+            onClick={() => navigate("/upgrade")}
+            className="group relative overflow-hidden rounded-[1.75rem] bg-[radial-gradient(circle_at_90%_8%,rgba(57,255,136,0.15),transparent_48%),linear-gradient(145deg,#07130e,#06100b)] p-5 text-left shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition active:scale-[0.99]"
+          >
+            <span className="relative flex items-center gap-4">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-accent/30 bg-accent/10 text-accent">
+                <Crown size={23} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-black uppercase tracking-[0.18em] text-accent">
+                  Klimb Pro
+                </span>
+                <span className="mt-1 block text-base font-extrabold text-chalk">
+                  Unlock your full climbing history
+                </span>
+                <span className="mt-1 block text-xs leading-relaxed text-muted">
+                  Compare plans, start your trial, or restore a purchase.
+                </span>
+              </span>
+              <ChevronRight size={19} className="shrink-0 text-accent transition-transform group-active:translate-x-0.5" />
+            </span>
+          </button>
+        ) : null}
+
         <Section
           title="Climbing preferences"
           description="The defaults Klimb uses throughout your logbook."
@@ -432,35 +562,75 @@ export function Settings() {
               type="button"
               role="switch"
               aria-checked={routeNamesEnabled}
+              disabled={routeNamesBusy || (hasProAccess && logbookPreferencesLoading)}
               onClick={() => void setRouteNamesEnabled(!routeNamesEnabled)}
-              className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors active:bg-accent/[0.06]"
+              className="flex w-full items-center justify-between gap-4 border-b border-border/80 p-4 text-left transition-colors active:bg-accent/[0.06] disabled:cursor-wait disabled:opacity-65"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
-                  <Sparkles size={17} />
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${routeNamesEnabled ? "border-accent/25 bg-accent/10 text-accent" : "border-border bg-bg/35 text-faint"}`}>
+                  <AtSign size={17} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-chalk">
-                    Add route names
-                  </span>
+                  <span className="block text-sm font-semibold text-chalk">Route names</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-faint">
-                    Show an optional name when logging. Existing names stay
-                    saved if you turn this off.
+                    Ask for the route or setter name when logging.
                   </span>
+                  {routeNamesMessage ? (
+                    <span className="mt-1 block text-xs text-red-400">{routeNamesMessage}</span>
+                  ) : null}
                 </span>
               </span>
               <ToggleSwitch enabled={routeNamesEnabled} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/settings/logbook")}
+              className="flex w-full items-center justify-between gap-4 border-t border-border/80 p-4 text-left transition-colors active:bg-accent/[0.06]"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
+                  <SlidersHorizontal size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+                    Customize logbook
+                    <ProBadge compact />
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-faint">Choose which optional questions appear when logging.</span>
+                </span>
+              </span>
+              <ChevronRight size={17} className="shrink-0 text-faint" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/videos")}
+              className="flex w-full items-center justify-between gap-4 border-t border-border/80 p-4 text-left transition-colors active:bg-accent/[0.06]"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent">
+                  <Video size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+                    Video library
+                    <ProBadge compact />
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-faint">Your videos, attached directly to the Klimbs you log.</span>
+                </span>
+              </span>
+              <ChevronRight size={17} className="shrink-0 text-faint" />
             </button>
           </Card>
         </Section>
 
         <Section
           title="Notifications"
-          description="Only the updates you actually want."
+          description="On by default once you allow permission."
           icon={<Bell size={18} />}
         >
           <Card className="overflow-hidden border border-border/80 p-0">
-            <div className="relative flex items-center gap-3 border-b border-border/80 px-4 py-4">
+            <div className="relative flex items-center gap-3 px-4 py-4">
               {push.active ? (
                 <span className="absolute inset-y-0 left-0 w-[2px] bg-accent" />
               ) : null}
@@ -474,78 +644,84 @@ export function Settings() {
                 {push.active ? <Bell size={20} /> : <BellOff size={20} />}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-chalk">
-                  {push.active
-                    ? "Apple notifications are on"
-                    : "Apple notifications are off"}
+                <p className="whitespace-nowrap text-sm font-semibold text-chalk">
+                  {push.active ? "Notifications are on" : "Notifications are off"}
                 </p>
                 <p className="mt-0.5 text-xs leading-relaxed text-faint">
                   {push.active
-                    ? "Choose exactly what can reach you."
+                    ? "Recaps, streaks, and friend activity are enabled."
                     : "Recaps, streak reminders, and friend activity."}
                 </p>
               </div>
               <button
                 type="button"
-                className={`h-10 shrink-0 rounded-xl border px-4 text-sm font-bold transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${
-                  push.active
-                    ? "border-border bg-bg/45 text-muted"
-                    : "border-accent/50 bg-accent text-bg shadow-[0_8px_20px_-12px_rgb(var(--c-accent)/0.8)]"
-                }`}
+                role="switch"
+                aria-checked={push.active}
+                aria-label="Notifications"
+                className="shrink-0 rounded-full p-1 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!push.available}
                 onClick={() => void togglePushMaster()}
               >
-                {pushBusy ? "Saving…" : push.active ? "Turn off" : "Enable"}
+                <ToggleSwitch enabled={push.active && !pushBusy} />
               </button>
             </div>
 
             {push.active && push.preferences ? (
-              <div className="divide-y divide-border">
-                <NotificationToggle
-                  label="Friend requests"
-                  description="When another climber wants to connect."
-                  icon={<UserPlus size={17} />}
-                  enabled={push.preferences.friend_requests}
-                  onChange={(value) =>
-                    void setPushPreference("friend_requests", value)
-                  }
-                />
-                <NotificationToggle
-                  label="New friends"
-                  description="When someone accepts your request."
-                  icon={<UserCheck size={17} />}
-                  enabled={push.preferences.friend_accepts}
-                  onChange={(value) =>
-                    void setPushPreference("friend_accepts", value)
-                  }
-                />
-                <NotificationToggle
-                  label="Weekly recap"
-                  description="When your Sunday recap is ready to watch."
-                  icon={<BarChart3 size={17} />}
-                  enabled={push.preferences.weekly_recaps}
-                  onChange={(value) =>
-                    void setPushPreference("weekly_recaps", value)
-                  }
-                />
-                <NotificationToggle
-                  label="Streak reminders"
-                  description="Sunday afternoon when your weekly streak is at risk."
-                  icon={<Flame size={17} />}
-                  enabled={push.preferences.streak_risk}
-                  onChange={(value) =>
-                    void setPushPreference("streak_risk", value)
-                  }
-                />
-                <NotificationToggle
-                  label="Come climb"
-                  description="A friendly reminder after 14 days away."
-                  icon={<Mountain size={17} />}
-                  enabled={push.preferences.inactivity}
-                  onChange={(value) =>
-                    void setPushPreference("inactivity", value)
-                  }
-                />
+              <div className="border-t border-border/80">
+                <button
+                  type="button"
+                  aria-expanded={notificationDetailsOpen}
+                  onClick={() => setNotificationDetailsOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition active:bg-accent/[0.06]"
+                >
+                  <span>
+                    <span className="block text-sm font-semibold text-chalk">Notification details</span>
+                    <span className="mt-0.5 block text-xs text-faint">Fine-tune individual alerts anytime.</span>
+                  </span>
+                  <span className="flex items-center gap-2 text-xs font-bold text-accent">
+                    {notificationDetailsOpen ? "Hide details" : "See details"}
+                    <ChevronDown size={16} className={`transition-transform ${notificationDetailsOpen ? "rotate-180" : ""}`} />
+                  </span>
+                </button>
+                {notificationDetailsOpen ? (
+                  <div className="divide-y divide-border border-t border-border/80">
+                    <NotificationToggle
+                      label="Friend requests"
+                      description="When another climber wants to Klimb with you."
+                      icon={<UserPlus size={17} />}
+                      enabled={push.preferences.friend_requests}
+                      onChange={(value) => void setPushPreference("friend_requests", value)}
+                    />
+                    <NotificationToggle
+                      label="New friends"
+                      description="When someone accepts your request."
+                      icon={<UserCheck size={17} />}
+                      enabled={push.preferences.friend_accepts}
+                      onChange={(value) => void setPushPreference("friend_accepts", value)}
+                    />
+                    <NotificationToggle
+                      label="Weekly recap"
+                      description="When your Sunday recap is ready to watch."
+                      icon={<BarChart3 size={17} />}
+                      enabled={push.preferences.weekly_recaps}
+                      onChange={(value) => void setPushPreference("weekly_recaps", value)}
+                    />
+                    <NotificationToggle
+                      label="Streak reminders"
+                      description="Sunday afternoon when your weekly streak is at risk."
+                      icon={<Flame size={17} />}
+                      enabled={push.preferences.streak_risk}
+                      onChange={(value) => void setPushPreference("streak_risk", value)}
+                    />
+                    <NotificationToggle
+                      label="Come climb"
+                      description="A friendly reminder after 14 days away."
+                      icon={<Mountain size={17} />}
+                      enabled={push.preferences.inactivity}
+                      onChange={(value) => void setPushPreference("inactivity", value)}
+                    />
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </Card>
@@ -573,7 +749,7 @@ export function Settings() {
           icon={<BookOpen size={18} />}
         >
           <button
-            onClick={() => navigate("/terms")}
+            onClick={() => navigate("/glossary")}
             className="flex w-full items-center justify-between rounded-2xl border border-border/80 bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
           >
             <span className="flex items-center gap-3 text-sm font-semibold text-chalk">
@@ -614,7 +790,7 @@ export function Settings() {
                 }
               />
             </div>
-            <div className="p-4">
+            <div className="border-b border-border/80 p-4">
               <div className="mb-3">
                 <p className="text-sm font-semibold text-chalk">Projects</p>
                 <p className="mt-0.5 text-xs leading-relaxed text-faint">
@@ -631,6 +807,46 @@ export function Settings() {
                   updateProfile({ projects_public: v === "public" })
                 }
               />
+            </div>
+            <div className="border-b border-border/80 p-4">
+              <div className="mb-3">
+                <p className="text-sm font-semibold text-chalk">Friends list</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-faint">
+                  Choose whether climbers can see who you Klimb with.
+                </p>
+              </div>
+              <Segmented<string>
+                value={friendsPublic ? "public" : "private"}
+                options={[
+                  { value: "public", label: "Public" },
+                  { value: "private", label: "Private" },
+                ]}
+                onChange={(v) =>
+                  updateProfile({ friends_public: v === "public" })
+                }
+              />
+            </div>
+            <div className="p-4">
+              <div className="mb-3">
+                <p className="text-sm font-semibold text-chalk">Notes</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-faint">
+                  Choose whether notes on posted Klimbs can appear to other climbers.
+                </p>
+              </div>
+              <Segmented<string>
+                value={notesPublic ? "public" : "private"}
+                options={[
+                  { value: "public", label: "Public" },
+                  { value: "private", label: "Private" },
+                ]}
+                disabled={notesBusy}
+                onChange={(v) => void setNotesPublic(v === "public")}
+              />
+              {notesMessage ? (
+                <p className={`mt-2 text-xs ${notesMessage.startsWith("Couldn't") ? "text-wide" : "text-accent"}`}>
+                  {notesMessage}
+                </p>
+              ) : null}
             </div>
           </Card>
         </Section>
@@ -785,6 +1001,15 @@ export function Settings() {
             </span>
             <ChevronRight size={18} className="text-faint" />
           </button>
+          <button
+            onClick={() => navigate("/terms")}
+            className="flex w-full items-center justify-between rounded-2xl border border-border/80 bg-surface px-4 py-4 text-left shadow-card transition active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-chalk">
+              <BookOpen size={18} className="text-accent" /> Terms &amp; community rules
+            </span>
+            <ChevronRight size={18} className="text-faint" />
+          </button>
         </Section>
 
         {blockedList.length > 0 ? (
@@ -880,9 +1105,28 @@ export function Settings() {
             </div>
             <p className="text-sm text-muted">
               This permanently deletes your profile, sends, projects, grades,
-              notes, and friends. Your logged history can't be recovered. Routes
-              you added stay visible to other climbers at your gym.
+              notes, friends, avatar, and uploaded climb media. Your logged
+              history can&apos;t be recovered. Basic de-identified route facts may
+              remain so other climbers&apos; historical logs do not break.
             </p>
+            {hasRenewingAppleSubscription ? (
+              <div className="mt-4 rounded-2xl border border-wide/25 bg-wide/[0.07] p-4">
+                <p className="text-sm font-bold text-chalk">
+                  Your Apple subscription is separate
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  Deleting Klimb does not cancel billing managed by Apple. You
+                  can cancel it first, or still delete your account immediately.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void manageSubscription()}
+                  className="mt-3 text-sm font-bold text-accent underline"
+                >
+                  Manage Apple subscription
+                </button>
+              </div>
+            ) : null}
             <p className="mt-4 mb-2 text-sm text-muted">
               Type <span className="font-bold text-chalk">DELETE</span> to
               confirm.

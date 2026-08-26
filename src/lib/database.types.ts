@@ -8,7 +8,7 @@ export type ThemeEnum = "dark" | "light";
 export type ClimbFilterEnum = "all" | "boulder" | "toprope" | "lead";
 export type LogStyleEnum = "scroll" | "steps";
 export type GymStatus = "pending" | "approved";
-export type GradingStyle = "classic" | "bands";
+export type GradingStyle = "classic" | "bands" | "brew_bands";
 export type RouteEventKind = "created" | "grade_shift" | "archived";
 export type ReportReasonEnum = "wrong_gym" | "duplicate" | "inappropriate";
 export type BookmarkKind = "project" | "favorite";
@@ -21,7 +21,11 @@ export type ContentReportReason =
   | "harassment"
   | "wrong_info"
   | "other";
-export type EntitlementPlan = "free" | "pro_monthly" | "lifetime_pro";
+export type EntitlementPlan =
+  | "free"
+  | "pro_monthly"
+  | "pro_annual"
+  | "lifetime_pro";
 export type EntitlementType =
   | "free"
   | "founder"
@@ -163,6 +167,46 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["user_entitlements"]["Insert"]>;
         Relationships: [];
       };
+      profile_badges: {
+        Row: {
+          user_id: string;
+          badge_key: "slab_king";
+          label: string;
+          awarded_at: string;
+        };
+        Insert: {
+          user_id: string;
+          badge_key: "slab_king";
+          label: string;
+          awarded_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      climb_videos: {
+        Row: {
+          id: string;
+          user_id: string;
+          route_id: string;
+          storage_path: string;
+          caption: string | null;
+          visibility: "public" | "private";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          route_id: string;
+          storage_path: string;
+          caption?: string | null;
+          visibility?: "public" | "private";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["climb_videos"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -174,6 +218,8 @@ export interface Database {
           visiting_gym_id: string | null;
           sends_public: boolean;
           projects_public: boolean;
+          notes_public: boolean;
+          friends_public: boolean;
           grade_system: GradeSystemEnum;
           theme: ThemeEnum;
           default_climb_filter: ClimbFilterEnum;
@@ -183,6 +229,7 @@ export interface Database {
           seen_intro: boolean;
           notifications_seen_at: string;
           notifications_cleared_at: string | null;
+          pro_intro_seen_at: string | null;
           /** Non-null => the user chose off-grid mode; value is the gym name
            *  they're waiting on. Lets a gym-less user into the app. */
           offgrid_gym_label: string | null;
@@ -198,6 +245,8 @@ export interface Database {
           visiting_gym_id?: string | null;
           sends_public?: boolean;
           projects_public?: boolean;
+          notes_public?: boolean;
+          friends_public?: boolean;
           grade_system?: GradeSystemEnum;
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
@@ -207,6 +256,7 @@ export interface Database {
           seen_intro?: boolean;
           notifications_seen_at?: string;
           notifications_cleared_at?: string | null;
+          pro_intro_seen_at?: string | null;
           offgrid_gym_label?: string | null;
           created_at?: string;
         };
@@ -219,6 +269,8 @@ export interface Database {
           visiting_gym_id?: string | null;
           sends_public?: boolean;
           projects_public?: boolean;
+          notes_public?: boolean;
+          friends_public?: boolean;
           grade_system?: GradeSystemEnum;
           theme?: ThemeEnum;
           default_climb_filter?: ClimbFilterEnum;
@@ -228,6 +280,7 @@ export interface Database {
           seen_intro?: boolean;
           notifications_seen_at?: string;
           notifications_cleared_at?: string | null;
+          pro_intro_seen_at?: string | null;
           offgrid_gym_label?: string | null;
         };
         Relationships: [];
@@ -252,10 +305,51 @@ export interface Database {
         };
         Relationships: [];
       };
+      gym_unlocks: {
+        Row: {
+          user_id: string;
+          gym_id: string;
+          unlocked_at: string;
+        };
+        Insert: {
+          user_id: string;
+          gym_id: string;
+          unlocked_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      activity_reactions: {
+        Row: {
+          id: string;
+          activity_kind: "send" | "project";
+          activity_id: string;
+          route_id: string;
+          activity_owner_id: string;
+          reactor_id: string;
+          reaction: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          activity_kind: "send" | "project";
+          activity_id: string;
+          route_id: string;
+          activity_owner_id: string;
+          reactor_id: string;
+          reaction: string;
+          created_at?: string;
+        };
+        Update: {
+          reaction?: string;
+        };
+        Relationships: [];
+      };
       gyms: {
         Row: {
           id: string;
           name: string;
+          address: string | null;
           city: string | null;
           state: string | null;
           brand: string | null;
@@ -271,6 +365,7 @@ export interface Database {
         Insert: {
           id?: string;
           name: string;
+          address?: string | null;
           city?: string | null;
           state?: string | null;
           brand?: string | null;
@@ -285,6 +380,7 @@ export interface Database {
         };
         Update: {
           name?: string;
+          address?: string | null;
           city?: string | null;
           state?: string | null;
           brand?: string | null;
@@ -294,6 +390,50 @@ export interface Database {
           grading_style?: GradingStyle;
           country?: string | null;
           cc?: string | null;
+        };
+        Relationships: [];
+      };
+      logbook_preferences: {
+        Row: {
+          user_id: string;
+          show_photo: boolean;
+          show_video: boolean;
+          show_hold_color: boolean;
+          show_gym_grade: boolean;
+          show_felt_grade: boolean;
+          show_quality: boolean;
+          show_route_name: boolean;
+          show_note: boolean;
+          show_profile_visibility: boolean;
+          default_profile_visible: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          show_photo?: boolean;
+          show_video?: boolean;
+          show_hold_color?: boolean;
+          show_gym_grade?: boolean;
+          show_felt_grade?: boolean;
+          show_quality?: boolean;
+          show_route_name?: boolean;
+          show_note?: boolean;
+          show_profile_visibility?: boolean;
+          default_profile_visible?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          show_photo?: boolean;
+          show_video?: boolean;
+          show_hold_color?: boolean;
+          show_gym_grade?: boolean;
+          show_felt_grade?: boolean;
+          show_quality?: boolean;
+          show_route_name?: boolean;
+          show_note?: boolean;
+          show_profile_visibility?: boolean;
+          default_profile_visible?: boolean;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -386,6 +526,7 @@ export interface Database {
           note: string | null;
           attempts: number | null;
           photo_url: string | null;
+          profile_visible: boolean;
           created_at: string;
         };
         Insert: {
@@ -396,6 +537,7 @@ export interface Database {
           note?: string | null;
           attempts?: number | null;
           photo_url?: string | null;
+          profile_visible?: boolean;
           created_at?: string;
         };
         Update: {
@@ -403,6 +545,7 @@ export interface Database {
           note?: string | null;
           attempts?: number | null;
           photo_url?: string | null;
+          profile_visible?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -487,6 +630,7 @@ export interface Database {
           user_id: string;
           route_id: string;
           kind: BookmarkKind;
+          profile_visible: boolean;
           created_at: string;
         };
         Insert: {
@@ -494,10 +638,12 @@ export interface Database {
           user_id: string;
           route_id: string;
           kind: BookmarkKind;
+          profile_visible?: boolean;
           created_at?: string;
         };
         Update: {
           kind?: BookmarkKind;
+          profile_visible?: boolean;
         };
         Relationships: [];
       };
@@ -643,6 +789,7 @@ export interface Database {
           stars: number | null;
           note: string | null;
           photo_url: string | null;
+          profile_visible: boolean;
           created_at: string;
           /** Set once the climb is moved into a real gym. */
           transferred_at: string | null;
@@ -662,6 +809,7 @@ export interface Database {
           stars?: number | null;
           note?: string | null;
           photo_url?: string | null;
+          profile_visible?: boolean;
           created_at?: string;
           transferred_at?: string | null;
           transferred_route_id?: string | null;
@@ -669,6 +817,7 @@ export interface Database {
         Update: {
           gym_label?: string | null;
           pending_gym_id?: string | null;
+          profile_visible?: boolean;
           transferred_at?: string | null;
           transferred_route_id?: string | null;
         };
@@ -723,6 +872,29 @@ export interface Database {
         };
         Relationships: [];
       };
+      climb_video_reports: {
+        Row: {
+          id: string;
+          video_id: string;
+          reporter_id: string;
+          reason: ContentReportReason;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          video_id: string;
+          reporter_id: string;
+          reason: ContentReportReason;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          reason?: ContentReportReason;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       route_stats: {
@@ -740,6 +912,14 @@ export interface Database {
       };
     };
     Functions: {
+      accept_current_legal_terms: {
+        Args: {
+          p_terms_version: string;
+          p_privacy_version: string;
+          p_age_13_confirmed: boolean;
+        };
+        Returns: undefined;
+      };
       log_climb: {
         Args: {
           p_gym_id: string;
@@ -752,8 +932,49 @@ export interface Database {
           p_outcome: string;
           p_note: string;
           p_name?: string | null;
+          p_profile_visible?: boolean;
         };
         Returns: string;
+      };
+      get_friend_activity: {
+        Args: { p_limit_per_friend?: number };
+        Returns: {
+          activity_kind: "send" | "project";
+          activity_id: string;
+          activity_owner_id: string;
+          route_id: string;
+          send_type: SendType | null;
+          created_at: string;
+        }[];
+      };
+      get_mutual_friend_counts: {
+        Args: { p_other_ids: string[] };
+        Returns: { profile_id: string; mutual_count: number }[];
+      };
+      get_mutual_friends: {
+        Args: { p_other_id: string };
+        Returns: {
+          id: string;
+          display_name: string;
+          username: string | null;
+          avatar_url: string | null;
+        }[];
+      };
+      get_profile_friends: {
+        Args: { p_profile_id: string };
+        Returns: {
+          id: string;
+          display_name: string;
+          username: string | null;
+          avatar_url: string | null;
+        }[];
+      };
+      get_pro_badges: {
+        Args: { p_user_ids: string[] };
+        Returns: {
+          user_id: string;
+          is_pro: boolean;
+        }[];
       };
       report_route_gone: {
         Args: { p_route_id: string };
@@ -767,6 +988,14 @@ export interface Database {
         Args: {
           p_target_type: string;
           p_target_id: string;
+          p_reason: string;
+          p_note?: string | null;
+        };
+        Returns: number;
+      };
+      report_climb_video: {
+        Args: {
+          p_video_id: string;
           p_reason: string;
           p_note?: string | null;
         };

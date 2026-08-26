@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import type { ContentReason } from "./constants";
 import type { ReportTargetType } from "./database.types";
+export type { ReportTargetType } from "./database.types";
 
 /** Ids the user has blocked — their content should be hidden everywhere. */
 export async function fetchBlockedIds(userId: string): Promise<Set<string>> {
@@ -45,7 +46,18 @@ export async function blockUser(
       { blocker_id: blockerId, blocked_id: blockedId },
       { onConflict: "blocker_id,blocked_id", ignoreDuplicates: true },
     );
-  return { error: error ? error.message : null };
+  if (error) return { error: error.message };
+
+  // Blocking is also an immediate disconnect. The database trigger enforces
+  // this for every client version; this delete makes the current UI update
+  // correctly even before the trigger response reaches other sessions.
+  const { error: friendshipError } = await supabase
+    .from("friendships")
+    .delete()
+    .or(
+      `and(requester_id.eq.${blockerId},addressee_id.eq.${blockedId}),and(requester_id.eq.${blockedId},addressee_id.eq.${blockerId})`,
+    );
+  return { error: friendshipError ? friendshipError.message : null };
 }
 
 export async function unblockUser(
@@ -60,8 +72,8 @@ export async function unblockUser(
 }
 
 /**
- * Report a comment or user. Returns the running report count (a comment is
- * auto-hidden server-side once 3 distinct climbers report it).
+ * Report a route, comment, or user. Returns the running report count; supported
+ * content is auto-hidden server-side once enough distinct climbers report it.
  */
 export async function reportContent(
   targetType: ReportTargetType,

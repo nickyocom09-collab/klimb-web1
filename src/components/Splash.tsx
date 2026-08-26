@@ -15,6 +15,8 @@ export function Splash() {
           className="klimb-splash__mark"
           src="/klimb-splash-dark.png"
           alt="Klimb"
+          draggable={false}
+          onContextMenu={(event) => event.preventDefault()}
         />
       </div>
     </div>

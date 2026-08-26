@@ -8,6 +8,8 @@ import {
   Pencil,
   Trash2,
   Trophy,
+  Video,
+  X,
   Zap,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
@@ -18,6 +20,7 @@ import { climbTypeLabel, holdHex } from "../lib/constants";
 import { routeLabel } from "../lib/routeLabel";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
+import { ContentReportSheet } from "../components/ContentReportSheet";
 import type { SendType } from "../lib/database.types";
 
 function formatDate(iso: string): string {
@@ -53,11 +56,15 @@ export function RouteDetail() {
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportMessage, setReportMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id || !profile) return;
     setLoading(true);
-    const [r, { data: mine }, { data: mySend }, { data: bm }] =
+    const [r, { data: mine }, { data: mySend }, { data: bm }, { data: myVideo }] =
       await Promise.all([
         fetchRoute(id),
         supabase
@@ -79,7 +86,21 @@ export function RouteDetail() {
           .eq("user_id", profile.id)
           .eq("kind", "project")
           .maybeSingle(),
+        supabase
+          .from("climb_videos")
+          .select("storage_path")
+          .eq("route_id", id)
+          .eq("user_id", profile.id)
+          .maybeSingle(),
       ]);
+    if (myVideo?.storage_path) {
+      const { data: signed } = await supabase.storage
+        .from("climb-videos")
+        .createSignedUrl(myVideo.storage_path, 60 * 60);
+      setVideoUrl(signed?.signedUrl ?? null);
+    } else {
+      setVideoUrl(null);
+    }
     setRoute(r);
     setMyGrade(mine?.grade ?? null);
     setHasSent(!!mySend && mySend.send_type !== "attempt");
@@ -174,23 +195,13 @@ export function RouteDetail() {
     route.gradeValues.length > 0
       ? route.gradeValues[Math.floor(route.gradeValues.length / 2)]
       : null;
+  const playableVideoUrl = videoUrl ?? route.video_url;
 
   return (
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       {/* Media */}
       <div className="relative">
-        {route.video_url ? (
-          <video
-            src={route.video_url}
-            poster={route.photo_url}
-            className="aspect-[4/3] w-full bg-black object-cover"
-            autoPlay
-            muted
-            loop
-            playsInline
-            controls
-          />
-        ) : route.photo_url ? (
+        {route.photo_url ? (
           <button
             type="button"
             onClick={() => setPhotoOpen(true)}
@@ -233,6 +244,19 @@ export function RouteDetail() {
         </div>
       ) : null}
 
+      {videoOpen && playableVideoUrl ? (
+        <div className="fixed inset-0 z-[100] flex flex-col bg-black pt-safe" role="dialog" aria-modal="true" aria-label="Your Klimb video">
+          <div className="flex justify-end p-4">
+            <button type="button" onClick={() => setVideoOpen(false)} aria-label="Done" className="grid h-11 w-11 place-items-center rounded-full bg-white text-black">
+              <X size={21} />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <video src={playableVideoUrl} controls autoPlay playsInline preload="metadata" controlsList="nodownload" disablePictureInPicture className="h-full w-full bg-black object-contain" onContextMenu={(event) => event.preventDefault()} />
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex-1 overflow-y-auto px-5 pb-10 pt-5">
         <div className="flex flex-col gap-5">
           {/* Identity */}
@@ -252,6 +276,15 @@ export function RouteDetail() {
             <p className="mt-2 text-xs text-faint">
               {formatDate(route.created_at)}
             </p>
+            {playableVideoUrl ? (
+              <button
+                type="button"
+                onClick={() => setVideoOpen(true)}
+                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 text-sm font-extrabold text-accent transition active:scale-[0.98]"
+              >
+                <Video size={16} /> Watch your Klimb
+              </button>
+            ) : null}
           </div>
 
           {/* Your grade vs the gym's grade */}
@@ -397,6 +430,32 @@ export function RouteDetail() {
             </p>
           ) : null}
 
+          {!isMine ? (
+            <div className="flex flex-col items-center gap-2 border-t border-border/70 pt-5">
+              <button
+                type="button"
+                onClick={() => setReportOpen(true)}
+                className="flex min-h-11 items-center justify-center gap-2 px-4 text-sm font-semibold text-faint transition hover:text-wide"
+              >
+                <Flag size={15} /> Report this Klimb
+              </button>
+              {route.created_by ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/u/${route.created_by}`)}
+                  className="text-xs font-semibold text-muted underline"
+                >
+                  View, report, or block this climber
+                </button>
+              ) : null}
+              {reportMessage ? (
+                <p className="text-center text-xs text-muted" role="status">
+                  {reportMessage}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
         </div>
       </div>
 
@@ -417,6 +476,15 @@ export function RouteDetail() {
           }}
         />
       ) : null}
+
+      <ContentReportSheet
+        open={reportOpen}
+        targetType="route"
+        targetId={route.id}
+        title="Report this Klimb"
+        onClose={() => setReportOpen(false)}
+        onSent={setReportMessage}
+      />
 
       {/* Delete confirmation — spell out the consequences. */}
       {confirmDelete ? (

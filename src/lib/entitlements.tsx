@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -26,6 +27,13 @@ import {
   type StoreKitProduct,
   type StoreKitTransaction,
 } from "./storeKit";
+import { OperationTimeoutError, withTimeout } from "./asyncTimeout";
+
+const PRODUCT_LOAD_TIMEOUT_MS = 20_000;
+const PURCHASE_TIMEOUT_MS = 120_000;
+const VERIFICATION_TIMEOUT_MS = 30_000;
+const RESTORE_TIMEOUT_MS = 120_000;
+const ENTITLEMENT_SYNC_TIMEOUT_MS = 30_000;
 
 type PurchaseState =
   | "idle"
@@ -35,6 +43,7 @@ type PurchaseState =
   | "restoring"
   | "success"
   | "pending"
+  | "sync_pending"
   | "canceled"
   | "error";
 
@@ -44,12 +53,15 @@ type EntitlementContextValue = {
   hasLifetimeAccess: boolean;
   isTrialActive: boolean;
   subscriptionStatus: EntitlementStatus;
+  products: StoreKitProduct[];
   product: StoreKitProduct | null;
+  monthlyProduct: StoreKitProduct | null;
+  annualProduct: StoreKitProduct | null;
   purchaseState: PurchaseState;
   error: string | null;
   canUseFeature: (feature: EntitlementFeature) => boolean;
   refreshEntitlements: () => Promise<void>;
-  purchaseMonthly: () => Promise<void>;
+  purchaseProduct: (productId: string) => Promise<void>;
   restorePurchases: () => Promise<void>;
   manageSubscription: () => Promise<void>;
   trackEvent: (
@@ -94,9 +106,12 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const userId = session?.user.id ?? null;
   const [entitlement, setEntitlement] = useState<EntitlementRecord | null>(null);
-  const [product, setProduct] = useState<StoreKitProduct | null>(null);
+  const [products, setProducts] = useState<StoreKitProduct[]>([]);
   const [purchaseState, setPurchaseState] = useState<PurchaseState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const verificationInFlight = useRef(
+    new Map<string, Promise<EntitlementRecord>>(),
+  );
 
   const acceptEntitlement = useCallback((incoming: EntitlementRecord) => {
     setEntitlement((current) => {
@@ -128,20 +143,50 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   }, [acceptEntitlement, userId]);
 
   const verifyWithBackend = useCallback(
-    async (transaction: StoreKitTransaction) => {
-      setPurchaseState("verifying");
-      const { data, error: verifyError } = await supabase.functions.invoke(
-        "verify-app-store-transaction",
-        { body: { signedTransaction: transaction.signedTransaction } },
+    async (
+      transaction: StoreKitTransaction,
+      showProgress = true,
+    ) => {
+      const existing = verificationInFlight.current.get(
+        transaction.transactionId,
       );
-      if (verifyError) throw verifyError;
-      const verified = data?.entitlement as EntitlementRecord | undefined;
-      if (!verified) throw new Error("The entitlement server returned no result.");
-      acceptEntitlement(verified);
-      await KlimbStoreKit.finishTransaction({
-        transactionId: transaction.transactionId,
-      });
-      return verified;
+      if (existing) return existing;
+      if (showProgress) setPurchaseState("verifying");
+      const verification = (async () => {
+        const { data, error: verifyError } = await withTimeout(
+          supabase.functions.invoke("verify-app-store-transaction", {
+            body: { signedTransaction: transaction.signedTransaction },
+          }),
+          VERIFICATION_TIMEOUT_MS,
+          "Apple completed the purchase, but account activation took too long.",
+        );
+        if (verifyError) throw verifyError;
+        const verified = data?.entitlement as EntitlementRecord | undefined;
+        if (!verified) {
+          throw new Error("The entitlement server returned no result.");
+        }
+        acceptEntitlement(verified);
+        try {
+          await withTimeout(
+            KlimbStoreKit.finishTransaction({
+              transactionId: transaction.transactionId,
+            }),
+            VERIFICATION_TIMEOUT_MS,
+            "Apple transaction finalization took too long.",
+          );
+        } catch (finishError) {
+          // Server verification has already granted access. StoreKit will
+          // safely replay an unfinished transaction on the next launch.
+          console.warn("StoreKit transaction finalization deferred", finishError);
+        }
+        return verified;
+      })();
+      verificationInFlight.current.set(transaction.transactionId, verification);
+      try {
+        return await verification;
+      } finally {
+        verificationInFlight.current.delete(transaction.transactionId);
+      }
     },
     [acceptEntitlement],
   );
@@ -169,27 +214,52 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!canUseStoreKit()) return;
+    let canceled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
     setPurchaseState("loading");
-    KlimbStoreKit.loadProducts({
-      productIds: [STOREKIT_CONFIG.monthlyProductId],
-    })
-      .then(({ products }) => {
-        setProduct(
-          products.find(
-            (candidate) =>
-              candidate.id === STOREKIT_CONFIG.monthlyProductId,
-          ) ?? null,
+    const loadProducts = async () => {
+      try {
+        const { products: loadedProducts } = await withTimeout(
+          KlimbStoreKit.loadProducts({
+            productIds: [
+              STOREKIT_CONFIG.monthlyProductId,
+              STOREKIT_CONFIG.annualProductId,
+            ],
+          }),
+          PRODUCT_LOAD_TIMEOUT_MS,
+          "Apple pricing took too long to load. You can retry by reopening this screen.",
         );
+        if (canceled) return;
+        setProducts(loadedProducts);
         setPurchaseState("idle");
-      })
-      .catch((loadError: unknown) => {
+        setError(null);
+
+        const hasEveryProduct = [
+          STOREKIT_CONFIG.monthlyProductId,
+          STOREKIT_CONFIG.annualProductId,
+        ].every((productId) =>
+          loadedProducts.some((product) => product.id === productId),
+        );
+        if (!hasEveryProduct && retryCount < 2) {
+          retryCount += 1;
+          retryTimer = setTimeout(() => void loadProducts(), retryCount * 2500);
+        }
+      } catch (loadError: unknown) {
+        if (canceled) return;
         setError(
           loadError instanceof Error
             ? loadError.message
             : "Apple pricing is temporarily unavailable.",
         );
         setPurchaseState("error");
-      });
+      }
+    };
+    void loadProducts();
+    return () => {
+      canceled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -235,10 +305,14 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     // covers renewals and purchases made on another device even when the user
     // never opens the pricing screen. Lifetime access remains authoritative on
     // the backend and cannot be downgraded by subscription reconciliation.
-    void KlimbStoreKit.currentEntitlements()
+    void withTimeout(
+      KlimbStoreKit.currentEntitlements(),
+      ENTITLEMENT_SYNC_TIMEOUT_MS,
+      "Apple entitlement sync took too long.",
+    )
       .then(async ({ transactions }) => {
         for (const transaction of transactions) {
-          await verifyWithBackend(transaction);
+          await verifyWithBackend(transaction, false);
         }
         if (transactions.length > 0) await refreshEntitlements();
         setPurchaseState("idle");
@@ -251,12 +325,23 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   }, [refreshEntitlements, userId, verifyWithBackend]);
 
   const access = accessFromEntitlement(entitlement);
+  const monthlyProduct =
+    products.find(
+      (candidate) => candidate.id === STOREKIT_CONFIG.monthlyProductId,
+    ) ?? null;
+  const annualProduct =
+    products.find(
+      (candidate) => candidate.id === STOREKIT_CONFIG.annualProductId,
+    ) ?? null;
 
   const value = useMemo<EntitlementContextValue>(
     () => ({
       entitlement,
       ...access,
-      product,
+      products,
+      product: monthlyProduct,
+      monthlyProduct,
+      annualProduct,
       purchaseState,
       error,
       canUseFeature(feature) {
@@ -270,8 +355,17 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         return access.hasProAccess;
       },
       refreshEntitlements,
-      async purchaseMonthly() {
+      async purchaseProduct(productId) {
         if (!userId || access.hasLifetimeAccess) return;
+        const allowedProductIds = new Set([
+          STOREKIT_CONFIG.monthlyProductId,
+          STOREKIT_CONFIG.annualProductId,
+        ]);
+        if (!allowedProductIds.has(productId)) {
+          setError("That Klimb Pro plan is unavailable.");
+          setPurchaseState("error");
+          return;
+        }
         if (!canUseStoreKit()) {
           setError("Subscriptions are available in the Klimb iOS app.");
           setPurchaseState("error");
@@ -279,37 +373,65 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         }
         setError(null);
         setPurchaseState("purchasing");
+        let applePurchaseCompleted = false;
         try {
-          const result = await KlimbStoreKit.purchase({
-            productId: STOREKIT_CONFIG.monthlyProductId,
-            appAccountToken: userId,
-          });
+          const result = await withTimeout(
+            KlimbStoreKit.purchase({
+              productId,
+              appAccountToken: userId,
+            }),
+            PURCHASE_TIMEOUT_MS,
+            "Apple did not respond in time. No Pro access was activated. Try again or use Restore Purchases if Apple later confirms it.",
+          );
           if (result.state === "canceled") {
             setPurchaseState("canceled");
-            await trackEvent("purchase_canceled");
+            await trackEvent("purchase_canceled", { product_id: productId });
             return;
           }
           if (result.state === "pending") {
             setPurchaseState("pending");
-            await trackEvent("purchase_pending");
+            await trackEvent("purchase_pending", { product_id: productId });
             return;
           }
+          applePurchaseCompleted = true;
           const verified = await verifyWithBackend(result);
           setPurchaseState("success");
           await trackEvent(
             verified.entitlement_status === "trial"
               ? "trial_started"
               : "subscription_purchased",
+            { product_id: productId },
           );
           await refreshEntitlements();
         } catch (purchaseError) {
+          if (
+            applePurchaseCompleted ||
+            (purchaseError instanceof Error &&
+              /edge function|failed to send|verification|network|fetch/i.test(
+                purchaseError.message,
+              ))
+          ) {
+            setError(
+              "Apple completed the purchase. Klimb is still syncing your Pro access—reopen the app or tap Restore Purchases if it does not unlock shortly.",
+            );
+            setPurchaseState("sync_pending");
+            return;
+          }
           setError(
-            purchaseError instanceof Error
+            purchaseError instanceof OperationTimeoutError
+              ? purchaseError.message
+              : purchaseError instanceof Error
               ? purchaseError.message
               : "The purchase could not be completed.",
           );
           setPurchaseState("error");
-          await trackEvent("purchase_failed");
+          await trackEvent("purchase_failed", {
+            product_id: productId,
+            reason:
+              purchaseError instanceof Error
+                ? purchaseError.message.slice(0, 240)
+                : "unknown",
+          });
         }
       },
       async restorePurchases() {
@@ -317,7 +439,11 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         setError(null);
         setPurchaseState("restoring");
         try {
-          const { transactions } = await KlimbStoreKit.restorePurchases();
+          const { transactions } = await withTimeout(
+            KlimbStoreKit.restorePurchases(),
+            RESTORE_TIMEOUT_MS,
+            "Apple did not finish restoring in time. Please try Restore Purchases again.",
+          );
           for (const transaction of transactions) {
             await verifyWithBackend(transaction);
           }
@@ -352,7 +478,9 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       access,
       entitlement,
       error,
-      product,
+      annualProduct,
+      monthlyProduct,
+      products,
       purchaseState,
       refreshEntitlements,
       trackEvent,

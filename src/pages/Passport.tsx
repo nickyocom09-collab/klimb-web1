@@ -91,11 +91,13 @@ export function Passport() {
         );
 
       // Which countries the user has actually climbed in.
-      const { data: sends } = await supabase
+      let sendsQuery = supabase
         .from("sends")
         .select("route_id")
         .eq("user_id", targetId)
         .neq("send_type", "attempt");
+      if (!isMe) sendsQuery = sendsQuery.eq("profile_visible", true);
+      const { data: sends } = await sendsQuery;
       const routeIds = [...new Set((sends ?? []).map((s) => s.route_id))];
       const { data: routes } = routeIds.length
         ? await supabase.from("routes").select("id, gym_id").in("id", routeIds)

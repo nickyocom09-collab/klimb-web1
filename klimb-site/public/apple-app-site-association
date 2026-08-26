@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["6Z9QZ8CXJ6.com.nickyocom.klimb"],
+        "components": [
+          {
+            "/": "/add.html",
+            "?": { "id": "*" },
+            "comment": "Open Klimb friend profile invitations"
+          }
+        ]
+      }
+    ]
+  }
+}

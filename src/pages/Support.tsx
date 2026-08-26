@@ -47,7 +47,8 @@ export function Support() {
             <p className="mt-1 text-sm text-muted">
               Open Settings in the app and tap Delete account at the bottom.
               This permanently removes your profile, sends, projects, grades,
-              and notes.
+              notes, social connections, and uploaded media. If you have an
+              Apple subscription, cancel it separately in Manage Subscription.
             </p>
           </div>
 

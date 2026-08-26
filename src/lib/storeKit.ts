@@ -14,6 +14,8 @@ export type StoreKitProduct = {
   displayName: string;
   description: string;
   displayPrice: string;
+  price?: number;
+  currencyCode?: string;
   period?: StoreKitPeriod;
   isEligibleForIntroOffer?: boolean;
   introductoryOffer?: {

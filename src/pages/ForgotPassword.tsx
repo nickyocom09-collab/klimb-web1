@@ -54,8 +54,12 @@ export function ForgotPassword() {
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <Input
             label="Email"
+            name="email"
             type="email"
             autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"

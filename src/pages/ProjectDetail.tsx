@@ -11,6 +11,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { contentTextError } from "../lib/nameModeration";
 import { supabase } from "../lib/supabase";
 import { fetchRoute, type RouteWithStats } from "../lib/routes";
 import { formatGradeStyled } from "../lib/grades";
@@ -19,9 +20,11 @@ import { routeLabel } from "../lib/routeLabel";
 import { DAY_MS } from "../lib/logstats";
 import { Button, CenterSpinner } from "../components/ui";
 import { LogSheet } from "../components/LogSheet";
+import { PhotoLightbox } from "../components/PhotoLightbox";
 
 // A project's home: the route, your history with it, and — the heart of it —
-// a private running journal. Notes are owner-only (RLS) and survive the send:
+// a running journal. Notes follow the account's note-privacy setting and
+// survive the send:
 // when you finally top it, the project graduates to your logbook but this
 // page (and its notes) stay reachable from the route.
 export function ProjectDetail() {
@@ -43,6 +46,7 @@ export function ProjectDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [celebrating, setCelebrating] = useState<null | "send" | "topped">(
     null,
   );
@@ -96,6 +100,14 @@ export function ProjectDetail() {
 
   async function saveNote() {
     if (!routeId || !profile) return;
+    const moderationError = contentTextError([
+      { label: "the project note", value: note },
+    ]);
+    if (moderationError) {
+      setActionError(moderationError);
+      return;
+    }
+    setActionError(null);
     setSavingNote(true);
     const now = new Date().toISOString();
     const { error } = await supabase.from("project_notes").upsert(
@@ -225,11 +237,13 @@ export function ProjectDetail() {
     <div className="mx-auto flex h-full max-w-app flex-col bg-bg">
       {/* Hero photo */}
       <div className="relative">
-        <img
-          src={route.photo_url}
-          alt={routeLabel(route)}
-          className="aspect-[16/10] w-full object-cover"
-        />
+        <button type="button" onClick={() => setPhotoOpen(true)} className="block w-full" aria-label="Open zoomable project photo">
+          <img
+            src={route.photo_url}
+            alt={routeLabel(route)}
+            className="aspect-[16/10] w-full object-cover"
+          />
+        </button>
         <button
           onClick={() => navigate(-1)}
           aria-label="Back"
@@ -249,6 +263,10 @@ export function ProjectDetail() {
           {sendType === "topped" ? "Topped" : "In progress"}
         </span>
       </div>
+
+      {photoOpen ? (
+        <PhotoLightbox src={route.photo_url} alt={routeLabel(route)} onClose={() => setPhotoOpen(false)} />
+      ) : null}
 
       <div
         className={`flex-1 overflow-y-auto px-5 pt-4 ${
@@ -317,14 +335,16 @@ export function ProjectDetail() {
             </span>
           </div>
 
-          {/* The journal — private to you */}
+          {/* The journal follows the profile-level notes privacy preference. */}
           <section className="rounded-2xl bg-surface p-4 shadow-card">
             <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-faint">
               <NotebookPen size={14} className="text-accent" /> Project notes
             </h2>
             <p className="mb-3 text-xs text-faint">
-              Only you can see these. Beta, what's not working, conditions —
-              keep it all here.
+              {profile.notes_public
+                ? "Visible when this project is posted to your public profile."
+                : "Private to you. Turn on public notes in Settings if you want to share them."} Beta,
+              what's not working, conditions — keep it all here.
             </p>
             <textarea
               value={note}

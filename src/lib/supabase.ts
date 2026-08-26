@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
+import { secureAuthStorage } from "./secureAuthStorage";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
@@ -19,6 +20,7 @@ export const supabase = createClient<Database>(
   {
     auth: {
       persistSession: true,
+      storage: secureAuthStorage,
       autoRefreshToken: true,
       detectSessionInUrl: true,
       // PKCE is the reliable flow for mobile deep-link OAuth: the provider
