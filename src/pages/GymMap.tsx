@@ -362,7 +362,9 @@ export function GymMap() {
   );
   // Passport: the at-a-glance stamp book (state → collected gyms).
 
-  // Match the tiles to the app theme.
+  // OpenStreetMap's standard tiles are keyless. Klimb applies its own dark
+  // treatment below instead of depending on a third-party "free" dark style
+  // that can later start requiring an API key.
   const dark =
     typeof document !== "undefined" &&
     document.documentElement.getAttribute("data-theme") !== "light";
@@ -733,14 +735,16 @@ export function GymMap() {
           fadeAnimation
           markerZoomAnimation
           worldCopyJump
-          className="klimb-map absolute inset-0 z-0 h-full w-full"
+          className={`klimb-map absolute inset-0 z-0 h-full w-full ${
+            dark ? "klimb-map--dark" : "klimb-map--light"
+          }`}
         >
           <MapSizeSync />
           <TileLayer
-            url={`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`}
-            attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}
-            subdomains="abcd"
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
             maxZoom={19}
+            maxNativeZoom={19}
             keepBuffer={4}
             updateWhenZooming={false}
           />
@@ -975,12 +979,17 @@ export function GymMap() {
                     </span>
                   ) : null}
                 </p>
-                <p className="mt-1 flex items-center gap-1 text-sm text-muted">
+                <p className="mt-1 flex flex-wrap items-center gap-1 text-sm text-muted">
                   <MapPin size={13} />
                   {gymLocationLabel(selected)}
                   {selected.cc ? (
                     <span className="ml-1 text-base leading-none">
                       {flagEmoji(selected.cc)}
+                    </span>
+                  ) : null}
+                  {selectedAway !== null ? (
+                    <span className="ml-1 shrink-0 font-bold tabular-nums text-wide">
+                      · {selectedAway < 10 ? selectedAway.toFixed(1) : Math.round(selectedAway)} mi away
                     </span>
                   ) : null}
                 </p>

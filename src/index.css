@@ -144,8 +144,14 @@
   /* Snappier taps on mobile — no 300ms delay, no accidental page scroll. */
   touch-action: none;
 }
-.klimb-map .leaflet-tile-container img {
-  filter: saturate(0.92);
+/* OpenStreetMap's standard raster tiles need no API key. Dark mode is derived
+   locally so the map keeps Klimb's look without relying on a keyed tile style. */
+.klimb-map--dark .leaflet-tile-container img {
+  filter: grayscale(1) invert(0.92) hue-rotate(180deg) brightness(0.72)
+    contrast(1.16);
+}
+.klimb-map--light .leaflet-tile-container img {
+  filter: saturate(0.72) contrast(0.94);
 }
 /* Keep tile layers and markers on the GPU for buttery pan/zoom. */
 .klimb-map .leaflet-map-pane,
