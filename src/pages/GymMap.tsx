@@ -979,17 +979,12 @@ export function GymMap() {
                     </span>
                   ) : null}
                 </p>
-                <p className="mt-1 flex flex-wrap items-center gap-1 text-sm text-muted">
+                <p className="mt-1 flex items-center gap-1 text-sm text-muted">
                   <MapPin size={13} />
                   {gymLocationLabel(selected)}
                   {selected.cc ? (
                     <span className="ml-1 text-base leading-none">
                       {flagEmoji(selected.cc)}
-                    </span>
-                  ) : null}
-                  {selectedAway !== null ? (
-                    <span className="ml-1 shrink-0 font-bold tabular-nums text-wide">
-                      · {selectedAway < 10 ? selectedAway.toFixed(1) : Math.round(selectedAway)} mi away
                     </span>
                   ) : null}
                 </p>
