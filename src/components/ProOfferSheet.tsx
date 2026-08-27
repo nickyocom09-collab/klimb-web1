@@ -39,7 +39,6 @@ export function ProOfferSheet() {
   const {
     hasProAccess,
     monthlyProduct,
-    purchaseProduct,
     purchaseState,
     error,
     restorePurchases,
@@ -143,13 +142,13 @@ export function ProOfferSheet() {
           <button
             type="button"
             disabled={busy}
-            onClick={() => void purchaseProduct(STOREKIT_CONFIG.monthlyProductId)}
+            onClick={() => navigate("/upgrade/trial")}
             className="mt-3 w-full rounded-2xl bg-accent px-4 py-4 text-base font-black text-bg shadow-[0_14px_34px_rgba(57,255,136,0.18)] transition active:scale-[0.99] disabled:opacity-50"
           >
             {busy
               ? statusLabel(purchaseState)
               : eligibleForTrial && trialLength
-                ? `Start ${trialLength} free trial`
+                ? "Start free trial"
                 : `Get Pro · ${price}/month`}
           </button>
           <p className="mt-2 text-center text-[11px] leading-4 text-faint">
@@ -174,7 +173,7 @@ export function ProOfferSheet() {
               onClick={() => navigate("/upgrade")}
               className="min-h-11 text-sm font-extrabold text-accent disabled:opacity-50"
             >
-              Compare plans
+              See all plans
             </button>
             <button
               type="button"

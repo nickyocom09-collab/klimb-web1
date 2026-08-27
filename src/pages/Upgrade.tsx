@@ -106,7 +106,7 @@ export function Upgrade() {
     manageSubscription,
     trackEvent,
   } = useEntitlements();
-  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const [billing, setBilling] = useState<"monthly" | "annual">("annual");
 
   useEffect(() => {
     if (hasProAccess) {

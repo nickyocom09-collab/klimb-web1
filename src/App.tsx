@@ -88,6 +88,9 @@ const VideoLibrary = lazy(() =>
 const Upgrade = lazy(() =>
   import("./pages/Upgrade").then((m) => ({ default: m.Upgrade })),
 );
+const ProTrial = lazy(() =>
+  import("./pages/ProTrial").then((m) => ({ default: m.ProTrial })),
+);
 const ProUnlocked = lazy(() =>
   import("./components/ProUnlocked").then((m) => ({ default: m.ProUnlocked })),
 );
@@ -256,6 +259,10 @@ export default function App() {
       <Route
         path="/upgrade"
         element={<RequireAuth><Upgrade /></RequireAuth>}
+      />
+      <Route
+        path="/upgrade/trial"
+        element={<RequireAuth><ProTrial /></RequireAuth>}
       />
       <Route
         path="/u/:id"
