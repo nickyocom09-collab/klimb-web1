@@ -3,11 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   BookOpen,
-  ChevronDown,
   ChevronRight,
   AtSign,
   Bell,
-  BellOff,
   Flame,
   Gauge,
   Home,
@@ -236,9 +234,7 @@ export function Settings() {
   } = useLogbookPreferences();
   const navigate = useNavigate();
   const push = usePushNotifications();
-  const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
-  const [notificationDetailsOpen, setNotificationDetailsOpen] = useState(false);
   const [notesBusy, setNotesBusy] = useState(false);
   const [notesMessage, setNotesMessage] = useState<string | null>(null);
   const [routeNamesBusy, setRouteNamesBusy] = useState(false);
@@ -350,15 +346,6 @@ export function Settings() {
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
   const logStyle = (profile?.log_style ?? "steps") as LogStylePref;
   const routeNamesEnabled = profile?.route_names_enabled ?? false;
-  const anyNotificationEnabled = !!push.preferences && [
-    push.preferences.friend_requests,
-    push.preferences.friend_accepts,
-    push.preferences.weekly_recaps,
-    push.preferences.streak_risk,
-    push.preferences.inactivity,
-  ].some(Boolean);
-  const notificationsEnabled = push.active && anyNotificationEnabled;
-
   async function setRouteNamesEnabled(next: boolean) {
     if (routeNamesBusy || (hasProAccess && logbookPreferencesLoading)) return;
     setRouteNamesBusy(true);
@@ -393,25 +380,6 @@ export function Settings() {
     if (error) {
       setNotesMessage("Couldn't save note privacy. Check your connection and try again.");
     }
-  }
-
-  async function togglePushMaster() {
-    const wasEnabled = notificationsEnabled;
-    setPushBusy(true);
-    setPushMessage(null);
-    const result = wasEnabled
-      ? await push.disable()
-      : push.active
-        ? await push.setAllPreferences(true)
-        : await push.enable();
-    setPushBusy(false);
-    setPushMessage(
-      result.error ??
-        (wasEnabled
-          ? "Notifications are off on this device."
-          : "Notifications are on. Every Klimb notification starts enabled."),
-    );
-    if (wasEnabled) setNotificationDetailsOpen(false);
   }
 
   async function setPushPreference(
@@ -611,101 +579,62 @@ export function Settings() {
 
         <Section
           title="Notifications"
-          description="On by default once you allow permission."
+          description="Choose the Klimb updates you want to receive."
           icon={<Bell size={18} />}
         >
           <Card className="overflow-hidden border border-border/80 p-0">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={notificationsEnabled}
-              aria-label={notificationsEnabled ? "Turn notifications off" : "Turn notifications on"}
-              disabled={!push.available || pushBusy}
-              onClick={() => void togglePushMaster()}
-              className="relative flex w-full items-center gap-3 px-4 py-4 text-left transition-colors active:bg-accent/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {notificationsEnabled ? (
-                <span className="absolute inset-y-0 left-0 w-[2px] bg-accent" />
-              ) : null}
-              <span
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${
-                  notificationsEnabled
-                    ? "border-accent/25 bg-accent/10 text-accent"
-                    : "border-border bg-bg/40 text-faint"
-                }`}
-              >
-                {notificationsEnabled ? <Bell size={20} /> : <BellOff size={20} />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="whitespace-nowrap text-sm font-semibold text-chalk">
-                  {notificationsEnabled ? "Notifications are on" : "Notifications are off"}
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-faint">
-                  {notificationsEnabled
-                    ? "Recaps, streaks, and friend activity are enabled."
-                    : "Recaps, streak reminders, and friend activity."}
-                </p>
-              </div>
-              <ToggleSwitch enabled={notificationsEnabled} />
-            </button>
-
             {push.active && push.preferences ? (
-              <div className="border-t border-border/80">
-                <button
-                  type="button"
-                  aria-expanded={notificationDetailsOpen}
-                  onClick={() => setNotificationDetailsOpen((open) => !open)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition active:bg-accent/[0.06]"
-                >
-                  <span>
-                    <span className="block text-sm font-semibold text-chalk">Notification details</span>
-                    <span className="mt-0.5 block text-xs text-faint">Fine-tune individual alerts anytime.</span>
-                  </span>
-                  <span className="flex items-center gap-2 text-xs font-bold text-accent">
-                    {notificationDetailsOpen ? "Hide details" : "See details"}
-                    <ChevronDown size={16} className={`transition-transform ${notificationDetailsOpen ? "rotate-180" : ""}`} />
-                  </span>
-                </button>
-                {notificationDetailsOpen ? (
-                  <div className="divide-y divide-border border-t border-border/80">
-                    <NotificationToggle
-                      label="Friend requests"
-                      description="When another climber wants to Klimb with you."
-                      icon={<UserPlus size={17} />}
-                      enabled={push.preferences.friend_requests}
-                      onChange={(value) => void setPushPreference("friend_requests", value)}
-                    />
-                    <NotificationToggle
-                      label="New friends"
-                      description="When someone accepts your request."
-                      icon={<UserCheck size={17} />}
-                      enabled={push.preferences.friend_accepts}
-                      onChange={(value) => void setPushPreference("friend_accepts", value)}
-                    />
-                    <NotificationToggle
-                      label="Weekly recap"
-                      description="When your Sunday recap is ready to watch."
-                      icon={<BarChart3 size={17} />}
-                      enabled={push.preferences.weekly_recaps}
-                      onChange={(value) => void setPushPreference("weekly_recaps", value)}
-                    />
-                    <NotificationToggle
-                      label="Streak reminders"
-                      description="Sunday afternoon when your weekly streak is at risk."
-                      icon={<Flame size={17} />}
-                      enabled={push.preferences.streak_risk}
-                      onChange={(value) => void setPushPreference("streak_risk", value)}
-                    />
-                    <NotificationToggle
-                      label="Come climb"
-                      description="A friendly reminder after 14 days away."
-                      icon={<Mountain size={17} />}
-                      enabled={push.preferences.inactivity}
-                      onChange={(value) => void setPushPreference("inactivity", value)}
-                    />
-                  </div>
-                ) : null}
+              <div className="divide-y divide-border">
+                <NotificationToggle
+                  label="Friend requests"
+                  description="When another climber wants to Klimb with you."
+                  icon={<UserPlus size={17} />}
+                  enabled={push.preferences.friend_requests}
+                  onChange={(value) => void setPushPreference("friend_requests", value)}
+                />
+                <NotificationToggle
+                  label="New friends"
+                  description="When someone accepts your request."
+                  icon={<UserCheck size={17} />}
+                  enabled={push.preferences.friend_accepts}
+                  onChange={(value) => void setPushPreference("friend_accepts", value)}
+                />
+                <NotificationToggle
+                  label="Weekly recap"
+                  description="When your Sunday recap is ready to watch."
+                  icon={<BarChart3 size={17} />}
+                  enabled={push.preferences.weekly_recaps}
+                  onChange={(value) => void setPushPreference("weekly_recaps", value)}
+                />
+                <NotificationToggle
+                  label="Streak reminders"
+                  description="Sunday afternoon when your weekly streak is at risk."
+                  icon={<Flame size={17} />}
+                  enabled={push.preferences.streak_risk}
+                  onChange={(value) => void setPushPreference("streak_risk", value)}
+                />
+                <NotificationToggle
+                  label="Come climb"
+                  description="A friendly reminder after 14 days away."
+                  icon={<Mountain size={17} />}
+                  enabled={push.preferences.inactivity}
+                  onChange={(value) => void setPushPreference("inactivity", value)}
+                />
               </div>
+            ) : push.available ? (
+              <button
+                type="button"
+                onClick={() => void push.enable().then((result) => setPushMessage(result.error))}
+                className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition-colors active:bg-accent/[0.06]"
+              >
+                <span>
+                  <span className="block text-sm font-semibold text-chalk">Allow notifications</span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-faint">
+                    Turn on permission, then choose each alert individually.
+                  </span>
+                </span>
+                <ChevronRight size={17} className="shrink-0 text-accent" />
+              </button>
             ) : null}
           </Card>
           {!push.available ? (

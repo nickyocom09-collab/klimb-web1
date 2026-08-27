@@ -134,21 +134,28 @@ export function Upgrade() {
       <main className="relative mt-3 overflow-hidden rounded-[2rem] border border-accent/30 bg-[radial-gradient(circle_at_85%_0%,rgba(57,255,136,0.16),transparent_40%),linear-gradient(155deg,#07130e,#0b0e0c_62%)] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.4)]">
         <div className="relative">
           <h1 className="max-w-[18rem] text-[2.15rem] font-black leading-[0.98] tracking-[-0.045em] text-chalk">
-            Keep the full picture of every Klimb.
+            Get the full picture of every Klimb.
           </h1>
           <p className="mt-3 max-w-sm text-sm leading-6 text-muted">
             Free is a complete climbing logbook. Pro adds the history, insights,
             customization, and videos that make it grow with you.
           </p>
 
-          <div className="mt-5 rounded-2xl border border-white/[0.07] bg-black/25 p-1">
-            <div className="grid grid-cols-2">
+          <div className="relative mt-5 overflow-hidden rounded-2xl border border-white/[0.07] bg-black/30 p-1">
+            <div className="relative grid grid-cols-2">
+              <span
+                aria-hidden="true"
+                className={`absolute inset-y-0 left-0 w-1/2 rounded-xl bg-accent shadow-[0_8px_24px_rgba(57,255,136,0.22)] transition-transform duration-300 ease-out motion-reduce:transition-none ${
+                  billing === "annual" ? "translate-x-full" : "translate-x-0"
+                }`}
+              />
               <button
                 type="button"
                 onClick={() => setBilling("monthly")}
-                className={`rounded-xl px-3 py-3 text-sm font-black transition-colors ${
+                aria-pressed={billing === "monthly"}
+                className={`relative z-10 rounded-xl px-3 py-3 text-sm font-black transition-colors duration-300 ${
                   billing === "monthly"
-                    ? "bg-surface-2 text-chalk"
+                    ? "text-bg"
                     : "text-muted"
                 }`}
               >
@@ -157,9 +164,10 @@ export function Upgrade() {
               <button
                 type="button"
                 onClick={() => setBilling("annual")}
-                className={`rounded-xl px-3 py-3 text-sm font-black transition-colors ${
+                aria-pressed={billing === "annual"}
+                className={`relative z-10 rounded-xl px-3 py-3 text-sm font-black transition-colors duration-300 ${
                   billing === "annual"
-                    ? "bg-accent text-bg"
+                    ? "text-bg"
                     : "text-muted"
                 }`}
               >

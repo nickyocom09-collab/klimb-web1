@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { X509Certificate } from "node:crypto";
 import {
   Environment,
   SignedDataVerifier,
@@ -20,6 +21,37 @@ function decodeCertificate(value: string): Buffer {
     .replace(/\s/g, "");
   return Buffer.from(normalized, "base64");
 }
+
+function certificatePem(certificate: X509Certificate): string {
+  const encoded = Buffer.from(certificate.raw).toString("base64");
+  const lines = encoded.match(/.{1,64}/g)?.join("\n") ?? encoded;
+  return `-----BEGIN CERTIFICATE-----\n${lines}\n-----END CERTIFICATE-----\n`;
+}
+
+// Supabase Edge Functions currently expose Deno's Node-compatible
+// X509Certificate, but its toString() method throws "Not implemented". Apple's
+// official verifier uses that method to build cache keys and OCSP inputs. Add
+// the standard PEM representation only when the runtime is missing it, while
+// leaving Apple's chain, signature, date, bundle, environment, and account
+// checks entirely inside the official verifier.
+function installX509CertificateToStringCompatibility() {
+  const probe = new X509Certificate(
+    decodeCertificate(APPLE_ROOT_CERTIFICATES_BASE64[0]),
+  );
+  try {
+    probe.toString();
+  } catch {
+    Object.defineProperty(X509Certificate.prototype, "toString", {
+      configurable: true,
+      writable: true,
+      value(this: X509Certificate) {
+        return certificatePem(this);
+      },
+    });
+  }
+}
+
+installX509CertificateToStringCompatibility();
 
 function rootCertificates(): Buffer[] {
   return APPLE_ROOT_CERTIFICATES_BASE64.map(decodeCertificate);
