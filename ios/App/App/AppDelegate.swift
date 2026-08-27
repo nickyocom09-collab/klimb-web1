@@ -315,6 +315,7 @@ public class KlimbStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "loadProducts", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "currentEntitlements", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "subscriptionStatuses", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "restorePurchases", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "finishTransaction", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "manageSubscriptions", returnType: CAPPluginReturnPromise),
@@ -441,6 +442,52 @@ public class KlimbStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func subscriptionStatuses(_ call: CAPPluginCall) {
+        guard let productIds = call.getArray("productIds", String.self),
+              !productIds.isEmpty else {
+            call.reject("At least one product identifier is required")
+            return
+        }
+
+        Task {
+            do {
+                let products = try await Product.products(for: productIds)
+                var payloads: [[String: Any]] = []
+                var includedOriginalTransactionIds = Set<UInt64>()
+
+                // Both Klimb plans belong to the same subscription group, so
+                // StoreKit can return the same group status for each product.
+                // De-duplicate by the original transaction before crossing the
+                // Capacitor bridge.
+                for product in products {
+                    guard let subscription = product.subscription else { continue }
+                    for status in try await subscription.status {
+                        guard case .verified(let transaction) = status.transaction,
+                              case .verified(let renewalInfo) = status.renewalInfo,
+                              !includedOriginalTransactionIds.contains(transaction.originalID) else {
+                            continue
+                        }
+                        includedOriginalTransactionIds.insert(transaction.originalID)
+
+                        var payload: [String: Any] = [
+                            "productId": transaction.productID,
+                            "originalTransactionId": String(transaction.originalID),
+                            "state": Self.renewalStateName(status.state),
+                            "willAutoRenew": renewalInfo.willAutoRenew,
+                        ]
+                        if let expirationDate = transaction.expirationDate {
+                            payload["expirationDate"] = expirationDate.timeIntervalSince1970 * 1000
+                        }
+                        payloads.append(payload)
+                    }
+                }
+                call.resolve(["statuses": payloads])
+            } catch {
+                call.reject("Apple subscription status is temporarily unavailable", nil, error)
+            }
+        }
+    }
+
     @objc func restorePurchases(_ call: CAPPluginCall) {
         Task {
             do {
@@ -551,6 +598,19 @@ public class KlimbStoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
         case .freeTrial: return "freeTrial"
         case .payAsYouGo: return "payAsYouGo"
         case .payUpFront: return "payUpFront"
+        default: return "unknown"
+        }
+    }
+
+    private static func renewalStateName(
+        _ state: Product.SubscriptionInfo.RenewalState
+    ) -> String {
+        switch state {
+        case .subscribed: return "subscribed"
+        case .expired: return "expired"
+        case .inGracePeriod: return "inGracePeriod"
+        case .inBillingRetryPeriod: return "inBillingRetryPeriod"
+        case .revoked: return "revoked"
         default: return "unknown"
         }
     }

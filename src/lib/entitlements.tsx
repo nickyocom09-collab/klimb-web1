@@ -28,6 +28,7 @@ import {
   canUseStoreKit,
   KlimbStoreKit,
   type StoreKitProduct,
+  type StoreKitSubscriptionRenewalStatus,
   type StoreKitTransaction,
 } from "./storeKit";
 import { OperationTimeoutError, withTimeout } from "./asyncTimeout";
@@ -67,11 +68,13 @@ type EntitlementContextValue = {
   product: StoreKitProduct | null;
   monthlyProduct: StoreKitProduct | null;
   annualProduct: StoreKitProduct | null;
+  subscriptionRenewal: StoreKitSubscriptionRenewalStatus | null;
   purchaseState: PurchaseState;
   unlockCelebration: ProUnlockCelebration | null;
   error: string | null;
   canUseFeature: (feature: EntitlementFeature) => boolean;
   refreshEntitlements: () => Promise<void>;
+  refreshSubscriptionStatus: () => Promise<void>;
   purchaseProduct: (productId: string) => Promise<void>;
   restorePurchases: () => Promise<void>;
   manageSubscription: () => Promise<void>;
@@ -94,6 +97,10 @@ const EntitlementContext = createContext<EntitlementContextValue | null>(null);
 
 function cacheKey(userId: string) {
   return `klimb.entitlement.${userId}`;
+}
+
+function unlockSeenKey(userId: string) {
+  return `klimb.pro-unlocked-seen.${userId}`;
 }
 
 function readCache(userId: string): EntitlementRecord | null {
@@ -147,6 +154,8 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   const userId = session?.user.id ?? null;
   const [entitlement, setEntitlement] = useState<EntitlementRecord | null>(null);
   const [products, setProducts] = useState<StoreKitProduct[]>([]);
+  const [subscriptionRenewal, setSubscriptionRenewal] =
+    useState<StoreKitSubscriptionRenewalStatus | null>(null);
   const [purchaseState, setPurchaseState] = useState<PurchaseState>("idle");
   const [unlockCelebration, setUnlockCelebration] =
     useState<ProUnlockCelebration | null>(null);
@@ -157,13 +166,36 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     new Map<string, Promise<EntitlementRecord>>(),
   );
 
+  const celebrateVerifiedUnlock = useCallback(
+    (verified: EntitlementRecord) => {
+      if (!userId || !accessFromEntitlement(verified).hasProAccess) return;
+      if (
+        verified.entitlement_type !== "subscription" &&
+        verified.entitlement_type !== "trial"
+      ) {
+        return;
+      }
+      try {
+        if (localStorage.getItem(unlockSeenKey(userId)) === "true") return;
+        localStorage.setItem(unlockSeenKey(userId), "true");
+      } catch {
+        // The celebration is cosmetic. Verified Pro access must still activate
+        // when WebKit storage is unavailable.
+      }
+      setUnlockCelebration({
+        productId: verified.subscription_product_id ?? "",
+        isTrial: verified.entitlement_status === "trial",
+      });
+    },
+    [userId],
+  );
+
   const acceptEntitlement = useCallback((incoming: EntitlementRecord) => {
-    setEntitlement((current) => {
-      if (!shouldReplaceCachedEntitlement({ current, incoming })) return current;
-      entitlementRef.current = incoming;
-      writeCache(incoming);
-      return incoming;
-    });
+    const current = entitlementRef.current;
+    if (!shouldReplaceCachedEntitlement({ current, incoming })) return;
+    entitlementRef.current = incoming;
+    writeCache(incoming);
+    setEntitlement(incoming);
   }, []);
 
   const refreshEntitlements = useCallback(async () => {
@@ -193,6 +225,50 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       setEntitlement(null);
     }
   }, [acceptEntitlement, userId]);
+
+  const refreshSubscriptionStatus = useCallback(async () => {
+    if (!userId || !canUseStoreKit()) {
+      setSubscriptionRenewal(null);
+      return;
+    }
+    try {
+      const { statuses } = await withTimeout(
+        KlimbStoreKit.subscriptionStatuses({
+          productIds: [
+            STOREKIT_CONFIG.monthlyProductId,
+            STOREKIT_CONFIG.annualProductId,
+          ],
+        }),
+        ENTITLEMENT_SYNC_TIMEOUT_MS,
+        "Apple subscription status took too long to load.",
+      );
+      const currentEntitlement = entitlementRef.current;
+      const exactStatus = currentEntitlement?.original_transaction_id
+        ? statuses.find(
+            (status) =>
+              status.originalTransactionId ===
+              currentEntitlement.original_transaction_id,
+          )
+        : null;
+      const productStatus = currentEntitlement?.subscription_product_id
+        ? statuses.find(
+            (status) =>
+              status.productId === currentEntitlement.subscription_product_id,
+          )
+        : null;
+      const activeStatus = statuses.find((status) =>
+        ["subscribed", "inGracePeriod", "inBillingRetryPeriod"].includes(
+          status.state,
+        ),
+      );
+      setSubscriptionRenewal(exactStatus ?? productStatus ?? activeStatus ?? null);
+    } catch (statusError) {
+      // Renewal state is supporting account-management information. Keep Pro
+      // access driven by the server-verified entitlement if Apple is briefly
+      // unavailable, and retry the status on the next foreground event.
+      console.warn("StoreKit subscription status refresh deferred", statusError);
+    }
+  }, [userId]);
 
   const verifyWithBackend = useCallback(
     async (
@@ -284,6 +360,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     if (!userId) {
       entitlementRef.current = null;
       setEntitlement(null);
+      setSubscriptionRenewal(null);
       setUnlockCelebration(null);
       return;
     }
@@ -292,8 +369,17 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     entitlementRef.current = cached;
     setEntitlement(cached);
     setUnlockCelebration(null);
-    void refreshEntitlements();
-  }, [refreshEntitlements, userId]);
+    void refreshEntitlements().then(() => {
+      const verified = entitlementRef.current;
+      if (verified) celebrateVerifiedUnlock(verified);
+    });
+    void refreshSubscriptionStatus();
+  }, [
+    celebrateVerifiedUnlock,
+    refreshEntitlements,
+    refreshSubscriptionStatus,
+    userId,
+  ]);
 
   useEffect(() => {
     if (!canUseStoreKit()) return;
@@ -350,21 +436,12 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     let updateHandle: { remove: () => Promise<void> } | null = null;
     let failureHandle: { remove: () => Promise<void> } | null = null;
     void KlimbStoreKit.addListener("transactionUpdated", (transaction) => {
-      const previouslyHadPro = accessFromEntitlement(
-        entitlementRef.current,
-      ).hasProAccess;
       void verifyWithRetries(transaction)
         .then((verified) => {
           setPurchaseState("success");
-          if (!previouslyHadPro && accessFromEntitlement(verified).hasProAccess) {
-            setUnlockCelebration((current) =>
-              current ?? {
-                productId: verified.subscription_product_id ?? "",
-                isTrial: verified.entitlement_status === "trial",
-              },
-            );
-          }
+          celebrateVerifiedUnlock(verified);
           void refreshEntitlements();
+          void refreshSubscriptionStatus();
         })
         .catch(async (verificationError: unknown) => {
           setError(await verificationErrorMessage(verificationError));
@@ -386,7 +463,13 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       void updateHandle?.remove();
       void failureHandle?.remove();
     };
-  }, [refreshEntitlements, userId, verifyWithRetries]);
+  }, [
+    celebrateVerifiedUnlock,
+    refreshEntitlements,
+    refreshSubscriptionStatus,
+    userId,
+    verifyWithRetries,
+  ]);
 
   useEffect(() => {
     if (!userId || !canUseStoreKit()) return;
@@ -401,10 +484,13 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       "Apple entitlement sync took too long.",
     )
       .then(async ({ transactions }) => {
+        let latestVerified: EntitlementRecord | null = null;
         for (const transaction of transactions) {
-          await verifyWithBackend(transaction, false);
+          latestVerified = await verifyWithBackend(transaction, false);
         }
+        if (latestVerified) celebrateVerifiedUnlock(latestVerified);
         if (transactions.length > 0) await refreshEntitlements();
+        await refreshSubscriptionStatus();
         setPurchaseState("idle");
       })
       .catch((syncError: unknown) => {
@@ -412,13 +498,20 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         // Keep the last server-verified cache during temporary Apple or network
         // failures. A failed refresh must never remove valid access.
       });
-  }, [refreshEntitlements, userId, verifyWithBackend]);
+  }, [
+    celebrateVerifiedUnlock,
+    refreshEntitlements,
+    refreshSubscriptionStatus,
+    userId,
+    verifyWithBackend,
+  ]);
 
   useEffect(() => {
     if (!userId) return;
     const refresh = () => {
       setAccessClock(Date.now());
       void refreshEntitlements();
+      void refreshSubscriptionStatus();
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") refresh();
@@ -443,7 +536,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       window.clearInterval(interval);
       void appStateHandle?.remove();
     };
-  }, [refreshEntitlements, userId]);
+  }, [refreshEntitlements, refreshSubscriptionStatus, userId]);
 
   useEffect(() => {
     const expiresAt = entitlement?.expiration_date
@@ -480,6 +573,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       product: monthlyProduct,
       monthlyProduct,
       annualProduct,
+      subscriptionRenewal,
       purchaseState,
       unlockCelebration,
       error,
@@ -494,6 +588,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         return access.hasProAccess;
       },
       refreshEntitlements,
+      refreshSubscriptionStatus,
       async purchaseProduct(productId) {
         if (!userId || access.hasLifetimeAccess) return;
         const allowedProductIds = new Set([
@@ -510,10 +605,44 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
           setPurchaseState("error");
           return;
         }
+        if (access.hasProAccess) {
+          // A canceled subscription remains active through the purchased end
+          // date. Apple does not sell an overlapping period; resuming happens
+          // in Apple's subscription-management sheet instead.
+          setPurchaseState("idle");
+          setError(null);
+          await KlimbStoreKit.manageSubscriptions();
+          await refreshSubscriptionStatus();
+          return;
+        }
         setError(null);
         setPurchaseState("purchasing");
         let applePurchaseCompleted = false;
         try {
+          // If Apple already has an active subscription (including one whose
+          // renewal was canceled), restore that paid-through entitlement
+          // before asking StoreKit to sell anything. Apple will not create an
+          // overlapping subscription period.
+          const { transactions: currentTransactions } = await withTimeout(
+            KlimbStoreKit.currentEntitlements(),
+            ENTITLEMENT_SYNC_TIMEOUT_MS,
+            "Apple subscription status took too long to load.",
+          );
+          let restoredEntitlement: EntitlementRecord | null = null;
+          for (const transaction of currentTransactions) {
+            restoredEntitlement = await verifyWithRetries(transaction);
+          }
+          if (
+            restoredEntitlement &&
+            accessFromEntitlement(restoredEntitlement).hasProAccess
+          ) {
+            setPurchaseState("success");
+            celebrateVerifiedUnlock(restoredEntitlement);
+            await refreshEntitlements();
+            await refreshSubscriptionStatus();
+            return;
+          }
+
           const result = await withTimeout(
             KlimbStoreKit.purchase({
               productId,
@@ -535,10 +664,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
           applePurchaseCompleted = true;
           const verified = await verifyWithRetries(result);
           setPurchaseState("success");
-          setUnlockCelebration({
-            productId,
-            isTrial: verified.entitlement_status === "trial",
-          });
+          celebrateVerifiedUnlock(verified);
           void trackEvent(
             verified.entitlement_status === "trial"
               ? "trial_started"
@@ -546,6 +672,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
             { product_id: productId },
           );
           void refreshEntitlements();
+          void refreshSubscriptionStatus();
         } catch (purchaseError) {
           if (
             applePurchaseCompleted ||
@@ -586,9 +713,11 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
             "Apple did not finish restoring in time. Please try Restore Purchases again.",
           );
           for (const transaction of transactions) {
-            await verifyWithRetries(transaction);
+            const verified = await verifyWithRetries(transaction);
+            celebrateVerifiedUnlock(verified);
           }
           await refreshEntitlements();
+          await refreshSubscriptionStatus();
           setPurchaseState("success");
           await trackEvent("purchase_restored", {
             transaction_count: transactions.length,
@@ -608,6 +737,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
           return;
         }
         await KlimbStoreKit.manageSubscriptions();
+        await refreshSubscriptionStatus();
       },
       dismissUnlockCelebration() {
         setUnlockCelebration(null);
@@ -618,6 +748,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     }),
     [
       access,
+      celebrateVerifiedUnlock,
       entitlement,
       error,
       annualProduct,
@@ -625,6 +756,8 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
       products,
       purchaseState,
       refreshEntitlements,
+      refreshSubscriptionStatus,
+      subscriptionRenewal,
       trackEvent,
       unlockCelebration,
       userId,

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   BookOpen,
+  CalendarClock,
   ChevronRight,
   AtSign,
   Bell,
@@ -14,6 +15,7 @@ import {
   Mountain,
   Palette,
   Route,
+  RefreshCw,
   Shield,
   SlidersHorizontal,
   Video,
@@ -224,9 +226,26 @@ function NotificationToggle({
   );
 }
 
+function formatSubscriptionDate(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
 export function Settings() {
   const { profile, session, updateProfile, signOut } = useAuth();
-  const { entitlement, hasProAccess, manageSubscription } = useEntitlements();
+  const {
+    entitlement,
+    hasProAccess,
+    isTrialActive,
+    subscriptionRenewal,
+    manageSubscription,
+  } = useEntitlements();
   const {
     preferences: logbookPreferences,
     loading: logbookPreferencesLoading,
@@ -239,6 +258,8 @@ export function Settings() {
   const [notesMessage, setNotesMessage] = useState<string | null>(null);
   const [routeNamesBusy, setRouteNamesBusy] = useState(false);
   const [routeNamesMessage, setRouteNamesMessage] = useState<string | null>(null);
+  const [subscriptionBusy, setSubscriptionBusy] = useState(false);
+  const [subscriptionMessage, setSubscriptionMessage] = useState<string | null>(null);
   const [name, setName] = useState(profile?.display_name ?? "");
 
   const [uname, setUname] = useState(profile?.username ?? "");
@@ -336,12 +357,37 @@ export function Settings() {
   const projectsPublic = profile?.projects_public ?? true;
   const notesPublic = profile?.notes_public ?? false;
   const friendsPublic = profile?.friends_public ?? true;
-  const hasRenewingAppleSubscription =
+  const hasActiveAppleSubscription =
     (entitlement?.entitlement_type === "subscription" ||
       entitlement?.entitlement_type === "trial") &&
     !["inactive", "expired", "revoked"].includes(
       entitlement.entitlement_status,
     );
+  const subscriptionEndLabel = formatSubscriptionDate(
+    subscriptionRenewal?.expirationDate ?? entitlement?.expiration_date,
+  );
+  const renewalIsOff =
+    hasActiveAppleSubscription && subscriptionRenewal?.willAutoRenew === false;
+  const hasBillingIssue =
+    subscriptionRenewal?.state === "inBillingRetryPeriod" ||
+    subscriptionRenewal?.state === "inGracePeriod";
+
+  async function openSubscriptionManagement() {
+    if (subscriptionBusy) return;
+    setSubscriptionBusy(true);
+    setSubscriptionMessage(null);
+    try {
+      await manageSubscription();
+    } catch (manageError) {
+      setSubscriptionMessage(
+        manageError instanceof Error
+          ? manageError.message
+          : "Apple subscription settings could not be opened.",
+      );
+    } finally {
+      setSubscriptionBusy(false);
+    }
+  }
 
   const gradeSystem = (profile?.grade_system ?? "american") as GradeSystemPref;
   const logStyle = (profile?.log_style ?? "steps") as LogStylePref;
@@ -576,6 +622,91 @@ export function Settings() {
             </button>
           </Card>
         </Section>
+
+        {hasActiveAppleSubscription ? (
+          <Section
+            title="Subscription"
+            description="Your current Klimb Pro access and Apple renewal status."
+            icon={<CalendarClock size={18} />}
+          >
+            <Card
+              className={`border p-4 ${
+                renewalIsOff || hasBillingIssue
+                  ? "border-wide/30 bg-wide/[0.055]"
+                  : "border-accent/25 bg-accent/[0.045]"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${
+                      renewalIsOff || hasBillingIssue
+                        ? "border-wide/30 bg-wide/10 text-wide"
+                        : "border-accent/30 bg-accent/10 text-accent"
+                    }`}
+                  >
+                    {hasBillingIssue
+                      ? "Payment issue"
+                      : renewalIsOff
+                        ? "Renewal off"
+                        : isTrialActive
+                          ? "Trial active"
+                          : "Renews with Apple"}
+                  </span>
+                  <h3 className="mt-3 text-base font-bold text-chalk">
+                    {hasBillingIssue
+                      ? "Apple needs updated billing information"
+                      : renewalIsOff
+                        ? `${isTrialActive ? "Your trial" : "Pro"} stays active${
+                            subscriptionEndLabel ? ` through ${subscriptionEndLabel}` : ""
+                          }`
+                        : isTrialActive
+                          ? `Your trial renews${
+                              subscriptionEndLabel ? ` on ${subscriptionEndLabel}` : ""
+                            }`
+                          : `Your Pro plan renews${
+                              subscriptionEndLabel ? ` on ${subscriptionEndLabel}` : ""
+                            }`}
+                  </h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted">
+                    {hasBillingIssue
+                      ? "You still have Pro for now. Open Apple subscriptions to fix the payment method and avoid losing access."
+                      : renewalIsOff
+                        ? `${
+                            isTrialActive
+                              ? "You canceled the trial, but its remaining time is still yours."
+                              : "You canceled renewal, but the time you already paid for is still yours."
+                          } Apple will not charge you again. Resume with Apple if you want Pro to continue after this date.`
+                        : isTrialActive
+                          ? "Apple will start your selected paid plan when the trial ends unless you cancel at least 24 hours beforehand."
+                          : "Apple will renew this plan automatically. You can change plans or turn renewal off at any time."}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={subscriptionBusy}
+                onClick={() => void openSubscriptionManagement()}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-sm font-bold text-chalk transition active:scale-[0.99] disabled:cursor-wait disabled:opacity-65"
+              >
+                <RefreshCw
+                  size={16}
+                  className={subscriptionBusy ? "animate-spin" : ""}
+                />
+                {hasBillingIssue
+                  ? "Fix billing with Apple"
+                  : renewalIsOff
+                    ? "Resume subscription"
+                    : "Manage subscription"}
+              </button>
+              {subscriptionMessage ? (
+                <p className="mt-2 text-center text-xs text-wide">
+                  {subscriptionMessage}
+                </p>
+              ) : null}
+            </Card>
+          </Section>
+        ) : null}
 
         <Section
           title="Notifications"
@@ -1021,7 +1152,7 @@ export function Settings() {
               history can&apos;t be recovered. Basic de-identified route facts may
               remain so other climbers&apos; historical logs do not break.
             </p>
-            {hasRenewingAppleSubscription ? (
+            {hasActiveAppleSubscription && !renewalIsOff ? (
               <div className="mt-4 rounded-2xl border border-wide/25 bg-wide/[0.07] p-4">
                 <p className="text-sm font-bold text-chalk">
                   Your Apple subscription is separate

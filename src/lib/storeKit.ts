@@ -30,6 +30,20 @@ export type StoreKitTransaction = {
   signedTransaction: string;
 };
 
+export type StoreKitSubscriptionRenewalStatus = {
+  productId: string;
+  originalTransactionId: string;
+  state:
+    | "subscribed"
+    | "expired"
+    | "inGracePeriod"
+    | "inBillingRetryPeriod"
+    | "revoked"
+    | "unknown";
+  willAutoRenew: boolean;
+  expirationDate?: number;
+};
+
 type PurchaseResult =
   | ({ state: "purchased" } & StoreKitTransaction)
   | { state: "pending" }
@@ -44,6 +58,9 @@ type KlimbStoreKitPlugin = {
     appAccountToken: string;
   }): Promise<PurchaseResult>;
   currentEntitlements(): Promise<{ transactions: StoreKitTransaction[] }>;
+  subscriptionStatuses(options: {
+    productIds: string[];
+  }): Promise<{ statuses: StoreKitSubscriptionRenewalStatus[] }>;
   restorePurchases(): Promise<{ transactions: StoreKitTransaction[] }>;
   finishTransaction(options: { transactionId: string }): Promise<void>;
   manageSubscriptions(): Promise<void>;
