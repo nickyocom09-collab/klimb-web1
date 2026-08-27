@@ -55,7 +55,7 @@ export function CustomizeLogbook() {
 
   async function toggle(key: keyof LogbookPreferences) {
     if (!hasProAccess) {
-      navigate({ search: "?pro=customize" });
+      navigate("/upgrade");
       return;
     }
     const current =
@@ -89,7 +89,7 @@ export function CustomizeLogbook() {
               key={name}
               type="button"
               disabled={saving}
-              onClick={() => hasProAccess ? void saveSynced(preset) : navigate({ search: "?pro=customize" })}
+              onClick={() => hasProAccess ? void saveSynced(preset) : navigate("/upgrade")}
               className="shrink-0 rounded-full border border-border bg-surface px-4 py-2 text-xs font-bold text-chalk transition active:scale-95"
             >
               {name} preset
@@ -129,7 +129,7 @@ export function CustomizeLogbook() {
               })}
             </div>
             {!hasProAccess ? (
-              <button type="button" onClick={() => navigate({ search: "?pro=customize" })} className="absolute inset-0 flex flex-col items-center justify-center bg-bg/72 px-8 text-center backdrop-blur-[5px]">
+              <button type="button" onClick={() => navigate("/upgrade")} className="absolute inset-0 flex flex-col items-center justify-center bg-bg/72 px-8 text-center backdrop-blur-[5px]">
                 <span className="grid h-12 w-12 place-items-center rounded-2xl bg-accent text-bg"><Lock size={21} /></span>
                 <span className="mt-3 font-extrabold text-chalk">Make logging fit you with Pro</span>
                 <span className="mt-1 text-xs leading-5 text-muted">Preview every option here, then unlock presets and custom steps.</span>

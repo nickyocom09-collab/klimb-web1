@@ -2,7 +2,6 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { IntroTutorial, INTRO_SEEN_KEY } from "./IntroTutorial";
 import { BarChart3, BookOpen, MapPin, Plus, User } from "lucide-react";
-import { ProWelcomePrompt } from "./ProWelcomePrompt";
 
 function introAlreadySeenLocally(): boolean {
   try {
@@ -54,7 +53,6 @@ export function Layout() {
         Skip to Content
       </a>
       {showIntro ? <IntroTutorial /> : null}
-      <ProWelcomePrompt blocked={showIntro} />
       <main id="main-content" className="flex-1 overflow-y-auto pb-28" tabIndex={-1}>
         <Outlet />
       </main>

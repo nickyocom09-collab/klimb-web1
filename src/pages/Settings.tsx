@@ -5,7 +5,6 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
-  Crown,
   AtSign,
   Bell,
   BellOff,
@@ -487,32 +486,6 @@ export function Settings() {
     <div className="settings-page min-h-full">
       <AppHeader title="Settings" />
       <div className="flex flex-col gap-7 px-4 pb-12 pt-4">
-        {!hasProAccess ? (
-          <button
-            type="button"
-            onClick={() => navigate("/upgrade")}
-            className="group relative overflow-hidden rounded-[1.75rem] bg-[radial-gradient(circle_at_90%_8%,rgba(57,255,136,0.15),transparent_48%),linear-gradient(145deg,#07130e,#06100b)] p-5 text-left shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition active:scale-[0.99]"
-          >
-            <span className="relative flex items-center gap-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-accent/30 bg-accent/10 text-accent">
-                <Crown size={23} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-black uppercase tracking-[0.18em] text-accent">
-                  Klimb Pro
-                </span>
-                <span className="mt-1 block text-base font-extrabold text-chalk">
-                  Unlock your full climbing history
-                </span>
-                <span className="mt-1 block text-xs leading-relaxed text-muted">
-                  Compare plans, start your trial, or restore a purchase.
-                </span>
-              </span>
-              <ChevronRight size={19} className="shrink-0 text-accent transition-transform group-active:translate-x-0.5" />
-            </span>
-          </button>
-        ) : null}
-
         <Section
           title="Climbing preferences"
           description="The defaults Klimb uses throughout your logbook."
@@ -642,7 +615,15 @@ export function Settings() {
           icon={<Bell size={18} />}
         >
           <Card className="overflow-hidden border border-border/80 p-0">
-            <div className="relative flex items-center gap-3 px-4 py-4">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={notificationsEnabled}
+              aria-label={notificationsEnabled ? "Turn notifications off" : "Turn notifications on"}
+              disabled={!push.available || pushBusy}
+              onClick={() => void togglePushMaster()}
+              className="relative flex w-full items-center gap-3 px-4 py-4 text-left transition-colors active:bg-accent/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {notificationsEnabled ? (
                 <span className="absolute inset-y-0 left-0 w-[2px] bg-accent" />
               ) : null}
@@ -665,18 +646,8 @@ export function Settings() {
                     : "Recaps, streak reminders, and friend activity."}
                 </p>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={notificationsEnabled}
-                aria-label="Notifications"
-                className="shrink-0 rounded-full p-1 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!push.available}
-                onClick={() => void togglePushMaster()}
-              >
-                <ToggleSwitch enabled={notificationsEnabled && !pushBusy} />
-              </button>
-            </div>
+              <ToggleSwitch enabled={notificationsEnabled} />
+            </button>
 
             {push.active && push.preferences ? (
               <div className="border-t border-border/80">

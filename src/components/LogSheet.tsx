@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Bookmark, Camera, Check, Flag, X, Zap } from "lucide-react";
+import { Bookmark, Camera, Check, Flag, Video, X, Zap } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { climbTypeLabel, holdHex } from "../lib/constants";
@@ -20,6 +21,11 @@ import {
 } from "../lib/uploadSecurity";
 import { secureImageUpload } from "../lib/secureImageUpload";
 import { useEntitlements } from "../lib/entitlements";
+import { pickVideoFromLibrary } from "../lib/videoPicker";
+import {
+  secureVideoUpload,
+  validateVideoForUpload,
+} from "../lib/secureVideoUpload";
 
 export type LogOutcome = "flash" | "send" | "topped" | "attempt" | "project";
 
@@ -79,6 +85,7 @@ export function LogSheet({
   initialOutcome = null,
   initialFeltGrade = null,
   initialNote = "",
+  initialHasVideo = false,
   editing = false,
 }: {
   route: RouteWithStats;
@@ -89,10 +96,12 @@ export function LogSheet({
   initialOutcome?: LogOutcome | null;
   initialFeltGrade?: number | null;
   initialNote?: string;
+  initialHasVideo?: boolean;
   editing?: boolean;
 }) {
   const { profile } = useAuth();
   const { hasProAccess } = useEntitlements();
+  const navigate = useNavigate();
   const system = profile?.grade_system ?? "american";
   const outcomeOptions = outcomesFor(route.climbing_type);
 
@@ -104,13 +113,17 @@ export function LogSheet({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [reward, setReward] = useState<LogOutcome | null>(null);
-  const canNameRoute = hasProAccess;
+  const canNameRoute = profile?.route_names_enabled ?? false;
 
   // Add / change the climb's photo, independent of logging an outcome.
   const [photoUrl, setPhotoUrl] = useState(route.photo_url);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [hasVideo, setHasVideo] = useState(initialHasVideo);
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
 
   // Keep the project/detail screen perfectly still behind the editor. The
   // sheet itself owns scrolling, including when the iOS keyboard reduces the
@@ -175,6 +188,47 @@ export function LogSheet({
   function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (f) void uploadPhoto(f);
+  }
+
+  async function uploadVideo(file: File) {
+    setVideoBusy(true);
+    setVideoError(null);
+    try {
+      const validationError = await validateVideoForUpload(file);
+      if (validationError) throw new Error(validationError);
+      await secureVideoUpload(file, route.id, "");
+      setHasVideo(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVideoError(`Couldn't save the video: ${message}`);
+    } finally {
+      setVideoBusy(false);
+    }
+  }
+
+  async function changeVideo() {
+    if (!hasProAccess) {
+      navigate("/upgrade");
+      return;
+    }
+    setVideoError(null);
+    try {
+      const picked = await pickVideoFromLibrary();
+      if (picked === undefined) {
+        videoInputRef.current?.click();
+        return;
+      }
+      if (picked) await uploadVideo(picked);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVideoError(`Couldn't open your video library: ${message}`);
+    }
+  }
+
+  function onPickVideoFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void uploadVideo(file);
   }
 
   async function save() {
@@ -332,6 +386,54 @@ export function LogSheet({
         </div>
         {photoError ? (
           <p className="-mt-2 mb-4 text-sm text-wide">{photoError}</p>
+        ) : null}
+
+        {editing ? (
+          <div className="mb-4 rounded-2xl border border-border bg-surface-2/70 p-3">
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              onChange={onPickVideoFile}
+              className="hidden"
+            />
+            <button
+              type="button"
+              disabled={videoBusy}
+              onClick={() => void changeVideo()}
+              className="flex min-h-12 w-full items-center justify-between gap-3 text-left disabled:opacity-55"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accent">
+                  <Video size={18} />
+                </span>
+                <span>
+                  <span className="block text-sm font-extrabold text-chalk">
+                    {videoBusy
+                      ? "Saving video…"
+                      : hasVideo
+                        ? "Edit video"
+                        : "Add video"}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-faint">
+                    {hasProAccess
+                      ? hasVideo
+                        ? "Choose a new clip to replace this one."
+                        : "It appears in your video library automatically."
+                      : "Available with Klimb Pro."}
+                  </span>
+                </span>
+              </span>
+              <span className="shrink-0 text-xs font-black text-accent">
+                {hasProAccess ? "Choose" : "View Pro"}
+              </span>
+            </button>
+            {videoError ? (
+              <p className="mt-2 text-xs leading-5 text-wide" role="alert">
+                {videoError}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {canNameRoute ? (

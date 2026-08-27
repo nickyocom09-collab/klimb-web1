@@ -162,7 +162,7 @@ export function VideoLibrary() {
               {hasProAccess ? "Choose a video the next time you log. It will appear here automatically." : "Klimb Pro lets you attach a video while logging and keeps every clip organized here."}
             </p>
             {!hasProAccess ? (
-              <button type="button" onClick={() => navigate({ search: "?pro=video" })} className="mt-5 rounded-full bg-accent px-5 py-3 text-sm font-extrabold text-bg">
+              <button type="button" onClick={() => navigate("/upgrade")} className="mt-5 rounded-full bg-accent px-5 py-3 text-sm font-extrabold text-bg">
                 See Klimb Pro
               </button>
             ) : null}

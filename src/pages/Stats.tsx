@@ -120,7 +120,7 @@ export function Stats() {
 
   function openStory(r: RecapRow) {
     if (!hasProAccess && r.id !== latestWeekly?.id) {
-      navigate({ search: "?pro=stats" });
+      navigate("/upgrade");
       return;
     }
     setStory(r);
@@ -371,7 +371,7 @@ export function Stats() {
             {!hasProAccess ? (
               <button
                 type="button"
-                onClick={() => navigate({ search: "?pro=stats" })}
+                onClick={() => navigate("/upgrade")}
                 className="absolute inset-0 flex flex-col items-center justify-center bg-bg/35 px-8 text-center"
               >
                 <span className="grid h-11 w-11 place-items-center rounded-2xl bg-accent text-bg"><Lock size={19} /></span>

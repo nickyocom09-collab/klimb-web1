@@ -256,6 +256,9 @@ export function PushNotificationProvider({
   }, [enable, userId]);
 
   const disable = useCallback(async (): Promise<{ error: string | null }> => {
+    // Flip the master switch immediately. The server unregister follows in the
+    // background, so one tap always feels like one tap even on a slow network.
+    setActive(false);
     try {
       const { error: disableError } = await supabase.rpc(
         "disable_all_push_tokens",
@@ -266,6 +269,7 @@ export function PushNotificationProvider({
       setError(null);
       return { error: null };
     } catch (disableError) {
+      setActive(true);
       const message =
         disableError instanceof Error
           ? disableError.message

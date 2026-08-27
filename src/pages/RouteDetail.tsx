@@ -457,8 +457,12 @@ export function RouteDetail() {
           }
           initialFeltGrade={myGrade}
           initialNote={myNote ?? ""}
+          initialHasVideo={!!playableVideoUrl}
           editing={hasSent || isProject}
-          onClose={() => setLogOpen(false)}
+          onClose={() => {
+            setLogOpen(false);
+            void load();
+          }}
           onSaved={async () => {
             setLogOpen(false);
             await load();

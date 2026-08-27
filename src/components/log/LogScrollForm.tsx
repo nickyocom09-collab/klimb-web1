@@ -76,7 +76,7 @@ export function LogScrollForm({ s }: { s: LogClimbState }) {
               </button>
             </>
           ) : (
-            <button type="button" onClick={() => s.navigate({ search: "?pro=video" })} className="flex w-full flex-col items-center rounded-3xl border border-accent/25 bg-accent/[0.06] px-6 py-6 text-center active:scale-[0.99]">
+            <button type="button" onClick={() => s.navigate("/upgrade")} className="flex w-full flex-col items-center rounded-3xl border border-accent/25 bg-accent/[0.06] px-6 py-6 text-center active:scale-[0.99]">
               <Video size={29} className="text-accent" />
               <span className="mt-2 font-extrabold text-chalk">Add video with Klimb Pro</span>
               <span className="mt-1 text-xs text-muted">Attach it here and find it later in your video library.</span>
