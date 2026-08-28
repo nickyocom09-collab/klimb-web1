@@ -4,6 +4,7 @@ import {
   serviceClient,
   syncVerifiedTransaction,
 } from "../_shared/entitlement-sync.ts";
+import { AppleSubscriptionOwnershipError } from "../_shared/apple-account-token.ts";
 import { corsHeadersFor, preflightResponse } from "../_shared/cors.ts";
 import {
   readJsonBody,
@@ -56,15 +57,29 @@ Deno.serve(async (request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error("Transaction verification failed", { type: safeErrorType(error) });
+    const ownershipError = error instanceof AppleSubscriptionOwnershipError
+      ? error
+      : null;
+    console.error("Transaction verification failed", {
+      type: safeErrorType(error),
+      reason: ownershipError?.code ?? "verification_or_storage_error",
+    });
     return Response.json(
       {
-        error: error instanceof RequestError
-          ? error.message
-          : "Apple could not verify that purchase.",
+        error:
+          error instanceof RequestError
+            ? error.message
+            : ownershipError?.code === "account_mismatch"
+              ? "This Apple subscription is linked to another Klimb account. Sign into that account, then restore the purchase."
+              : "Apple could not verify that purchase.",
       },
       {
-        status: error instanceof RequestError ? error.status : 400,
+        status:
+          error instanceof RequestError
+            ? error.status
+            : ownershipError?.code === "account_mismatch"
+              ? 409
+              : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

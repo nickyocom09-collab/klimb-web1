@@ -5,6 +5,7 @@ import {
 } from "../_shared/apple-verifier.ts";
 import {
   planForProductId,
+  resolveVerifiedTransactionUserId,
   serviceClient,
   syncVerifiedTransaction,
 } from "../_shared/entitlement-sync.ts";
@@ -24,17 +25,19 @@ Deno.serve(async (request) => {
       notification.data?.signedTransactionInfo ?? null;
     if (signedTransaction) {
       const transaction = await verifyTransaction(signedTransaction);
-      const userId = transaction.appAccountToken;
-      const { data: previous } = userId
-        ? await serviceClient
-            .from("user_entitlements")
-            .select("*")
-            .eq("user_id", userId)
-            .maybeSingle()
-        : { data: null };
+      // Notifications for legacy purchases may omit appAccountToken. Once the
+      // user has restored that purchase, its one-time original-transaction
+      // claim provides the account binding for every renewal notification.
+      const userId = await resolveVerifiedTransactionUserId({ transaction });
+      const { data: previous } = await serviceClient
+        .from("user_entitlements")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
       let entitlement = await syncVerifiedTransaction({
         transaction,
         signedTransaction,
+        expectedUserId: userId,
       });
 
       // Apple may continue Pro access during billing retry or a configured
@@ -59,7 +62,7 @@ Deno.serve(async (request) => {
           : notificationType === "DID_FAIL_TO_RENEW"
             ? "billing_retry"
             : null;
-      if (graceStatus && userId && !entitlement.is_lifetime_pro) {
+      if (graceStatus && !entitlement.is_lifetime_pro) {
         const { data: graceEntitlement, error: graceError } =
           await serviceClient
             .from("user_entitlements")
@@ -85,7 +88,6 @@ Deno.serve(async (request) => {
       }
 
       if (
-        userId &&
         previous?.entitlement_status === "trial" &&
         entitlement.entitlement_status === "active"
       ) {
@@ -96,7 +98,6 @@ Deno.serve(async (request) => {
         });
       }
       if (
-        userId &&
         !entitlement.is_lifetime_pro &&
         ["EXPIRED", "GRACE_PERIOD_EXPIRED", "REFUND", "REVOKE"].includes(
           notificationType,

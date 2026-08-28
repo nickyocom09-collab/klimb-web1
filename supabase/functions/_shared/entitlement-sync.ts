@@ -2,8 +2,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { JWSTransactionDecodedPayload } from "npm:@apple/app-store-server-library@2.0.0";
 import { millisecondsToIso } from "./apple-verifier.ts";
 import {
-  appleAccountTokensMatch,
-  normalizeAppleAccountToken,
+  decideAppleSubscriptionOwner,
 } from "./apple-account-token.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -28,6 +27,75 @@ export function planForProductId(productId?: string | null) {
 export const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
+export async function resolveVerifiedTransactionUserId({
+  transaction,
+  expectedUserId,
+  client = serviceClient,
+}: {
+  transaction: JWSTransactionDecodedPayload;
+  expectedUserId?: string;
+  client?: SupabaseClient;
+}) {
+  if (!transaction.originalTransactionId) {
+    throw new Error("The verified transaction has no original transaction identifier.");
+  }
+
+  const { data: existingClaim, error: claimReadError } = await client
+    .from("apple_subscription_claims")
+    .select("user_id")
+    .eq("original_transaction_id", transaction.originalTransactionId)
+    .maybeSingle();
+  if (claimReadError) throw claimReadError;
+
+  const candidate = decideAppleSubscriptionOwner({
+    signedAccountToken: transaction.appAccountToken,
+    expectedUserId,
+    claimedUserId: existingClaim?.user_id,
+  });
+
+  // The primary key on original_transaction_id makes this a race-safe,
+  // one-time claim. ignoreDuplicates prevents a later restore from replacing
+  // an account that already owns the Apple subscription chain.
+  if (!existingClaim) {
+    const { error: claimInsertError } = await client
+      .from("apple_subscription_claims")
+      .upsert(
+        {
+          original_transaction_id: transaction.originalTransactionId,
+          user_id: candidate,
+          signed_account_token_present: Boolean(transaction.appAccountToken),
+          last_verified_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "original_transaction_id",
+          ignoreDuplicates: true,
+        },
+      );
+    if (claimInsertError) throw claimInsertError;
+  }
+
+  const { data: persistedClaim, error: persistedClaimError } = await client
+    .from("apple_subscription_claims")
+    .select("user_id")
+    .eq("original_transaction_id", transaction.originalTransactionId)
+    .single();
+  if (persistedClaimError) throw persistedClaimError;
+
+  const userId = decideAppleSubscriptionOwner({
+    signedAccountToken: transaction.appAccountToken,
+    expectedUserId,
+    claimedUserId: persistedClaim.user_id,
+  });
+
+  const { error: touchClaimError } = await client
+    .from("apple_subscription_claims")
+    .update({ last_verified_at: new Date().toISOString() })
+    .eq("original_transaction_id", transaction.originalTransactionId)
+    .eq("user_id", userId);
+  if (touchClaimError) throw touchClaimError;
+  return userId;
+}
 
 async function sha256(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
@@ -65,21 +133,18 @@ export async function syncVerifiedTransaction({
   if (
     !transaction.transactionId ||
     !transaction.originalTransactionId ||
-    !transaction.productId ||
-    !transaction.appAccountToken
+    !transaction.productId
   ) {
     throw new Error("The verified transaction is missing required fields.");
   }
   if (!configuredProductIds.has(transaction.productId)) {
     throw new Error("This transaction is for an unknown Klimb product.");
   }
-  const userId = normalizeAppleAccountToken(transaction.appAccountToken);
-  if (
-    expectedUserId &&
-    !appleAccountTokensMatch(transaction.appAccountToken, expectedUserId)
-  ) {
-    throw new Error("This purchase belongs to a different Klimb account.");
-  }
+  const userId = await resolveVerifiedTransactionUserId({
+    transaction,
+    expectedUserId,
+    client,
+  });
 
   const environment = transaction.environment ?? "Sandbox";
   const entitlementStatus = statusFor(transaction);
