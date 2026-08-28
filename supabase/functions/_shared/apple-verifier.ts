@@ -1,93 +1,19 @@
 import { Buffer } from "node:buffer";
-import { X509Certificate } from "node:crypto";
 import {
-  Environment,
-  SignedDataVerifier,
-  VerificationException,
-  VerificationStatus,
   type JWSRenewalInfoDecodedPayload,
   type JWSTransactionDecodedPayload,
   type ResponseBodyV2DecodedPayload,
 } from "npm:@apple/app-store-server-library@3.1.0";
 import { APPLE_ROOT_CERTIFICATES_BASE64 } from "./apple-root-certificates.ts";
+import { verifyAppleJws } from "./apple-jws-verifier.ts";
 
 const bundleId = Deno.env.get("APPLE_BUNDLE_ID") ?? "com.nickyocom.klimb";
 const appAppleId = Number(Deno.env.get("APPLE_APP_ID") ?? "6792880012");
 
-function decodeCertificate(value: string): Buffer {
-  const normalized = value
-    .replace(/-----BEGIN CERTIFICATE-----/g, "")
-    .replace(/-----END CERTIFICATE-----/g, "")
-    .replace(/\s/g, "");
-  return Buffer.from(normalized, "base64");
-}
-
-function certificatePem(certificate: X509Certificate): string {
-  const encoded = Buffer.from(certificate.raw).toString("base64");
-  const lines = encoded.match(/.{1,64}/g)?.join("\n") ?? encoded;
-  return `-----BEGIN CERTIFICATE-----\n${lines}\n-----END CERTIFICATE-----\n`;
-}
-
-// Supabase Edge Functions currently expose Deno's Node-compatible
-// X509Certificate, but its toString() method throws "Not implemented". Apple's
-// official verifier uses that method to build cache keys and OCSP inputs. Add
-// the standard PEM representation only when the runtime is missing it, while
-// leaving Apple's chain, signature, date, bundle, environment, and account
-// checks entirely inside the official verifier.
-function installX509CertificateToStringCompatibility() {
-  const probe = new X509Certificate(
-    decodeCertificate(APPLE_ROOT_CERTIFICATES_BASE64[0]),
-  );
-  try {
-    probe.toString();
-  } catch {
-    Object.defineProperty(X509Certificate.prototype, "toString", {
-      configurable: true,
-      writable: true,
-      value(this: X509Certificate) {
-        return certificatePem(this);
-      },
-    });
-  }
-}
-
-installX509CertificateToStringCompatibility();
-
-function rootCertificates(): Buffer[] {
-  return APPLE_ROOT_CERTIFICATES_BASE64.map(decodeCertificate);
-}
-
-function verifier(environment: Environment, enableOnlineChecks = true) {
-  return new SignedDataVerifier(
-    rootCertificates(),
-    enableOnlineChecks,
-    environment,
-    bundleId,
-    environment === Environment.PRODUCTION ? appAppleId : undefined,
-  );
-}
-
-function isRetryableOnlineCheckFailure(error: unknown) {
-  return error instanceof VerificationException && [
-    VerificationStatus.RETRYABLE_VERIFICATION_FAILURE,
-    // A certificate can be valid at Apple's signed date but fail a current-
-    // time check after Apple rotates its signing chain. The second pass still
-    // verifies the full Apple chain, JWS signature, bundle and environment;
-    // it only evaluates certificate dates at the immutable signedDate.
-    VerificationStatus.INVALID_CERTIFICATE,
-  ].includes(error.status);
-}
-
 function verificationFailureDetails(error: unknown) {
-  if (!(error instanceof VerificationException)) {
-    return { type: error instanceof Error ? error.name : "UnknownError" };
-  }
   return {
-    type: error.name,
-    status: error.status,
-    statusName: VerificationStatus[error.status],
-    causeType: error.cause?.name,
-    causeMessage: error.cause?.message?.slice(0, 240),
+    type: error instanceof Error ? error.name : "UnknownError",
+    message: error instanceof Error ? error.message.slice(0, 240) : undefined,
   };
 }
 
@@ -111,85 +37,24 @@ function unverifiedTransactionContext(signedTransaction: string) {
   }
 }
 
-async function verifyTransactionInEnvironment(
-  environment: Environment,
-  signedTransaction: string,
-) {
-  try {
-    return await verifier(environment).verifyAndDecodeTransaction(
-      signedTransaction,
-    );
-  } catch (error) {
-    if (!isRetryableOnlineCheckFailure(error)) throw error;
-    // Apple's verifier classifies an unavailable OCSP responder as retryable.
-    // In that narrow case, verify again at the JWS signed date. This still
-    // enforces Apple's certificate chain, signature, bundle id, environment,
-    // product id, and account token; it only avoids making a temporary Apple
-    // revocation-service outage block a completed purchase.
-    console.warn("Apple online certificate check unavailable; using signed-date verification", {
-      environment,
-      failure: verificationFailureDetails(error),
-    });
-    return await verifier(environment, false).verifyAndDecodeTransaction(
-      signedTransaction,
-    );
-  }
-}
-
-async function verifyNotificationInEnvironment(
-  environment: Environment,
-  signedPayload: string,
-) {
-  try {
-    return await verifier(environment).verifyAndDecodeNotification(signedPayload);
-  } catch (error) {
-    if (!isRetryableOnlineCheckFailure(error)) throw error;
-    console.warn("Apple OCSP check unavailable for notification", { environment });
-    return await verifier(environment, false).verifyAndDecodeNotification(
-      signedPayload,
-    );
-  }
-}
-
-async function verifyRenewalInEnvironment(
-  environment: Environment,
-  signedRenewalInfo: string,
-) {
-  try {
-    return await verifier(environment).verifyAndDecodeRenewalInfo(
-      signedRenewalInfo,
-    );
-  } catch (error) {
-    if (!isRetryableOnlineCheckFailure(error)) throw error;
-    console.warn("Apple OCSP check unavailable for renewal", { environment });
-    return await verifier(environment, false).verifyAndDecodeRenewalInfo(
-      signedRenewalInfo,
-    );
-  }
-}
-
 export async function verifyTransaction(
   signedTransaction: string,
 ): Promise<JWSTransactionDecodedPayload> {
-  let sandboxError: unknown;
   try {
-    return await verifyTransactionInEnvironment(
-      Environment.SANDBOX,
+    const transaction = verifyAppleJws<JWSTransactionDecodedPayload>(
       signedTransaction,
+      APPLE_ROOT_CERTIFICATES_BASE64,
     );
+    if (transaction.bundleId !== bundleId) {
+      throw new Error("The transaction is for a different app.");
+    }
+    if (transaction.environment !== "Sandbox" && transaction.environment !== "Production") {
+      throw new Error("The transaction has an invalid App Store environment.");
+    }
+    return transaction;
   } catch (error) {
-    sandboxError = error;
-  }
-
-  try {
-    return await verifyTransactionInEnvironment(
-      Environment.PRODUCTION,
-      signedTransaction,
-    );
-  } catch (productionError) {
     console.error("Apple JWS verification failed", {
-      sandbox: verificationFailureDetails(sandboxError),
-      production: verificationFailureDetails(productionError),
+      failure: verificationFailureDetails(error),
       transaction: unverifiedTransactionContext(signedTransaction),
     });
     throw new Error("Apple could not verify this transaction.");
@@ -199,25 +64,36 @@ export async function verifyTransaction(
 export async function verifyNotification(
   signedPayload: string,
 ): Promise<ResponseBodyV2DecodedPayload> {
-  let sandboxError: unknown;
   try {
-    return await verifyNotificationInEnvironment(
-      Environment.SANDBOX,
+    const notification = verifyAppleJws<ResponseBodyV2DecodedPayload>(
       signedPayload,
+      APPLE_ROOT_CERTIFICATES_BASE64,
     );
+    const appData = (notification.data ?? notification.summary ??
+      notification.externalPurchaseToken ?? notification.appData) as
+      | {
+        appAppleId?: number;
+        bundleId?: string;
+        environment?: string;
+      }
+      | undefined;
+    const environment = notification.externalPurchaseToken
+      ?.externalPurchaseId?.startsWith("SANDBOX")
+      ? "Sandbox"
+      : appData?.environment;
+    if (!appData || appData.bundleId !== bundleId) {
+      throw new Error("The notification is for a different app.");
+    }
+    if (environment !== "Sandbox" && environment !== "Production") {
+      throw new Error("The notification has an invalid App Store environment.");
+    }
+    if (environment === "Production" && appData.appAppleId !== appAppleId) {
+      throw new Error("The notification has an invalid Apple app identifier.");
+    }
+    return notification;
   } catch (error) {
-    sandboxError = error;
-  }
-
-  try {
-    return await verifyNotificationInEnvironment(
-      Environment.PRODUCTION,
-      signedPayload,
-    );
-  } catch (productionError) {
     console.error("Apple notification verification failed", {
-      sandboxError: String(sandboxError),
-      productionError: String(productionError),
+      failure: verificationFailureDetails(error),
     });
     throw new Error("Apple could not verify this notification.");
   }
@@ -226,25 +102,18 @@ export async function verifyNotification(
 export async function verifyRenewalInfo(
   signedRenewalInfo: string,
 ): Promise<JWSRenewalInfoDecodedPayload> {
-  let sandboxError: unknown;
   try {
-    return await verifyRenewalInEnvironment(
-      Environment.SANDBOX,
+    const renewal = verifyAppleJws<JWSRenewalInfoDecodedPayload>(
       signedRenewalInfo,
+      APPLE_ROOT_CERTIFICATES_BASE64,
     );
+    if (renewal.environment !== "Sandbox" && renewal.environment !== "Production") {
+      throw new Error("The renewal has an invalid App Store environment.");
+    }
+    return renewal;
   } catch (error) {
-    sandboxError = error;
-  }
-
-  try {
-    return await verifyRenewalInEnvironment(
-      Environment.PRODUCTION,
-      signedRenewalInfo,
-    );
-  } catch (productionError) {
     console.error("Apple renewal verification failed", {
-      sandboxError: String(sandboxError),
-      productionError: String(productionError),
+      failure: verificationFailureDetails(error),
     });
     throw new Error("Apple could not verify this renewal.");
   }
