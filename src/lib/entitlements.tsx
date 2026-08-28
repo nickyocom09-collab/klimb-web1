@@ -167,7 +167,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   );
 
   const celebrateVerifiedUnlock = useCallback(
-    (verified: EntitlementRecord) => {
+    (verified: EntitlementRecord, force = false) => {
       if (!userId || !accessFromEntitlement(verified).hasProAccess) return;
       if (
         verified.entitlement_type !== "subscription" &&
@@ -176,7 +176,12 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        if (localStorage.getItem(unlockSeenKey(userId)) === "true") return;
+        if (
+          !force &&
+          localStorage.getItem(unlockSeenKey(userId)) === "true"
+        ) {
+          return;
+        }
         localStorage.setItem(unlockSeenKey(userId), "true");
       } catch {
         // The celebration is cosmetic. Verified Pro access must still activate
@@ -637,7 +642,10 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
             accessFromEntitlement(restoredEntitlement).hasProAccess
           ) {
             setPurchaseState("success");
-            celebrateVerifiedUnlock(restoredEntitlement);
+            // A user-initiated purchase action always deserves an explicit
+            // success confirmation, even if this account saw the celebration
+            // for an earlier subscription period.
+            celebrateVerifiedUnlock(restoredEntitlement, true);
             await refreshEntitlements();
             await refreshSubscriptionStatus();
             return;
@@ -664,7 +672,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
           applePurchaseCompleted = true;
           const verified = await verifyWithRetries(result);
           setPurchaseState("success");
-          celebrateVerifiedUnlock(verified);
+          celebrateVerifiedUnlock(verified, true);
           void trackEvent(
             verified.entitlement_status === "trial"
               ? "trial_started"
@@ -712,9 +720,12 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
             RESTORE_TIMEOUT_MS,
             "Apple did not finish restoring in time. Please try Restore Purchases again.",
           );
+          let latestRestored: EntitlementRecord | null = null;
           for (const transaction of transactions) {
-            const verified = await verifyWithRetries(transaction);
-            celebrateVerifiedUnlock(verified);
+            latestRestored = await verifyWithRetries(transaction);
+          }
+          if (latestRestored) {
+            celebrateVerifiedUnlock(latestRestored, true);
           }
           await refreshEntitlements();
           await refreshSubscriptionStatus();
