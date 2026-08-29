@@ -121,8 +121,8 @@ export function CustomizeLogbook() {
                       </span>
                       <span className="mt-0.5 block text-xs leading-5 text-faint">{field.description}</span>
                     </span>
-                    <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${enabled ? "bg-accent" : "bg-bg"}`}>
-                      <span className={`absolute top-1 h-5 w-5 rounded-full transition-transform ${enabled ? "translate-x-6 bg-bg" : "translate-x-1 bg-muted"}`} />
+                    <span className={`relative isolate h-7 w-12 shrink-0 overflow-hidden rounded-full border transition-[background-color,border-color,box-shadow] duration-300 ease-[cubic-bezier(0.32,0.72,0.24,1)] ${enabled ? "border-control/70 bg-control shadow-[0_0_0_3px_rgb(var(--c-control)/0.1)]" : "border-border bg-bg/55"}`}>
+                      <span className={`absolute left-0 top-[3px] h-5 w-5 rounded-full transition-[transform,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.32,0.72,0.24,1)] will-change-transform ${enabled ? "translate-x-[23px] bg-bg shadow-[0_2px_8px_rgb(0_0_0/0.4)]" : "translate-x-[3px] bg-muted shadow-sm"}`} />
                     </span>
                   </button>
                 );

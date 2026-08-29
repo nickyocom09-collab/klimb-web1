@@ -5,6 +5,7 @@ import {
   Check,
   ChevronLeft,
   Flag,
+  Library,
   Pencil,
   Trash2,
   Trophy,
@@ -266,13 +267,24 @@ export function RouteDetail() {
               {formatDate(route.created_at)}
             </p>
             {playableVideoUrl ? (
-              <button
-                type="button"
-                onClick={() => setVideoOpen(true)}
-                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 text-sm font-extrabold text-accent transition active:scale-[0.98]"
-              >
-                <Video size={16} /> Watch your Klimb
-              </button>
+              <div className={`mt-3 grid gap-2 ${isMine ? "grid-cols-2" : "grid-cols-1"}`}>
+                <button
+                  type="button"
+                  onClick={() => setVideoOpen(true)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-accent/30 bg-accent/10 px-3 text-center text-sm font-extrabold text-accent transition active:scale-[0.98]"
+                >
+                  <Video size={16} /> Watch your Klimb
+                </button>
+                {isMine ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/videos")}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-3 text-center text-sm font-extrabold text-chalk transition active:scale-[0.98]"
+                  >
+                    <Library size={16} className="text-accent" /> View video logbook
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </div>
 

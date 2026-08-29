@@ -123,6 +123,7 @@ export function LogSheet({
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [hasVideo, setHasVideo] = useState(initialHasVideo);
   const [videoBusy, setVideoBusy] = useState(false);
+  const [videoSaved, setVideoSaved] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
 
   // Keep the project/detail screen perfectly still behind the editor. The
@@ -192,12 +193,14 @@ export function LogSheet({
 
   async function uploadVideo(file: File) {
     setVideoBusy(true);
+    setVideoSaved(false);
     setVideoError(null);
     try {
       const validationError = await validateVideoForUpload(file);
       if (validationError) throw new Error(validationError);
       await secureVideoUpload(file, route.id, "");
       setHasVideo(true);
+      setVideoSaved(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setVideoError(`Couldn't save the video: ${message}`);
@@ -211,6 +214,7 @@ export function LogSheet({
       navigate("/upgrade");
       return;
     }
+    setVideoSaved(false);
     setVideoError(null);
     try {
       const picked = await pickVideoFromLibrary();
@@ -411,13 +415,17 @@ export function LogSheet({
                   <span className="block text-sm font-extrabold text-chalk">
                     {videoBusy
                       ? "Saving video…"
+                      : videoSaved
+                        ? "Saved!"
                       : hasVideo
                         ? "Edit video"
                         : "Add video"}
                   </span>
                   <span className="mt-0.5 block text-xs text-faint">
                     {hasProAccess
-                      ? hasVideo
+                      ? videoSaved
+                        ? "Your clip is ready. Save this Klimb when you're done."
+                        : hasVideo
                         ? "Choose a new clip to replace this one."
                         : "It appears in your video library automatically."
                       : "Available with Klimb Pro."}

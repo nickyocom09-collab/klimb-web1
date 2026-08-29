@@ -149,13 +149,16 @@
 .klimb-map--dark .leaflet-tile-container img {
   filter: grayscale(1) invert(0.92) hue-rotate(180deg) brightness(0.72)
     contrast(1.16);
+  image-rendering: auto;
 }
 .klimb-map--light .leaflet-tile-container img {
   filter: saturate(0.72) contrast(0.94);
+  image-rendering: auto;
 }
-/* Keep tile layers and markers on the GPU for buttery pan/zoom. */
+/* Leaflet already promotes the moving map pane. Avoid promoting every raster
+   tile container separately: on iOS that can leave high-DPI tiles looking
+   soft after a fractional transform settles. */
 .klimb-map .leaflet-map-pane,
-.klimb-map .leaflet-tile-container,
 .klimb-map .leaflet-marker-pane {
   will-change: transform;
 }
@@ -244,6 +247,20 @@
 }
 .klimb-pin--collected .klimb-pin__label {
   border-color: rgba(255, 194, 75, 0.45);
+}
+/* At country/world zooms a collected gym remains visible outside clustering,
+   but becomes a small gold waypoint so several unlocked gyms do not bury the
+   map in labels. */
+.klimb-pin--compact .klimb-pin__dot {
+  width: 9px;
+  height: 9px;
+  border-width: 1.5px;
+  box-shadow:
+    0 0 4px 1px rgba(255, 194, 75, 0.72),
+    0 0 10px 2px rgba(255, 194, 75, 0.22);
+}
+.klimb-pin--compact .klimb-pin__label {
+  display: none;
 }
 /* Gyms your friends have collected (optional overlay toggle). */
 .klimb-pin--friend .klimb-pin__dot {

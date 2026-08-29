@@ -10,6 +10,33 @@ const CELEBRATION_DOTS = [
   ["83%", "70%", "0.3s"],
 ] as const;
 
+const PRO_UNLOCKED_FEATURES = [
+  {
+    title: "Complete recap archive",
+    description: "Keep every weekly, monthly, and yearly recap.",
+  },
+  {
+    title: "Advanced climbing insights",
+    description: "See progress ranges, flash rate, and attempts per send.",
+  },
+  {
+    title: "Personal records",
+    description: "Follow your best performances and deeper gym insights.",
+  },
+  {
+    title: "Your custom logbook",
+    description: "Choose the questions and details that matter to you.",
+  },
+  {
+    title: "Video library",
+    description: "Attach climbing videos and keep them in one private library.",
+  },
+  {
+    title: "Every new Pro insight",
+    description: "New Pro tools unlock automatically as they are released.",
+  },
+] as const;
+
 export function ProUnlocked({
   celebration,
   onStart,
@@ -22,65 +49,102 @@ export function ProUnlocked({
       role="dialog"
       aria-modal="true"
       aria-labelledby="pro-unlocked-title"
-      className="fixed inset-0 z-[120] grid place-items-center overflow-hidden bg-[#030806] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]"
+      className="fixed inset-0 z-[120] overflow-hidden bg-[#020806] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(57,255,136,0.24),transparent_30%),radial-gradient(circle_at_50%_95%,rgba(57,255,136,0.09),transparent_32%)]" />
-      <div className="pointer-events-none absolute left-1/2 top-[18%] h-72 w-72 -translate-x-1/2 rounded-full border border-accent/15 shadow-[0_0_0_42px_rgba(57,255,136,0.035),0_0_0_84px_rgba(57,255,136,0.018)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(57,255,136,0.18),transparent_30%),radial-gradient(circle_at_50%_88%,rgba(57,255,136,0.08),transparent_34%)]" />
+      <div className="pointer-events-none absolute left-1/2 top-[-8rem] h-96 w-96 -translate-x-1/2 rounded-full bg-accent/[0.035] blur-3xl" />
       {CELEBRATION_DOTS.map(([left, top, delay]) => (
         <span
           key={`${left}-${top}`}
           aria-hidden="true"
-          className="pointer-events-none absolute h-1.5 w-1.5 animate-pulse rounded-full bg-accent shadow-[0_0_14px_rgba(57,255,136,0.9)]"
+          className="pointer-events-none absolute h-1.5 w-1.5 animate-pulse rounded-full bg-accent/80 shadow-[0_0_14px_rgba(57,255,136,0.75)]"
           style={{ left, top, animationDelay: delay }}
         />
       ))}
 
-      <section className="relative w-full max-w-sm animate-scale-in text-center">
-        <div className="relative mx-auto grid h-24 w-24 place-items-center rounded-[2rem] border border-accent/40 bg-accent/10 text-accent shadow-[0_0_70px_rgba(57,255,136,0.24)]">
-          <Crown size={48} strokeWidth={2.2} />
-          <span className="absolute -right-2 -top-2 grid h-9 w-9 place-items-center rounded-full bg-accent text-bg shadow-lg">
-            <Check size={20} strokeWidth={3.5} />
-          </span>
-        </div>
+      <section className="relative mx-auto flex h-full min-h-0 w-full max-w-sm animate-scale-in flex-col">
+        <header className="shrink-0 text-center">
+          <div className="mx-auto grid h-[clamp(4.25rem,10vh,5.5rem)] w-[clamp(4.25rem,10vh,5.5rem)] place-items-center rounded-[1.6rem] border border-accent/35 bg-accent/[0.09] text-accent shadow-[0_0_55px_rgba(57,255,136,0.2)]">
+            <Crown className="h-11 w-11" strokeWidth={2.15} />
+          </div>
 
-        <p className="mt-8 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.28em] text-accent">
-          <Sparkles size={14} /> Klimb Pro
-        </p>
-        <h1
-          id="pro-unlocked-title"
-          className="mt-3 text-5xl font-black leading-[0.92] tracking-[-0.055em] text-chalk"
+          <div className="mt-[clamp(0.65rem,1.7vh,1rem)] flex items-center justify-center gap-2">
+            <span className="grid h-5 w-5 place-items-center rounded-full bg-accent text-bg">
+              <Check size={13} strokeWidth={3.5} />
+            </span>
+            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.25em] text-accent">
+              <Sparkles size={13} /> Klimb Pro active
+            </p>
+          </div>
+
+          <h1
+            id="pro-unlocked-title"
+            className="mt-[clamp(0.45rem,1.2vh,0.75rem)] text-[clamp(2.65rem,6.2vh,3.75rem)] font-black leading-[0.94] tracking-[-0.055em] text-chalk"
+          >
+            Pro unlocked.
+          </h1>
+          <p className="mx-auto mt-[clamp(0.65rem,1.7vh,1rem)] max-w-[20rem] text-[clamp(0.85rem,1.85vh,1rem)] leading-[1.5] text-[#a8b1ac]">
+            {celebration.isTrial
+              ? "Your free week is active. Every Pro feature is ready now."
+              : "Your Apple purchase is verified. Every Pro feature is ready now."}
+          </p>
+        </header>
+
+        <section
+          aria-labelledby="everything-unlocked-title"
+          className="mt-[clamp(0.85rem,2vh,1.25rem)] flex min-h-[10.5rem] flex-1 flex-col overflow-hidden rounded-[1.6rem] border border-white/10 bg-[#0b120e]/95 text-left shadow-[0_20px_55px_rgba(0,0,0,0.28)] backdrop-blur"
         >
-          Pro unlocked.
-        </h1>
-        <p className="mx-auto mt-5 max-w-xs text-base leading-relaxed text-muted">
-          {celebration.isTrial
-            ? "Your free week is active. Every Pro feature is ready right now."
-            : "Your Apple purchase is verified. Every Pro feature is ready right now."}
-        </p>
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3">
+            <div>
+              <h2
+                id="everything-unlocked-title"
+                className="text-sm font-black text-chalk"
+              >
+                Everything unlocked
+              </h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-faint">
+                Scroll to explore all your Pro tools.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-accent">
+              {PRO_UNLOCKED_FEATURES.length} features
+            </span>
+          </div>
 
-        <div className="mt-7 grid gap-2.5 rounded-[1.75rem] border border-white/10 bg-white/[0.045] p-4 text-left text-sm font-semibold text-chalk backdrop-blur">
-          {["Full recap history", "Advanced climbing insights", "Custom logbook and video library"].map(
-            (label) => (
-              <div key={label} className="flex items-center gap-3">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/15 text-accent">
+          <ul className="min-h-0 flex-1 snap-y snap-proximity overflow-y-auto overscroll-contain px-4 py-1">
+            {PRO_UNLOCKED_FEATURES.map(({ title, description }) => (
+              <li
+                key={title}
+                className="flex snap-start items-start gap-3 border-b border-white/[0.065] py-3 last:border-0"
+              >
+                <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/15 text-accent">
                   <Check size={15} strokeWidth={3} />
                 </span>
-                {label}
-              </div>
-            ),
-          )}
-        </div>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold leading-5 text-chalk">
+                    {title}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-4 text-muted">
+                    {description}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        <button
-          type="button"
-          onClick={onStart}
-          className="mt-7 w-full rounded-2xl bg-accent py-4 text-base font-black text-bg shadow-[0_16px_45px_rgba(57,255,136,0.24)] transition active:scale-[0.985]"
-        >
-          Start Klimbing
-        </button>
-        <p className="mt-3 text-[11px] font-semibold text-faint">
-          Pro access follows your verified Klimb account.
-        </p>
+        <footer className="shrink-0 pt-[clamp(0.85rem,2vh,1.25rem)] text-center">
+          <button
+            type="button"
+            onClick={onStart}
+            className="w-full rounded-2xl bg-accent py-4 text-base font-black text-bg shadow-[0_14px_42px_rgba(57,255,136,0.22)] transition active:scale-[0.985]"
+          >
+            Start Klimbing
+          </button>
+          <p className="mt-2.5 text-[11px] font-semibold leading-4 text-faint">
+            Pro access follows your verified Klimb account.
+          </p>
+        </footer>
       </section>
     </div>
   );

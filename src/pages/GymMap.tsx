@@ -11,6 +11,8 @@ import {
   Check,
   Home,
   LocateFixed,
+  Lock,
+  LockOpen,
   MapPin,
   Plane,
   Search,
@@ -102,7 +104,12 @@ const HOUSE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" s
 
 /** Dot + name pill. Home = gold + house glyph, collected = gold glow,
  * else a quiet gray dot. */
-function pinIcon(name: string, home: boolean, collected: boolean): L.DivIcon {
+function pinIcon(
+  name: string,
+  home: boolean,
+  collected: boolean,
+  compact = false,
+): L.DivIcon {
   const mod = home
     ? " klimb-pin--home"
     : collected
@@ -110,7 +117,7 @@ function pinIcon(name: string, home: boolean, collected: boolean): L.DivIcon {
       : " klimb-pin--dim";
   return L.divIcon({
     className: "klimb-pin-wrap",
-    html: `<div class="klimb-pin${mod}">
+    html: `<div class="klimb-pin${mod}${compact ? " klimb-pin--compact" : ""}">
       <div class="klimb-pin__dot"></div>
       <div class="klimb-pin__label">${home ? HOUSE_SVG : ""}<span>${esc(name)}</span></div>
     </div>`,
@@ -152,9 +159,10 @@ function MapSizeSync() {
 }
 
 /**
- * Clustered gym markers (vanilla leaflet.markercluster). The home gym is kept
- * OUT of the cluster group as a standalone always-visible marker, so you can
- * spot it at any zoom level.
+ * Clustered gym markers (vanilla leaflet.markercluster). The home gym and every
+ * collected gym stay OUT of the cluster group so a climber's own map remains
+ * visible at every zoom level. Collected gyms collapse to crisp gold dots at
+ * country/world zooms, then regain their labels as the map gets closer.
  */
 function GymLayer({
   gyms,
@@ -181,26 +189,52 @@ function GymLayer({
       iconCreateFunction: (c: { getChildCount: () => number }) =>
         clusterIcon(c.getChildCount()),
     });
-    let homeMarker: L.Marker | null = null;
+    const standaloneMarkers: Array<{
+      marker: L.Marker;
+      gym: GymWithCount;
+      home: boolean;
+    }> = [];
+    const compactPins = () => map.getZoom() < 8;
     for (const gym of gyms) {
       const isHome = gym.id === homeId;
+      const isCollected = collected.has(gym.id);
       const m = L.marker([gym.latitude!, gym.longitude!], {
-        icon: pinIcon(gym.name, isHome, collected.has(gym.id)),
-        zIndexOffset: isHome ? 1000 : collected.has(gym.id) ? 500 : 0,
+        icon: pinIcon(
+          gym.name,
+          isHome,
+          isCollected,
+          isCollected && !isHome && compactPins(),
+        ),
+        zIndexOffset: isHome ? 1000 : isCollected ? 500 : 0,
         riseOnHover: true,
       });
       m.on("click", () => onSelect(gym));
-      if (isHome) {
-        homeMarker = m;
+      if (isHome || isCollected) {
+        standaloneMarkers.push({ marker: m, gym, home: isHome });
         m.addTo(map);
       } else {
         group.addLayer(m);
       }
     }
+    const refreshStandalonePins = () => {
+      const compact = compactPins();
+      for (const item of standaloneMarkers) {
+        item.marker.setIcon(
+          pinIcon(
+            item.gym.name,
+            item.home,
+            true,
+            !item.home && compact,
+          ),
+        );
+      }
+    };
+    map.on("zoomend", refreshStandalonePins);
     map.addLayer(group);
     return () => {
+      map.off("zoomend", refreshStandalonePins);
       map.removeLayer(group);
-      homeMarker?.remove();
+      for (const item of standaloneMarkers) item.marker.remove();
     };
   }, [map, gyms, homeId, collected, onSelect]);
   return null;
@@ -408,7 +442,12 @@ export function GymMap() {
     if (!profile) return;
     let active = true;
     (async () => {
-      const [{ data: mySends }, { data: myBms }, { data: myGrades }] =
+      const [
+        { data: mySends },
+        { data: myBms },
+        { data: myGrades },
+        { data: myUnlocks },
+      ] =
         await Promise.all([
           supabase
             .from("sends")
@@ -423,6 +462,10 @@ export function GymMap() {
             .from("grades")
             .select("route_id, grade")
             .eq("user_id", profile.id),
+          supabase
+            .from("gym_unlocks")
+            .select("gym_id")
+            .eq("user_id", profile.id),
         ]);
       const sendRows = (mySends ?? []).filter(
         (s) => s.send_type !== "attempt",
@@ -435,7 +478,7 @@ export function GymMap() {
       ];
       if (allRouteIds.length === 0) {
         if (active) {
-          setCollected(new Set());
+          setCollected(new Set((myUnlocks ?? []).map((row) => row.gym_id)));
           setMyStats(new Map());
           setProjectsByGym(new Map());
         }
@@ -459,6 +502,11 @@ export function GymMap() {
       const routeMap = new Map(
         ((routeRows ?? []) as unknown as RR[]).map((r) => [r.id, r]),
       );
+      // `gym_unlocks` is the authoritative access record. Include gyms found
+      // in older logs/projects as a backwards-compatible safety net for
+      // accounts created before that table existed.
+      const unlockedGymIds = new Set((myUnlocks ?? []).map((row) => row.gym_id));
+      for (const route of routeMap.values()) unlockedGymIds.add(route.gym_id);
       const gradeMap = new Map(
         (myGrades ?? []).map((g) => [g.route_id, g.grade]),
       );
@@ -526,7 +574,7 @@ export function GymMap() {
 
       if (active) {
         setMyStats(stats);
-        setCollected(new Set(stats.keys()));
+        setCollected(unlockedGymIds);
         setProjectsByGym(projects);
       }
     })();
@@ -712,6 +760,9 @@ export function GymMap() {
   }
 
   const isHome = selected?.id === profile?.home_gym_id;
+  const selectedUnlocked = Boolean(
+    selected && (isHome || collected.has(selected.id)),
+  );
   const selectedAway = selected ? milesAway(selected) : null;
   const tooFar = selectedAway !== null && selectedAway > MAX_LOG_MILES;
 
@@ -728,8 +779,8 @@ export function GymMap() {
           ref={mapRef}
           zoomControl={false}
           attributionControl
-          zoomSnap={0.5}
-          zoomDelta={0.5}
+          zoomSnap={1}
+          zoomDelta={1}
           wheelPxPerZoomLevel={120}
           zoomAnimation
           fadeAnimation
@@ -745,8 +796,9 @@ export function GymMap() {
             attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}
             maxZoom={19}
             maxNativeZoom={19}
-            keepBuffer={4}
-            updateWhenZooming={false}
+            detectRetina
+            keepBuffer={6}
+            updateWhenZooming
           />
           <OsmGymLayer dbGyms={gyms} />
           <MeMarker pos={myLoc} />
@@ -932,7 +984,7 @@ export function GymMap() {
                 <X size={20} />
               </button>
             </header>
-            <div className="max-h-[58vh] divide-y divide-border/70 overflow-y-auto px-2 pb-2">
+            <div className="max-h-[min(58vh,21.5rem)] divide-y divide-border/70 overflow-y-auto overscroll-contain px-2 pb-2">
               {homeCountryCollectedGyms.length === 0 ? (
                 <div className="px-5 py-10 text-center text-sm text-muted">Log your first send here to collect a gym.</div>
               ) : homeCountryCollectedGyms.map((gym) => {
@@ -976,6 +1028,22 @@ export function GymMap() {
                   {isHome ? (
                     <span className="flex shrink-0 items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                       <Home size={10} /> Home
+                    </span>
+                  ) : null}
+                  {!isHome ? (
+                    <span
+                      className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                        selectedUnlocked
+                          ? "bg-[#ffc24b]/15 text-[#ffc24b]"
+                          : "bg-surface-2 text-muted"
+                      }`}
+                    >
+                      {selectedUnlocked ? (
+                        <LockOpen size={10} />
+                      ) : (
+                        <Lock size={10} />
+                      )}
+                      {selectedUnlocked ? "Unlocked" : "Locked"}
                     </span>
                   ) : null}
                 </p>
@@ -1054,7 +1122,7 @@ export function GymMap() {
               );
             })()}
 
-            {tooFar && !isHome ? (
+            {tooFar && !selectedUnlocked ? (
               <p className="mt-3 rounded-2xl bg-wide/10 px-3 py-2.5 text-xs font-semibold text-wide">
                 You're about {Math.round(selectedAway!)} mi away — get within{" "}
                 {MAX_LOG_MILES} miles to make it yours.

@@ -45,12 +45,23 @@ export function ProOfferSheet() {
   } = useEntitlements();
   const [open, setOpen] = useState(false);
   const [dragY, setDragY] = useState(0);
-  const dragStart = useRef<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
+  const dragStart = useRef<{ y: number; at: number } | null>(null);
   const openTimer = useRef<number | null>(null);
+  const enterTimer = useRef<number | null>(null);
+  const closeTimer = useRef<number | null>(null);
 
   const close = () => {
-    setDragY(0);
-    setOpen(false);
+    if (dismissing) return;
+    setDragging(false);
+    setDismissing(true);
+    setDragY(Math.max(window.innerHeight, 720));
+    closeTimer.current = window.setTimeout(() => {
+      setOpen(false);
+      setDragY(0);
+      setDismissing(false);
+    }, 280);
   };
 
   useEffect(() => {
@@ -102,7 +113,9 @@ export function ProOfferSheet() {
         // Best effort; the profile update below also prevents repeats.
       }
       openTimer.current = window.setTimeout(() => {
+        setDragY(Math.max(window.innerHeight, 720));
         setOpen(true);
+        enterTimer.current = window.setTimeout(() => setDragY(0), 20);
         void updateProfile({ pro_intro_seen_at: new Date().toISOString() });
       }, 420);
       document.removeEventListener("click", onPrimaryTabClick, true);
@@ -112,12 +125,19 @@ export function ProOfferSheet() {
     return () => {
       document.removeEventListener("click", onPrimaryTabClick, true);
       if (openTimer.current !== null) window.clearTimeout(openTimer.current);
+      if (enterTimer.current !== null) window.clearTimeout(enterTimer.current);
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     };
   }, [hasProAccess, profile, updateProfile]);
 
   useEffect(() => {
     if (!open || hasProAccess) {
-      if (hasProAccess) close();
+      if (hasProAccess) {
+        setOpen(false);
+        setDragY(0);
+        setDragging(false);
+        setDismissing(false);
+      }
       return;
     }
     void trackEvent("upgrade_prompt_viewed", {
@@ -140,9 +160,15 @@ export function ProOfferSheet() {
     purchaseState,
   );
 
-  const finishDrag = () => {
+  const finishDrag = (clientY?: number) => {
+    const started = dragStart.current;
     dragStart.current = null;
-    if (dragY > 110) close();
+    setDragging(false);
+    const elapsed = started ? Math.max(performance.now() - started.at, 1) : 1;
+    const velocity = started && clientY !== undefined
+      ? Math.max(0, clientY - started.y) / elapsed
+      : 0;
+    if (dragY > 92 || velocity > 0.55) close();
     else setDragY(0);
   };
 
@@ -151,13 +177,13 @@ export function ProOfferSheet() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="pro-offer-title"
-      className="fixed inset-0 z-[95] flex items-end justify-center bg-black/80"
+      className={`fixed inset-0 z-[95] flex items-end justify-center transition-colors duration-300 ${dismissing ? "bg-black/0" : "bg-black/80"}`}
       onClick={close}
     >
       <section
-        className={`relative isolate max-h-[72dvh] w-full max-w-app overflow-y-auto overscroll-contain rounded-t-[2rem] border-x border-t border-white/10 bg-[#101310] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-28px_90px_rgba(0,0,0,0.72)] ${
-          dragStart.current === null
-            ? "transition-transform duration-300 ease-out"
+        className={`klimb-pro-sheet relative isolate max-h-[72dvh] w-full max-w-app transform-gpu overflow-y-auto overscroll-contain rounded-t-[2rem] border-x border-t border-white/10 bg-[#101310] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-28px_90px_rgba(0,0,0,0.72)] will-change-transform ${
+          !dragging
+            ? "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0.24,1)]"
             : ""
         }`}
         style={{ transform: `translateY(${dragY}px)` }}
@@ -177,15 +203,16 @@ export function ProOfferSheet() {
           aria-label="Drag down to close"
           className="mx-auto flex h-6 w-20 touch-none cursor-grab items-start justify-center active:cursor-grabbing"
           onPointerDown={(event) => {
-            dragStart.current = event.clientY;
+            dragStart.current = { y: event.clientY, at: performance.now() };
+            setDragging(true);
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
           onPointerMove={(event) => {
             if (dragStart.current === null) return;
-            setDragY(Math.max(0, event.clientY - dragStart.current));
+            setDragY(Math.max(0, event.clientY - dragStart.current.y));
           }}
-          onPointerUp={finishDrag}
-          onPointerCancel={finishDrag}
+          onPointerUp={(event) => finishDrag(event.clientY)}
+          onPointerCancel={() => finishDrag()}
           onKeyDown={(event) => {
             if (
               event.key === "Escape" ||
