@@ -44,19 +44,19 @@ export function ProOfferSheet() {
     trackEvent,
   } = useEntitlements();
   const [open, setOpen] = useState(false);
+  const [entered, setEntered] = useState(false);
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const dragStart = useRef<{ y: number; at: number } | null>(null);
   const openTimer = useRef<number | null>(null);
-  const enterTimer = useRef<number | null>(null);
   const closeTimer = useRef<number | null>(null);
 
   const close = () => {
     if (dismissing) return;
     setDragging(false);
     setDismissing(true);
-    setDragY(Math.max(window.innerHeight, 720));
+    setEntered(false);
     closeTimer.current = window.setTimeout(() => {
       setOpen(false);
       setDragY(0);
@@ -113,9 +113,7 @@ export function ProOfferSheet() {
         // Best effort; the profile update below also prevents repeats.
       }
       openTimer.current = window.setTimeout(() => {
-        setDragY(Math.max(window.innerHeight, 720));
         setOpen(true);
-        enterTimer.current = window.setTimeout(() => setDragY(0), 20);
         void updateProfile({ pro_intro_seen_at: new Date().toISOString() });
       }, 420);
       document.removeEventListener("click", onPrimaryTabClick, true);
@@ -125,15 +123,34 @@ export function ProOfferSheet() {
     return () => {
       document.removeEventListener("click", onPrimaryTabClick, true);
       if (openTimer.current !== null) window.clearTimeout(openTimer.current);
-      if (enterTimer.current !== null) window.clearTimeout(enterTimer.current);
       if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
     };
   }, [hasProAccess, profile, updateProfile]);
 
   useEffect(() => {
+    if (!open || dismissing) {
+      setEntered(false);
+      return;
+    }
+
+    // Start the sheet below the viewport, then promote it on the next painted
+    // frame. This animation is intentionally tied only to `open`: persisting
+    // pro_intro_seen_at refreshes the profile and must not cancel the entrance.
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => setEntered(true));
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [dismissing, open]);
+
+  useEffect(() => {
     if (!open || hasProAccess) {
       if (hasProAccess) {
         setOpen(false);
+        setEntered(false);
         setDragY(0);
         setDragging(false);
         setDismissing(false);
@@ -177,7 +194,7 @@ export function ProOfferSheet() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="pro-offer-title"
-      className={`fixed inset-0 z-[95] flex items-end justify-center transition-colors duration-300 ${dismissing ? "bg-black/0" : "bg-black/80"}`}
+      className={`fixed inset-0 z-[95] flex items-end justify-center transition-colors duration-300 ${entered && !dismissing ? "bg-black/80" : "bg-black/0"}`}
       onClick={close}
     >
       <section
@@ -186,7 +203,11 @@ export function ProOfferSheet() {
             ? "transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0.24,1)]"
             : ""
         }`}
-        style={{ transform: `translateY(${dragY}px)` }}
+        style={{
+          transform: entered
+            ? `translate3d(0, ${dragY}px, 0)`
+            : "translate3d(0, 100%, 0)",
+        }}
         onClick={(event) => event.stopPropagation()}
       >
         <div
@@ -203,6 +224,7 @@ export function ProOfferSheet() {
           aria-label="Drag down to close"
           className="mx-auto flex h-6 w-20 touch-none cursor-grab items-start justify-center active:cursor-grabbing"
           onPointerDown={(event) => {
+            if (!entered || dismissing) return;
             dragStart.current = { y: event.clientY, at: performance.now() };
             setDragging(true);
             event.currentTarget.setPointerCapture(event.pointerId);
