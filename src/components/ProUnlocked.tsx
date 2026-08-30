@@ -12,24 +12,48 @@ const CELEBRATION_DOTS = [
 
 const PRO_UNLOCKED_FEATURES = [
   {
-    title: "Complete recap archive",
-    description: "Keep every weekly, monthly, and yearly recap.",
+    title: "Weekly recap history",
+    description: "Look back on every week you have climbed.",
   },
   {
-    title: "Advanced climbing insights",
-    description: "See progress ranges, flash rate, and attempts per send.",
+    title: "Monthly recap history",
+    description: "See how your climbing changes month by month.",
+  },
+  {
+    title: "Yearly recap history",
+    description: "Keep the big picture of every year in your logbook.",
+  },
+  {
+    title: "Progress ranges",
+    description: "Follow the grades where your climbing is growing.",
+  },
+  {
+    title: "Flash rate",
+    description: "See how often you finish a climb on your first try.",
+  },
+  {
+    title: "Attempts per send",
+    description: "Understand how much work goes into each send.",
   },
   {
     title: "Personal records",
-    description: "Follow your best performances and deeper gym insights.",
+    description: "Celebrate your strongest performances over time.",
+  },
+  {
+    title: "Deeper gym insights",
+    description: "Learn more from the sessions in each gym you visit.",
   },
   {
     title: "Your custom logbook",
     description: "Choose the questions and details that matter to you.",
   },
   {
-    title: "Video library",
-    description: "Attach climbing videos and keep them in one private library.",
+    title: "Video attachments",
+    description: "Save a climbing video directly with its Klimb.",
+  },
+  {
+    title: "Your video library",
+    description: "Keep every saved climbing video in one private place.",
   },
   {
     title: "Every new Pro insight",
@@ -100,22 +124,22 @@ export function ProUnlocked({
                 id="everything-unlocked-title"
                 className="text-sm font-black text-chalk"
               >
-                Everything unlocked
+                Explore what is unlocked
               </h2>
               <p className="mt-0.5 text-[11px] font-semibold text-faint">
-                Scroll to explore all your Pro tools.
+                Scroll through everything ready for you now.
               </p>
             </div>
             <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-accent">
-              {PRO_UNLOCKED_FEATURES.length} features
+              Ready now
             </span>
           </div>
 
-          <ul className="min-h-0 flex-1 snap-y snap-proximity overflow-y-auto overscroll-contain px-4 py-1">
+          <ul className="min-h-0 flex-1 snap-y snap-proximity overflow-y-auto overscroll-contain px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PRO_UNLOCKED_FEATURES.map(({ title, description }) => (
               <li
                 key={title}
-                className="flex snap-start items-start gap-3 border-b border-white/[0.065] py-3 last:border-0"
+                className="mb-2 flex min-h-[4.5rem] snap-start items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 last:mb-0"
               >
                 <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-accent/15 text-accent">
                   <Check size={15} strokeWidth={3} />
